@@ -33,4 +33,8 @@ class UniversityDetail(BaseModel):
     citations_total: int | None
     works_count: int | None
 
+    # Share of undergrads who are non-resident aliens (Scorecard UGDS_NRA),
+    # a fraction 0–1. Surfaced as an "International students" stat.
+    intl_student_pct: float | None
+
     model_config = {"from_attributes": True}

@@ -32,11 +32,13 @@ _F_TUITION     = "latest.cost.tuition.out_of_state"
 _F_EARNINGS    = "latest.earnings.10_yrs_after_entry.median"
 _F_COMPLETION  = "latest.completion.completion_rate_4yr_150nt"
 _F_DEBT        = "latest.aid.median_debt.completers.overall"
+_F_INTL        = "latest.student.demographics.race_ethnicity.non_resident_alien"
 
 _FIELDS = ",".join([
     "id",
     _F_NAME, _F_STATE, _F_URL,
     _F_NET_PRICE, _F_TUITION, _F_EARNINGS, _F_COMPLETION, _F_DEBT,
+    _F_INTL,
     "latest.student.size",
 ])
 
@@ -88,6 +90,7 @@ def _to_row(inst: dict) -> dict:
         "median_earnings_10yr":  _int(inst.get(_F_EARNINGS)),
         "completion_rate":       _float(inst.get(_F_COMPLETION)),
         "median_debt":           _int(inst.get(_F_DEBT)),
+        "intl_student_pct":      _float(inst.get(_F_INTL)),
         "last_refreshed":        datetime.now(timezone.utc),
     }
 

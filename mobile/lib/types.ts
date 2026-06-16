@@ -84,6 +84,11 @@ export interface UniversityDetail extends UniversityListItem {
   citations_total: number | null;
   /** Number of published works (OpenAlex). */
   works_count: number | null;
+  /**
+   * Share of undergrads who are non-resident aliens (Scorecard UGDS_NRA),
+   * a fraction 0–1 — used as an international-student proxy. Null when missing.
+   */
+  intl_student_pct: number | null;
 }
 
 /** Possible envelope shapes for the paginated list response. */

@@ -88,6 +88,11 @@ export default function HomeScreen() {
       onPress: () => router.push('/(tabs)/rankings'),
     },
     {
+      key: 'scholarships', title: 'Scholarships', subtitle: 'Official sources',
+      icon: 'ribbon-outline', tile: colors.primarySoft,
+      onPress: () => router.push('/scholarships'),
+    },
+    {
       key: 'visa', title: 'Visa steps', subtitle: 'Your journey guide',
       icon: 'document-text-outline', tile: colors.before_departure,
       onPress: () => router.push('/(tabs)/journey'),

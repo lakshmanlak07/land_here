@@ -107,6 +107,17 @@ export default function UniversityDetailScreen() {
                 <Stat label="Published works" hint="OpenAlex" value={formatCount(data.works_count)} />
                 <Stat label="Citations" hint="OpenAlex" value={formatCount(data.citations_total)} />
               </View>
+
+              {/* International students — hidden entirely when the school lacks the data */}
+              {data.intl_student_pct !== null && data.intl_student_pct !== undefined && (
+                <View style={[s.pairRow, { gap: spacing.md, marginTop: spacing.md }]}>
+                  <Stat
+                    label="International students"
+                    hint="Non-resident undergrads"
+                    value={formatPercent(data.intl_student_pct)}
+                  />
+                </View>
+              )}
             </View>
 
             {/* How the LandHere Score is built — the API's sub-scores */}

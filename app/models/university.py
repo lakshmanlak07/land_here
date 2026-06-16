@@ -26,6 +26,10 @@ class University(Base):
     completion_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
     median_debt: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Share of degree-seeking undergrads who are non-resident aliens
+    # (Scorecard UGDS_NRA) — used as an international-student proxy. Fraction 0–1.
+    intl_student_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     citations_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     works_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     mean_citedness: Mapped[float | None] = mapped_column(Float, nullable=True)
