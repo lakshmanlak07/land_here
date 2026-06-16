@@ -15,6 +15,16 @@ import {
 } from '../../lib/format';
 import type { UniversityDetail } from '../../lib/types';
 
+/** Outbound ranking lookups — search links only, no data is copied in. */
+function lookupLinks(name: string) {
+  const q = encodeURIComponent(name);
+  return [
+    { key: 'QS', label: 'QS', url: `https://www.topuniversities.com/universities?search=${q}` },
+    { key: 'THE', label: 'Times Higher Ed', url: `https://www.timeshighereducation.com/search?search=${q}` },
+    { key: 'USN', label: 'US News', url: `https://www.usnews.com/search?q=${q}` },
+  ];
+}
+
 export default function UniversityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, spacing, radius } = useTheme();
@@ -28,8 +38,11 @@ export default function UniversityDetailScreen() {
 
   // Lead the hero with the actual university, then fall back to generic US campuses.
   const heroQueries = data
-    ? [`${data.name} campus`, ...CAMPUS_QUERIES['US']]
+    ? [data.name, `${data.name} campus`, ...CAMPUS_QUERIES['US']]
     : CAMPUS_QUERIES['US'];
+
+  const hasIntl =
+    data?.intl_student_pct !== null && data?.intl_student_pct !== undefined;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
@@ -61,28 +74,40 @@ export default function UniversityDetailScreen() {
       )}
 
       {data && (
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {/* Hero */}
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
+          {/* Hero — labelled campus/city photo for this university */}
           <RotatingImage queries={heroQueries} countryCode="US" style={s.hero}>
-            <View style={s.heroOverlay}>
+            <View style={s.heroScrim} />
+            <View style={s.heroGradient} />
+            <View style={s.heroContent}>
+              <Text style={s.heroEyebrow}>UNIVERSITY</Text>
               <Text style={s.heroName}>{data.name}</Text>
-              <Text style={s.heroLoc}>{data.state ?? 'United States'}</Text>
+              <View style={s.heroLocRow}>
+                <Text style={s.heroPin}>📍</Text>
+                <Text style={s.heroLoc}>{data.state ?? 'United States'}</Text>
+              </View>
             </View>
           </RotatingImage>
 
-          <View style={{ padding: spacing.lg, gap: spacing.lg }}>
-            {/* LandHere Score */}
+          <View style={{ padding: spacing.lg, gap: spacing.xl }}>
+            {/* LandHere Score — the headline number plus its sub-score breakdown */}
             <View style={[s.scoreCard, { backgroundColor: colors.primary, borderRadius: radius.card }]}>
               <Text style={s.scoreCardLabel}>LANDHERE SCORE</Text>
-              <Text style={s.scoreCardValue}>{formatScore(data.landhere_score)}</Text>
-              <Text style={s.scoreCardOutOf}>out of 100</Text>
+              <View style={s.scoreValueRow}>
+                <Text style={s.scoreCardValue}>{formatScore(data.landhere_score)}</Text>
+                <Text style={s.scoreCardOutOf}>/100</Text>
+              </View>
+
+              <View style={s.scoreDivider} />
+
+              <ScoreBar label="Research" value={data.research_score} />
+              <ScoreBar label="Outcomes" value={data.outcomes_score} />
             </View>
 
-            {/* The real numbers behind the score */}
+            {/* Key stats — labelled so each number reads at a glance */}
             <View>
-              <Text style={[s.sectionHeader, { color: colors.textPrimary }]}>Key numbers</Text>
+              <Text style={[s.sectionHeader, { color: colors.textPrimary }]}>Key stats</Text>
 
-              {/* Cost pair — clearly distinguished */}
               <View style={[s.pairRow, { gap: spacing.md }]}>
                 <Stat
                   label="Intl students pay"
@@ -91,7 +116,7 @@ export default function UniversityDetailScreen() {
                   emphasis
                 />
                 <Stat
-                  label="Avg net price"
+                  label="In-state net"
                   hint="After aid, per yr"
                   value={formatCurrency(data.avg_net_price)}
                   emphasis
@@ -99,55 +124,74 @@ export default function UniversityDetailScreen() {
               </View>
 
               <View style={[s.pairRow, { gap: spacing.md, marginTop: spacing.md }]}>
-                <Stat label="Median earnings" hint="Graduates, 10 yrs out" value={formatCurrency(data.median_earnings_10yr)} />
-                <Stat label="Completion rate" hint="Graduate within 6 yrs" value={formatPercent(data.completion_rate)} />
+                <Stat label="Median earnings, 10yr" hint="Graduates, decade out" value={formatCurrency(data.median_earnings_10yr)} />
+                <Stat label="Graduation rate" hint="Finish within 6 yrs" value={formatPercent(data.completion_rate)} />
               </View>
 
               <View style={[s.pairRow, { gap: spacing.md, marginTop: spacing.md }]}>
-                <Stat label="Published works" hint="OpenAlex" value={formatCount(data.works_count)} />
-                <Stat label="Citations" hint="OpenAlex" value={formatCount(data.citations_total)} />
+                <Stat label="Research output" hint="Published works · OpenAlex" value={formatCount(data.works_count)} />
+                <Stat label="Citations" hint="Total · OpenAlex" value={formatCount(data.citations_total)} />
               </View>
 
-              {/* International students — hidden entirely when the school lacks the data */}
-              {data.intl_student_pct !== null && data.intl_student_pct !== undefined && (
+              {/* International students — shown only when the school reports it */}
+              {hasIntl && (
                 <View style={[s.pairRow, { gap: spacing.md, marginTop: spacing.md }]}>
                   <Stat
                     label="International students"
-                    hint="Non-resident undergrads"
+                    hint="Share of undergrads"
                     value={formatPercent(data.intl_student_pct)}
+                    wide
                   />
                 </View>
               )}
             </View>
 
-            {/* How the LandHere Score is built — the API's sub-scores */}
-            <View style={[s.factorCard, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.card }]}>
-              <Text style={[s.factorTitle, { color: colors.textSecondary }]}>HOW THIS SCORE IS BUILT</Text>
-              <View style={s.factorRow}>
-                <Text style={[s.factorLabel, { color: colors.textPrimary }]} numberOfLines={1}>Research</Text>
-                <Text style={[s.factorScore, { color: colors.primary }]}>{formatScore(data.research_score)}</Text>
-              </View>
-              <View style={s.factorRow}>
-                <Text style={[s.factorLabel, { color: colors.textPrimary }]} numberOfLines={1}>Outcomes</Text>
-                <Text style={[s.factorScore, { color: colors.primary }]}>{formatScore(data.outcomes_score)}</Text>
+            {/* Outbound links — official site, then ranking lookups */}
+            <View style={{ gap: spacing.md }}>
+              {data.official_url && (
+                <Pressable
+                  style={[s.officialBtn, { backgroundColor: colors.primary, borderRadius: radius.button }]}
+                  onPress={() => Linking.openURL(data.official_url!)}
+                >
+                  <Text style={s.officialBtnText}>Visit official site  ↗</Text>
+                </Pressable>
+              )}
+
+              <Text style={[s.lookupLabel, { color: colors.textSecondary }]}>LOOK THIS SCHOOL UP ON</Text>
+              <View style={[s.pairRow, { gap: spacing.sm }]}>
+                {lookupLinks(data.name).map((l) => (
+                  <Pressable
+                    key={l.key}
+                    style={[s.lookupBtn, { borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radius.button }]}
+                    onPress={() => Linking.openURL(l.url)}
+                  >
+                    <Text style={[s.lookupBtnText, { color: colors.textPrimary }]} numberOfLines={1}>{l.label} ↗</Text>
+                  </Pressable>
+                ))}
               </View>
             </View>
 
             <Disclaimer onMethodology={() => router.push('/methodology')} />
-
-            {/* Official site */}
-            {data.official_url && (
-              <Pressable
-                style={[s.officialBtn, { backgroundColor: colors.primary, borderRadius: radius.button }]}
-                onPress={() => Linking.openURL(data.official_url!)}
-              >
-                <Text style={s.officialBtnText}>Visit official site  ↗</Text>
-              </Pressable>
-            )}
           </View>
         </ScrollView>
       )}
     </SafeAreaView>
+  );
+}
+
+/** A labelled sub-score bar (white-on-primary, lives inside the score card). */
+function ScoreBar({ label, value }: { label: string; value: number | null }) {
+  const pct = value === null || Number.isNaN(value) ? 0 : Math.max(0, Math.min(100, value));
+  return (
+    <View style={s.barBlock}>
+      <View style={s.barHeader}>
+        <Text style={s.barLabel}>{label}</Text>
+        <Text style={s.barValue}>{formatScore(value)}</Text>
+      </View>
+      <View style={s.barTrack}>
+        <View style={[s.barFill, { width: `${pct}%` }]} />
+      </View>
+    </View>
   );
 }
 
@@ -167,6 +211,7 @@ function Stat({
         s.stat,
         {
           flex: wide ? undefined : 1,
+          width: wide ? '100%' : undefined,
           backgroundColor: emphasis ? colors.surfaceAlt : colors.surface,
           borderColor: colors.border,
           borderRadius: radius.card,
@@ -194,22 +239,36 @@ const s = StyleSheet.create({
   retryBtn: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10 },
   retryText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 
-  hero: { height: 280, width: '100%' },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-    padding: 20,
+  hero: { height: 320, width: '100%' },
+  // Layered scrims fake a soft top-to-bottom gradient for clean text legibility.
+  heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.18)' },
+  heroGradient: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    height: '62%', backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  heroName: { color: '#fff', fontSize: 26, fontWeight: '800' },
-  heroLoc: { color: 'rgba(255,255,255,0.85)', fontSize: 14, marginTop: 4 },
+  heroContent: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 22 },
+  heroEyebrow: { color: 'rgba(255,255,255,0.78)', fontSize: 12, fontWeight: '700', letterSpacing: 2, marginBottom: 6 },
+  heroName: { color: '#fff', fontSize: 30, fontWeight: '800', lineHeight: 36 },
+  heroLocRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  heroPin: { fontSize: 13, marginRight: 5 },
+  heroLoc: { color: 'rgba(255,255,255,0.9)', fontSize: 15, fontWeight: '500' },
 
-  scoreCard: { alignItems: 'center', paddingVertical: 22 },
-  scoreCardLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '700', letterSpacing: 2 },
-  scoreCardValue: { color: '#fff', fontSize: 56, fontWeight: '900', lineHeight: 62 },
-  scoreCardOutOf: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
+  scoreCard: { paddingVertical: 24, paddingHorizontal: 22 },
+  scoreCardLabel: { color: 'rgba(255,255,255,0.82)', fontSize: 12, fontWeight: '700', letterSpacing: 2, textAlign: 'center' },
+  scoreValueRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', marginTop: 6 },
+  scoreCardValue: { color: '#fff', fontSize: 60, fontWeight: '900', lineHeight: 64 },
+  scoreCardOutOf: { color: 'rgba(255,255,255,0.82)', fontSize: 18, fontWeight: '700', marginLeft: 4 },
 
-  sectionHeader: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  scoreDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.22)', marginVertical: 18 },
+
+  barBlock: { marginBottom: 14 },
+  barHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 },
+  barLabel: { color: 'rgba(255,255,255,0.92)', fontSize: 14, fontWeight: '600' },
+  barValue: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  barTrack: { height: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.22)', overflow: 'hidden' },
+  barFill: { height: 7, borderRadius: 4, backgroundColor: '#fff' },
+
+  sectionHeader: { fontSize: 18, fontWeight: '700', marginBottom: 14 },
   pairRow: { flexDirection: 'row' },
 
   stat: { padding: 14, borderWidth: 1 },
@@ -217,12 +276,10 @@ const s = StyleSheet.create({
   statValue: { fontSize: 22, fontWeight: '800', marginTop: 6 },
   statHint: { fontSize: 11, marginTop: 4 },
 
-  factorCard: { padding: 16, borderWidth: 1 },
-  factorTitle: { fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 10 },
-  factorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 7 },
-  factorLabel: { fontSize: 14, fontWeight: '600', flex: 1, marginRight: 12 },
-  factorScore: { fontSize: 16, fontWeight: '800' },
-
-  officialBtn: { paddingVertical: 14, alignItems: 'center' },
+  officialBtn: { paddingVertical: 15, alignItems: 'center' },
   officialBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+
+  lookupLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, marginTop: 4 },
+  lookupBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderWidth: 1 },
+  lookupBtnText: { fontSize: 13, fontWeight: '700' },
 });
