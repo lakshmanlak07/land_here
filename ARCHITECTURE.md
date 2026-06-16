@@ -1,0 +1,158 @@
+# LandHere — Architecture
+
+## Overview
+
+LandHere is a two-tier application: a FastAPI backend (Python) served over HTTP, and an Expo React Native mobile client that talks to it over a local network during development. There is no web frontend.
+
+```
+┌─────────────────────────────┐        HTTP / JSON        ┌───────────────────────────┐
+│  Expo React Native (mobile) │ ◄──────────────────────► │  FastAPI backend           │
+│  Expo Router (navigation)   │   Bearer JWT in header    │  SQLAlchemy ORM            │
+│  TanStack Query (caching)   │                           │  PostgreSQL                │
+│  Zustand (auth state)       │                           │  Alembic (migrations)      │
+└─────────────────────────────┘                           └───────────────────────────┘
+```
+
+---
+
+## Data model
+
+### `Country`
+
+The master table of countries. A country can be a destination, an origin, or both.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | primary key |
+| `code` | String(10) | ISO-style code (e.g. `US`, `UK`, `IN`) — unique |
+| `name` | String(100) | display name |
+| `student_visa_name` | String(200) | official visa product name, nullable |
+| `official_immigration_url` | String(500) | government source URL, nullable |
+| `currency_code` | String(10) | e.g. `USD`, `GBP` |
+| `is_destination` | Boolean | can students travel TO this country? |
+| `is_origin` | Boolean | can students come FROM this country? |
+
+At the time of writing there are 22 countries: 16 destinations and 6 origin-only.
+
+### `User`
+
+A registered student account.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | primary key |
+| `email` | String(255) | unique |
+| `hashed_password` | String(255) | bcrypt |
+| `full_name` | String(200) | nullable |
+| `origin_country_code` | FK → `countries.code` | nullable |
+| `destination_country_code` | FK → `countries.code` | nullable |
+| `created_at` | DateTime(tz) | UTC |
+
+The `origin_country_code` / `destination_country_code` pair defines the student's **corridor** — the specific journey the app tailors content for.
+
+### `InfoStep`
+
+The core content model. Each row is one actionable step in a student's journey.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | primary key |
+| `origin_code` | String(10) | nullable — `null` means step applies to all origins |
+| `destination_code` | FK → `countries.code` | required |
+| `phase` | String(50) | one of the 5 valid phases (see below) |
+| `step_number` | Integer | ordering within a phase |
+| `title` | String(300) | short step label |
+| `explanation` | Text | plain-English full explanation |
+| `official_source_name` | String(300) | human-readable source name |
+| `official_source_url` | String(500) | direct link to the official page |
+| `is_verified` | Boolean | has a human confirmed this is accurate? |
+
+**Valid phases** (in chronological order):
+
+1. `before_applying` — research and preparation before applying
+2. `after_acceptance` — actions required immediately after receiving an offer
+3. `visa_process` — fee payments, form submissions, interview
+4. `before_departure` — housing, health insurance, document packing
+5. `after_arrival` — check-ins, bank account, SIM card
+
+### `CountryGuide`
+
+Longer-form reference content about living in a country, organised into sections.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | UUID | primary key |
+| `country_code` | FK → `countries.code` | |
+| `section` | String(50) | one of: `banking`, `healthcare`, `working`, `cost_of_living`, `culture`, `transport`, `sim_phone` |
+| `title` | String(300) | section heading |
+| `content` | Text | plain-English body |
+| `official_source_url` | String(500) | nullable |
+| `is_verified` | Boolean | human-checked flag |
+
+---
+
+## The corridor concept
+
+A **corridor** is an (origin, destination) pair — for example, India → United States (`IN → US`). `InfoStep` rows are scoped to a corridor via `origin_code` + `destination_code`. A step with `origin_code = null` applies to all origins travelling to that destination.
+
+The journey endpoint (`GET /info/journey?origin=IN&destination=US`) queries all steps where `destination_code = 'US'` AND (`origin_code = 'IN'` OR `origin_code IS NULL`), then groups them by phase in chronological order.
+
+Currently one corridor is fully seeded: **IN → US** (15 steps, 4 phases).
+
+---
+
+## The info-booth model
+
+Every piece of content in LandHere follows the same pattern:
+
+1. **Plain English** — the `explanation` field gives a clear, jargon-free description of what the student needs to do and why.
+2. **Official source link** — every step carries `official_source_name` and `official_source_url` so the student can verify the information directly from the government or institution.
+3. **Verified flag** — `is_verified` is `false` by default. A human must review and tick it to true before the content is considered production-ready. This prevents unreviewed drafts from appearing as authoritative.
+
+This three-part model ensures LandHere never makes legal or immigration claims — it points students to the real sources.
+
+---
+
+## API routes
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/` | — | Health check |
+| POST | `/auth/register` | — | Create account, returns JWT |
+| POST | `/auth/login` | — | Verify credentials, returns JWT |
+| GET | `/auth/me` | Bearer JWT | Return current user |
+| GET | `/countries` | — | All countries (alphabetical) |
+| GET | `/countries/destinations` | — | `is_destination = true` only |
+| GET | `/countries/origins` | — | `is_origin = true` only |
+| GET | `/countries/{code}` | — | Single country by code |
+| GET | `/info/phases` | — | Ordered list of valid phase names |
+| GET | `/info/corridors` | — | All (origin, destination) pairs that have content |
+| GET | `/info/journey` | — | Steps for a corridor, grouped by phase |
+| GET | `/guides/{country_code}` | — | Country guide sections (optional `?section=` filter) |
+
+---
+
+## How the mobile app talks to the backend
+
+**Base URL** is set in `mobile/.env` as `EXPO_PUBLIC_API_URL` (e.g. `http://192.168.0.113:8000`). The value must be the host machine's LAN IPv4 address — `localhost` does not work on a physical device.
+
+**HTTP client** — `mobile/lib/api.ts` creates an Axios instance with `baseURL` from the env var. A request interceptor reads the JWT from Zustand's `useAuthStore` and injects `Authorization: Bearer <token>` on every request if a token is present.
+
+**Auth state** — `mobile/lib/store.ts` (Zustand) holds `token`, `user`, and `hydrated`. On app launch, `hydrate()` reads the token from `expo-secure-store`, calls `GET /auth/me` to validate it, and populates the user object. On logout it clears both memory state and SecureStore.
+
+**Server state / caching** — TanStack Query is used for all API data. Query keys include the user's origin/destination codes where relevant so the cache invalidates when the user changes their corridor.
+
+**Navigation** — Expo Router uses a file-system convention. `app/(auth)/` contains the login/register screens. `app/(tabs)/` contains the four main tabs. `app/_layout.tsx` reads `hydrated` + `token` from Zustand and redirects to `/(auth)/login` if the user is not authenticated.
+
+---
+
+## Database migrations
+
+Alembic manages schema migrations. The `alembic/` directory contains the migration history. To generate a new migration after changing a model:
+
+```bash
+alembic revision --autogenerate -m "describe the change"
+alembic upgrade head
+```
+
+The initial migration (`5a2934344d6f_initial_schema.py`) created all four tables.

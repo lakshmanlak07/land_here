@@ -1,0 +1,92 @@
+# ──────────────────────────────────────────────────────────────
+#  Secrets / environment files  — NEVER commit these
+# ──────────────────────────────────────────────────────────────
+.env
+.env.*
+*.env
+!.env.example
+!.env.sample
+mobile/.env
+mobile/.env.*
+
+# ──────────────────────────────────────────────────────────────
+#  Python backend
+# ──────────────────────────────────────────────────────────────
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+pip-wheel-metadata/
+
+# Test / coverage / type-checker caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# Logs
+*.log
+ingest_run.log
+ingest_run_err.log
+
+# ──────────────────────────────────────────────────────────────
+#  Expo / React Native mobile app
+# ──────────────────────────────────────────────────────────────
+mobile/node_modules/
+node_modules/
+mobile/.expo/
+.expo/
+mobile/dist/
+mobile/web-build/
+mobile/.metro-health-check*
+mobile/expo-env.d.ts
+
+# Generated native projects
+mobile/ios/
+mobile/android/
+
+# Native signing / credentials (defense in depth)
+*.jks
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+*.keystore
+
+# JS/TS build info & debug logs
+*.tsbuildinfo
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# ──────────────────────────────────────────────────────────────
+#  Editor / OS / tooling
+# ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+mobile/.claude/settings.local.json
