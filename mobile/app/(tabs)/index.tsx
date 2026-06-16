@@ -1,37 +1,44 @@
-import { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../lib/store';
 import { useTheme } from '../../context/ThemeContext';
 import { useProgressStore } from '../../lib/progressStore';
-import { getFunFacts } from '../../constants/funFacts';
-import { CityImage } from '../../components/CityImage';
+import { SwipeableFacts } from '../../components/SwipeableFacts';
+import { RotatingImage } from '../../components/RotatingImage';
+import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import api from '../../lib/api';
 import type { JourneyOut, CountryOut } from '../../lib/types';
 
-function greeting(name: string | null | undefined): string {
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+// Display names for the corridor banner; falls back to the raw code.
+const COUNTRY_NAMES: Record<string, string> = {
+  IN: 'India', US: 'United States', GB: 'United Kingdom', UK: 'United Kingdom',
+  CA: 'Canada', AU: 'Australia', DE: 'Germany', FR: 'France', JP: 'Japan',
+  NL: 'Netherlands', IE: 'Ireland', NZ: 'New Zealand', SG: 'Singapore',
+  KR: 'South Korea', CN: 'China', IT: 'Italy', AE: 'UAE',
+};
+
+function greeting(): string {
   const h = new Date().getHours();
-  const first = name?.trim().split(' ')[0] ?? 'there';
-  if (h < 12) return `Good morning, ${first}`;
-  if (h < 17) return `Good afternoon, ${first}`;
-  return `Good evening, ${first}`;
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
-const CATEGORIES = [
-  { label: 'Visa', icon: '🛂' },
-  { label: 'Housing', icon: '🏠' },
-  { label: 'Money', icon: '💰' },
-  { label: 'Culture', icon: '🎭' },
-  { label: 'Jobs', icon: '💼' },
-];
+function countryName(code: string): string {
+  return COUNTRY_NAMES[code] ?? code;
+}
 
 export default function HomeScreen() {
-  const { colors, spacing, radius, typography } = useTheme();
+  const { colors, spacing, radius } = useTheme();
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
   const completedIds = useProgressStore((s) => s.completedIds);
@@ -61,14 +68,38 @@ export default function HomeScreen() {
   const doneSteps = allStepIds.filter((id) => !!completedIds[id]).length;
   const progress = totalSteps > 0 ? doneSteps / totalSteps : 0;
 
-  const funFact = useMemo(() => {
-    const facts = getFunFacts(user?.destination_country_code);
-    return facts[Math.floor(Math.random() * facts.length)];
-  }, [user?.destination_country_code]);
-
   const destCode = user?.destination_country_code ?? '';
   const originCode = user?.origin_country_code ?? '';
-  const heroQuery = destCode ? `${destCode} city landscape` : 'international city landscape';
+  const firstName = user?.full_name?.trim().split(' ')[0] ?? 'there';
+  const initial = (user?.full_name?.trim()?.[0] ?? user?.email?.[0] ?? '?').toUpperCase();
+
+  const quickAccess: {
+    key: string; title: string; subtitle: string;
+    icon: IoniconName; tile: string; onPress: () => void;
+  }[] = [
+    {
+      key: 'necessities', title: 'Necessities', subtitle: 'Setup after you arrive',
+      icon: 'checkmark-done-outline', tile: colors.after_arrival,
+      onPress: () => router.push('/necessities'),
+    },
+    {
+      key: 'rankings', title: 'Rankings', subtitle: 'Top universities',
+      icon: 'trophy-outline', tile: colors.primary,
+      onPress: () => router.push('/(tabs)/rankings'),
+    },
+    {
+      key: 'visa', title: 'Visa steps', subtitle: 'Your journey guide',
+      icon: 'document-text-outline', tile: colors.before_departure,
+      onPress: () => router.push('/(tabs)/journey'),
+    },
+    {
+      key: 'explore', title: 'Explore', subtitle: 'Browse destinations',
+      icon: 'compass-outline', tile: colors.after_acceptance,
+      onPress: () => router.push('/(tabs)/explore'),
+    },
+  ];
+
+  const popular = (destinations ?? []).slice(0, 6);
 
   function handleRefresh() {
     refetchJourney();
@@ -78,7 +109,7 @@ export default function HomeScreen() {
   const s = styles(colors, spacing, radius);
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={s.safe} edges={['top']}>
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
@@ -86,105 +117,107 @@ export default function HomeScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
       >
-        {/* Greeting */}
+        {/* Greeting + avatar */}
         <View style={s.greetingRow}>
-          <Text style={[typography.hint, { color: colors.textSecondary }]}>Your journey awaits</Text>
-          <Text style={[s.greetingText, { color: colors.textPrimary }]}>{greeting(user?.full_name)}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.greetingHint, { color: colors.textSecondary }]}>{greeting()}</Text>
+            <Text style={[s.greetingName, { color: colors.textPrimary }]} numberOfLines={1}>
+              {firstName}
+            </Text>
+          </View>
+          <Pressable
+            style={[s.avatar, { backgroundColor: colors.primary }]}
+            onPress={() => router.push('/(tabs)/profile')}
+            hitSlop={8}
+          >
+            <Text style={s.avatarText}>{initial}</Text>
+          </Pressable>
         </View>
 
-        {/* Hero Journey Card */}
+        {/* Journey hero card */}
         {user?.destination_country_code ? (
-          <View style={s.heroCard}>
-            <CityImage
-              query={heroQuery}
-              countryCode={destCode}
-              style={s.heroImage}
-              showCodeFallback={false}
-            >
-              <View style={s.heroOverlay}>
-                <Text style={s.heroCorridor}>
-                  {originCode || '🌍'}{originCode ? '' : ''} → {destCode}
-                </Text>
-                {journeyLoading ? (
-                  <ActivityIndicator color="#fff" style={{ marginVertical: 8 }} />
-                ) : (
-                  <>
-                    <Text style={s.heroProgress}>{doneSteps} of {totalSteps} steps complete</Text>
-                    <View style={s.progressTrack}>
-                      <View style={[s.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
-                    </View>
-                  </>
-                )}
-                <Pressable style={s.heroCta} onPress={() => router.push('/(tabs)/journey')}>
-                  <Text style={s.heroCtaText}>Continue where you left off →</Text>
-                </Pressable>
-              </View>
-            </CityImage>
+          <View style={[s.hero, { backgroundColor: colors.primary }]}>
+            <Text style={s.heroCorridor}>
+              {originCode ? `${countryName(originCode)} → ` : ''}{countryName(destCode)}
+            </Text>
+            {journeyLoading ? (
+              <ActivityIndicator color="#fff" style={{ alignSelf: 'flex-start', marginVertical: spacing.md }} />
+            ) : (
+              <>
+                <Text style={s.heroSteps}>{doneSteps} of {totalSteps} steps done</Text>
+                <View style={s.heroTrack}>
+                  <View style={[s.heroFill, { width: `${Math.round(progress * 100)}%` }]} />
+                </View>
+              </>
+            )}
+            <Pressable style={s.heroBtn} onPress={() => router.push('/(tabs)/journey')}>
+              <Text style={[s.heroBtnText, { color: colors.primary }]}>Continue journey</Text>
+              <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+            </Pressable>
           </View>
         ) : (
-          <Pressable style={[s.heroCard, s.heroEmpty]} onPress={() => router.push('/(tabs)/profile')}>
-            <Text style={s.heroEmptyIcon}>✈</Text>
-            <Text style={s.heroEmptyTitle}>Set your destination</Text>
-            <Text style={s.heroEmptyBody}>Go to Profile to choose where you're headed.</Text>
+          <Pressable style={s.heroEmpty} onPress={() => router.push('/(tabs)/profile')}>
+            <Ionicons name="airplane-outline" size={32} color={colors.primary} />
+            <Text style={[s.heroEmptyTitle, { color: colors.textPrimary }]}>Set your destination</Text>
+            <Text style={[s.heroEmptyBody, { color: colors.textSecondary }]}>
+              Head to Profile to choose where you're going.
+            </Text>
           </Pressable>
         )}
 
-        {/* After you arrive — Necessities feature */}
-        <Pressable style={s.arriveCard} onPress={() => router.push('/necessities')}>
-          <Text style={s.arriveIcon}>🧭</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={[s.arriveTitle, { color: colors.textPrimary }]}>After you arrive</Text>
-            <Text style={[s.arriveBody, { color: colors.textSecondary }]} numberOfLines={2}>
-              Your essential setup checklist — mandatories & necessities for the first weeks.
-            </Text>
-          </View>
-          <Text style={[s.arriveChevron, { color: colors.textTertiary }]}>›</Text>
-        </Pressable>
-
-        {/* Category Pills */}
-        <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Browse by topic</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.pillRow}>
-          {CATEGORIES.map((cat) => (
-            <View key={cat.label} style={[s.pill, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
-              <Text style={s.pillIcon}>{cat.icon}</Text>
-              <Text style={[s.pillLabel, { color: colors.textPrimary }]}>{cat.label}</Text>
-            </View>
+        {/* Quick access grid */}
+        <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Quick access</Text>
+        <View style={s.grid}>
+          {quickAccess.map((item) => (
+            <Pressable
+              key={item.key}
+              style={[s.quickCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              onPress={item.onPress}
+            >
+              <View style={[s.quickTile, { backgroundColor: item.tile }]}>
+                <Ionicons name={item.icon} size={22} color="#fff" />
+              </View>
+              <Text style={[s.quickTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+              <Text style={[s.quickSub, { color: colors.textSecondary }]} numberOfLines={1}>
+                {item.subtitle}
+              </Text>
+            </Pressable>
           ))}
-        </ScrollView>
-
-        {/* Fun Fact Card */}
-        <View style={[s.factCard, { backgroundColor: '#FFF8E8', borderColor: '#F5D485' }]}>
-          <Text style={s.factLabel}>Did you know? 💡</Text>
-          <Text style={[s.factText, { color: colors.textPrimary }]}>{funFact}</Text>
         </View>
 
-        {/* Explore Destinations */}
-        {destinations && destinations.length > 0 && (
+        {/* Swipeable fun facts */}
+        <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Fun facts</Text>
+        <View style={s.factsWrap}>
+          <SwipeableFacts countryCode={user?.destination_country_code} />
+        </View>
+
+        {/* Popular destinations shelf */}
+        {popular.length > 0 && (
           <>
-            <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Explore destinations</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.destRow}>
-              {destinations.map((country) => (
+            <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Popular destinations</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.shelf}
+            >
+              {popular.map((country) => (
                 <Pressable
                   key={country.code}
-                  style={[s.destCard, { backgroundColor: colors.surface }]}
+                  style={s.destCard}
                   onPress={() => router.push({ pathname: '/country/[code]', params: { code: country.code } })}
                 >
-                  <CityImage
-                    query={`${country.name} city`}
+                  <RotatingImage
+                    queries={CAMPUS_QUERIES[country.code] ?? [`${country.name} city`]}
                     countryCode={country.code}
                     style={s.destImage}
-                    showCodeFallback
-                  />
-                  <View style={s.destInfo}>
-                    <Text style={[s.destName, { color: colors.textPrimary }]} numberOfLines={1}>
-                      {country.name}
-                    </Text>
-                    {country.student_visa_name && (
-                      <Text style={[s.destVisa, { color: colors.textSecondary }]} numberOfLines={1}>
-                        {country.student_visa_name}
-                      </Text>
-                    )}
-                  </View>
+                  >
+                    <View style={s.destOverlay}>
+                      <Text style={s.destName} numberOfLines={1}>{country.name}</Text>
+                      {country.student_visa_name && (
+                        <Text style={s.destVisa} numberOfLines={1}>{country.student_visa_name}</Text>
+                      )}
+                    </View>
+                  </RotatingImage>
                 </Pressable>
               ))}
             </ScrollView>
@@ -197,107 +230,96 @@ export default function HomeScreen() {
   );
 }
 
-function styles(colors: ReturnType<typeof useTheme>['colors'], spacing: ReturnType<typeof useTheme>['spacing'], radius: ReturnType<typeof useTheme>['radius']) {
+function styles(
+  colors: ReturnType<typeof useTheme>['colors'],
+  spacing: ReturnType<typeof useTheme>['spacing'],
+  radius: ReturnType<typeof useTheme>['radius'],
+) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.bg },
     scroll: { paddingBottom: spacing.xxl },
 
-    greetingRow: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
-    greetingText: { fontSize: 24, fontWeight: '700', marginTop: 2 },
+    greetingRow: {
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.lg,
+    },
+    greetingHint: { fontSize: 14 },
+    greetingName: { fontSize: 26, fontWeight: '700', marginTop: 2 },
+    avatar: {
+      width: 44, height: 44, borderRadius: 22,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    avatarText: { color: '#fff', fontSize: 18, fontWeight: '700' },
 
-    heroCard: {
-      marginHorizontal: spacing.lg,
-      borderRadius: radius.card,
-      overflow: 'hidden',
-      marginBottom: spacing.xl,
-      shadowColor: '#000',
-      shadowOpacity: 0.12,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 4,
+    hero: {
+      marginHorizontal: spacing.lg, marginBottom: spacing.xl,
+      borderRadius: radius.card, padding: spacing.xl,
+      shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 16,
+      shadowOffset: { width: 0, height: 6 }, elevation: 6,
     },
-    heroImage: { height: 220, width: '100%' },
-    heroOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.42)',
-      padding: spacing.lg,
-      justifyContent: 'flex-end',
+    heroCorridor: { color: '#fff', fontSize: 20, fontWeight: '800', marginBottom: 10 },
+    heroSteps: { color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 10 },
+    heroTrack: {
+      height: 6, backgroundColor: 'rgba(255,255,255,0.25)',
+      borderRadius: 3, marginBottom: spacing.lg, overflow: 'hidden',
     },
-    heroCorridor: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 6 },
-    heroProgress: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginBottom: 8 },
-    progressTrack: {
-      height: 4, backgroundColor: 'rgba(255,255,255,0.3)',
-      borderRadius: 2, marginBottom: 14,
-    },
-    progressFill: {
-      height: 4, backgroundColor: '#fff', borderRadius: 2,
-    },
-    heroCta: {
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)',
-      borderRadius: radius.button,
+    heroFill: { height: 6, backgroundColor: '#fff', borderRadius: 3 },
+    heroBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      alignSelf: 'flex-start', backgroundColor: '#fff',
       paddingVertical: 10, paddingHorizontal: spacing.lg,
-      alignSelf: 'flex-start',
+      borderRadius: radius.button,
     },
-    heroCtaText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    heroBtnText: { fontSize: 14, fontWeight: '700' },
 
     heroEmpty: {
-      backgroundColor: colors.surfaceAlt,
-      height: 180,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: spacing.xl,
+      marginHorizontal: spacing.lg, marginBottom: spacing.xl,
+      borderRadius: radius.card, padding: spacing.xl,
+      backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+      alignItems: 'center', gap: 6,
     },
-    heroEmptyIcon: { fontSize: 36, marginBottom: spacing.sm },
-    heroEmptyTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary, marginBottom: 6 },
-    heroEmptyBody: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+    heroEmptyTitle: { fontSize: 17, fontWeight: '700', marginTop: spacing.sm },
+    heroEmptyBody: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
     sectionLabel: {
       fontSize: 13, fontWeight: '700', letterSpacing: 0.5,
       textTransform: 'uppercase', paddingHorizontal: spacing.lg,
-      marginBottom: spacing.sm, marginTop: spacing.sm,
+      marginBottom: spacing.md, marginTop: spacing.xs,
     },
 
-    arriveCard: {
-      flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-      marginHorizontal: spacing.lg, marginBottom: spacing.xl,
-      padding: spacing.lg,
-      backgroundColor: colors.surface, borderRadius: radius.card,
-      borderWidth: 1, borderColor: colors.border,
-      shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8,
+    grid: {
+      flexDirection: 'row', flexWrap: 'wrap',
+      paddingHorizontal: spacing.lg, gap: spacing.md,
+      marginBottom: spacing.xl,
+    },
+    quickCard: {
+      width: '47.5%', flexGrow: 1,
+      borderRadius: radius.card, borderWidth: 1, padding: spacing.lg,
+      shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8,
       shadowOffset: { width: 0, height: 2 }, elevation: 2,
     },
-    arriveIcon: { fontSize: 28 },
-    arriveTitle: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
-    arriveBody: { fontSize: 13, lineHeight: 18 },
-    arriveChevron: { fontSize: 24, fontWeight: '300' },
-
-    pillRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.sm },
-    pill: {
-      flexDirection: 'row', alignItems: 'center', gap: 6,
-      paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-      borderRadius: radius.pill, borderWidth: 1, marginBottom: spacing.md,
+    quickTile: {
+      width: 44, height: 44, borderRadius: radius.button,
+      justifyContent: 'center', alignItems: 'center', marginBottom: spacing.md,
     },
-    pillIcon: { fontSize: 16 },
-    pillLabel: { fontSize: 14, fontWeight: '500' },
+    quickTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
+    quickSub: { fontSize: 12 },
 
-    factCard: {
-      marginHorizontal: spacing.lg, borderRadius: radius.card,
-      padding: spacing.lg, marginBottom: spacing.xl,
-      borderWidth: 1,
-    },
-    factLabel: { fontSize: 13, fontWeight: '700', color: '#B07C00', marginBottom: 8 },
-    factText: { fontSize: 14, lineHeight: 22 },
+    factsWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.xl },
 
-    destRow: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm },
+    shelf: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm },
     destCard: {
-      width: 160, borderRadius: radius.card, overflow: 'hidden',
-      shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 }, elevation: 2,
+      width: 180, height: 130, borderRadius: radius.card, overflow: 'hidden',
+      shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 }, elevation: 3,
     },
-    destImage: { height: 110, width: '100%' },
-    destInfo: { padding: spacing.sm + 2 },
-    destName: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
-    destVisa: { fontSize: 12 },
+    destImage: { width: '100%', height: '100%' },
+    destOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.32)',
+      justifyContent: 'flex-end', padding: spacing.md,
+    },
+    destName: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    destVisa: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 },
   });
 }

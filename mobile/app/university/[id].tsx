@@ -11,7 +11,7 @@ import { RotatingImage } from '../../components/RotatingImage';
 import { Disclaimer } from '../../components/Disclaimer';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import {
-  formatScore, formatCurrency, formatPercent, formatCount, formatWeight,
+  formatScore, formatCurrency, formatPercent, formatCount,
 } from '../../lib/format';
 import type { UniversityDetail } from '../../lib/types';
 
@@ -65,11 +65,8 @@ export default function UniversityDetailScreen() {
           {/* Hero */}
           <RotatingImage queries={heroQueries} countryCode="US" style={s.hero}>
             <View style={s.heroOverlay}>
-              <Text style={s.heroRank}>RANK #{data.rank}</Text>
               <Text style={s.heroName}>{data.name}</Text>
-              <Text style={s.heroLoc}>
-                {[data.city, data.state].filter(Boolean).join(', ') || 'United States'}
-              </Text>
+              <Text style={s.heroLoc}>{data.state ?? 'United States'}</Text>
             </View>
           </RotatingImage>
 
@@ -81,56 +78,49 @@ export default function UniversityDetailScreen() {
               <Text style={s.scoreCardOutOf}>out of 100</Text>
             </View>
 
-            {/* Score breakdown — the real numbers */}
+            {/* The real numbers behind the score */}
             <View>
-              <Text style={[s.sectionHeader, { color: colors.textPrimary }]}>Score breakdown</Text>
+              <Text style={[s.sectionHeader, { color: colors.textPrimary }]}>Key numbers</Text>
 
-              {/* Tuition pair — clearly distinguished */}
+              {/* Cost pair — clearly distinguished */}
               <View style={[s.pairRow, { gap: spacing.md }]}>
                 <Stat
                   label="Intl students pay"
-                  hint="International tuition / yr"
-                  value={formatCurrency(data.international_tuition)}
+                  hint="Out-of-state tuition / yr"
+                  value={formatCurrency(data.tuition_out_of_state)}
                   emphasis
                 />
                 <Stat
-                  label="In-state net"
-                  hint="After aid, in-state / yr"
-                  value={formatCurrency(data.in_state_net_price)}
+                  label="Avg net price"
+                  hint="After aid, per yr"
+                  value={formatCurrency(data.avg_net_price)}
                   emphasis
                 />
               </View>
 
               <View style={[s.pairRow, { gap: spacing.md, marginTop: spacing.md }]}>
-                <Stat label="Median earnings" hint="Graduates, per year" value={formatCurrency(data.median_earnings)} />
-                <Stat label="Graduation rate" hint="Completion" value={formatPercent(data.graduation_rate)} />
+                <Stat label="Median earnings" hint="Graduates, 10 yrs out" value={formatCurrency(data.median_earnings_10yr)} />
+                <Stat label="Completion rate" hint="Graduate within 6 yrs" value={formatPercent(data.completion_rate)} />
               </View>
 
-              <View style={{ marginTop: spacing.md }}>
-                <Stat
-                  label="Research output"
-                  hint="Published works (OpenAlex)"
-                  value={formatCount(data.research_output)}
-                  wide
-                />
+              <View style={[s.pairRow, { gap: spacing.md, marginTop: spacing.md }]}>
+                <Stat label="Published works" hint="OpenAlex" value={formatCount(data.works_count)} />
+                <Stat label="Citations" hint="OpenAlex" value={formatCount(data.citations_total)} />
               </View>
             </View>
 
-            {/* Optional per-factor weighting, when the API provides it */}
-            {data.score_components && data.score_components.length > 0 && (
-              <View style={[s.factorCard, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.card }]}>
-                <Text style={[s.factorTitle, { color: colors.textSecondary }]}>HOW THIS SCORE IS BUILT</Text>
-                {data.score_components.map((c) => (
-                  <View key={c.key} style={s.factorRow}>
-                    <Text style={[s.factorLabel, { color: colors.textPrimary }]} numberOfLines={1}>
-                      {c.label}
-                      {c.weight != null ? `  ·  ${formatWeight(c.weight)}` : ''}
-                    </Text>
-                    <Text style={[s.factorScore, { color: colors.primary }]}>{formatScore(c.score)}</Text>
-                  </View>
-                ))}
+            {/* How the LandHere Score is built — the API's sub-scores */}
+            <View style={[s.factorCard, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.card }]}>
+              <Text style={[s.factorTitle, { color: colors.textSecondary }]}>HOW THIS SCORE IS BUILT</Text>
+              <View style={s.factorRow}>
+                <Text style={[s.factorLabel, { color: colors.textPrimary }]} numberOfLines={1}>Research</Text>
+                <Text style={[s.factorScore, { color: colors.primary }]}>{formatScore(data.research_score)}</Text>
               </View>
-            )}
+              <View style={s.factorRow}>
+                <Text style={[s.factorLabel, { color: colors.textPrimary }]} numberOfLines={1}>Outcomes</Text>
+                <Text style={[s.factorScore, { color: colors.primary }]}>{formatScore(data.outcomes_score)}</Text>
+              </View>
+            </View>
 
             <Disclaimer onMethodology={() => router.push('/methodology')} />
 
@@ -200,7 +190,6 @@ const s = StyleSheet.create({
     justifyContent: 'flex-end',
     padding: 20,
   },
-  heroRank: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '800', letterSpacing: 2, marginBottom: 6 },
   heroName: { color: '#fff', fontSize: 26, fontWeight: '800' },
   heroLoc: { color: 'rgba(255,255,255,0.85)', fontSize: 14, marginTop: 4 },
 

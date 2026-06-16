@@ -1,10 +1,13 @@
+import React from 'react';
 import { View, Text, Pressable, StyleSheet, Linking, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { useAuthStore } from '../lib/store';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { Disclaimer } from '../components/Disclaimer';
-import { getNecessities, type NecessityItem, type NecessitySection } from '../constants/necessities';
+import {
+  getNecessities, NECESSITIES_BY_COUNTRY,
+  type NecessityItem, type NecessitySection,
+} from '../constants/necessities';
 
 const COUNTRY_NAMES: Record<string, string> = { US: 'the United States' };
 
@@ -14,17 +17,96 @@ const DISCLAIMER_TEXT =
   'over time — always confirm details with your university’s international ' +
   'office and the official sources linked here.';
 
+// Countries surfaced in the picker. `ready` countries have authored content;
+// the rest are shown as "coming soon" placeholders (no fabricated content).
+const NEC_COUNTRIES: { code: string; name: string }[] = [
+  { code: 'US', name: 'United States' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'IE', name: 'Ireland' },
+];
+
 export default function NecessitiesScreen() {
+  const { code } = useLocalSearchParams<{ code?: string }>();
+  return code ? <NecessitiesDetail code={code} /> : <NecessitiesList />;
+}
+
+// ── Country picker ───────────────────────────────────────────────────
+function NecessitiesList() {
   const { colors, spacing, radius } = useTheme();
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
 
-  const { countryCode, sections } = getNecessities(user?.destination_country_code);
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+      <View style={[s.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: spacing.md }}>
+          <Text style={[s.back, { color: colors.primary }]}>← Back</Text>
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.headerTitle, { color: colors.textPrimary }]}>Necessities</Text>
+          <Text style={[s.headerSub, { color: colors.textSecondary }]}>Choose your destination</Text>
+        </View>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }}
+        showsVerticalScrollIndicator={false}
+      >
+        {NEC_COUNTRIES.map((country) => {
+          const ready = !!NECESSITIES_BY_COUNTRY[country.code];
+          return (
+            <Pressable
+              key={country.code}
+              disabled={!ready}
+              onPress={() => router.push({ pathname: '/necessities', params: { code: country.code } })}
+              style={[
+                s.row,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                  borderRadius: radius.card,
+                  opacity: ready ? 1 : 0.6,
+                },
+              ]}
+            >
+              <View style={[s.codeTile, { backgroundColor: ready ? colors.primary : colors.surfaceAlt }]}>
+                <Text style={[s.codeText, { color: ready ? '#fff' : colors.textTertiary }]}>
+                  {country.code}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.rowName, { color: colors.textPrimary }]}>{country.name}</Text>
+                <Text style={[s.rowSub, { color: colors.textSecondary }]}>
+                  {ready ? 'Mandatories & necessities' : 'Coming soon'}
+                </Text>
+              </View>
+              {ready ? (
+                <Text style={[s.chevron, { color: colors.textTertiary }]}>›</Text>
+              ) : (
+                <View style={[s.soonBadge, { backgroundColor: colors.surfaceAlt }]}>
+                  <Text style={[s.soonText, { color: colors.textTertiary }]}>Soon</Text>
+                </View>
+              )}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ── Per-country content ──────────────────────────────────────────────
+function NecessitiesDetail({ code }: { code: string }) {
+  const { colors, spacing } = useTheme();
+  const router = useRouter();
+
+  const { countryCode, sections } = getNecessities(code);
   const where = COUNTRY_NAMES[countryCode] ?? countryCode;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      {/* Header */}
       <View style={[s.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: spacing.md }}>
           <Text style={[s.back, { color: colors.primary }]}>← Back</Text>
@@ -125,6 +207,25 @@ const s = StyleSheet.create({
   back: { fontSize: 15, fontWeight: '600' },
   headerTitle: { fontSize: 22, fontWeight: '700' },
   headerSub: { fontSize: 13, marginTop: 2 },
+
+  // Country picker rows
+  row: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    padding: 14, marginBottom: 12, borderWidth: 1,
+    shadowColor: '#000', shadowOpacity: 0.05,
+    shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  codeTile: {
+    width: 46, height: 46, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  codeText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
+  rowName: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
+  rowSub: { fontSize: 13 },
+  chevron: { fontSize: 26, fontWeight: '300' },
+  soonBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  soonText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   sectionHead: { borderLeftWidth: 4, paddingLeft: 12, marginBottom: 14 },
   sectionTitle: { fontSize: 18, fontWeight: '700' },

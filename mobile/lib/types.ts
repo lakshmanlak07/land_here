@@ -49,48 +49,41 @@ export interface TokenOut {
 
 // ── University rankings ──────────────────────────────────────────────
 //
-// NOTE: these field names are the mobile app's assumption of the backend
-// response shape for GET /universities and GET /universities/{id}.
-// If the API uses different names, adjust them here only — the screens
-// read everything through these types.
+// These field names mirror the backend response shape exactly:
+//   GET /universities       → UniversityListItem[]  (a plain array)
+//   GET /universities/{id}  → UniversityDetail
+// The list is already sorted by landhere_score (desc); there is no `rank`
+// field — rank is the 1-based position in the list.
 
 /** A single row in the ranked list (GET /universities). */
 export interface UniversityListItem {
   id: string;
-  rank: number;
   name: string;
-  /** The LandHere Score (assumed 0–100). */
-  landhere_score: number;
   state: string | null;
-  /** Annual international-student tuition, in USD. */
-  international_tuition: number | null;
-}
-
-/** One weighted factor in the LandHere Score breakdown. */
-export interface ScoreComponent {
-  key: string;
-  label: string;
-  /** Weight as a fraction (0–1) or percent — rendered defensively. */
-  weight: number | null;
-  /** Sub-score for this factor (assumed 0–100). */
-  score: number | null;
+  /** The LandHere Score (0–100). */
+  landhere_score: number | null;
+  /** Annual out-of-state (international) tuition, in USD. */
+  tuition_out_of_state: number | null;
+  /** Average net price after aid, in USD. */
+  avg_net_price: number | null;
+  /** Median earnings of graduates 10 years out, in USD. */
+  median_earnings_10yr: number | null;
 }
 
 /** Full detail for one university (GET /universities/{id}). */
 export interface UniversityDetail extends UniversityListItem {
-  city: string | null;
-  /** Net price an in-state student actually pays after aid, in USD. */
-  in_state_net_price: number | null;
-  /** Median earnings of graduates, in USD. */
-  median_earnings: number | null;
-  /** Graduation rate — accepted as a fraction (0–1) or a percent (0–100). */
-  graduation_rate: number | null;
-  /** Research output metric (e.g. works/publications count). */
-  research_output: number | null;
   /** Link to the university's official website. */
   official_url: string | null;
-  /** Optional per-factor score breakdown. Rendered if present. */
-  score_components: ScoreComponent[] | null;
+  /** Research sub-score (0–100). */
+  research_score: number | null;
+  /** Outcomes sub-score (0–100). */
+  outcomes_score: number | null;
+  /** Completion rate — fraction (0–1) or percent (0–100). */
+  completion_rate: number | null;
+  /** Total citations across published works (OpenAlex). */
+  citations_total: number | null;
+  /** Number of published works (OpenAlex). */
+  works_count: number | null;
 }
 
 /** Possible envelope shapes for the paginated list response. */

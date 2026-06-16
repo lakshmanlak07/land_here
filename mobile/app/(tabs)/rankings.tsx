@@ -22,16 +22,11 @@ const BUDGETS: { label: string; value: number | null }[] = [
   { label: '≤ $60k', value: 60000 },
 ];
 
-/** Normalises whatever envelope the API returns into a UniversityListPage. */
-function toPage(raw: any, page: number): UniversityListPage {
-  const items: UniversityListItem[] = Array.isArray(raw)
-    ? raw
-    : raw?.items ?? raw?.results ?? raw?.data ?? [];
-  const has_more =
-    typeof raw?.has_more === 'boolean'
-      ? raw.has_more
-      : items.length === PAGE_SIZE;
-  return { items, has_more, page };
+/** Wraps the API's plain array into a UniversityListPage. The endpoint has
+ *  no total/has_more, so a full page implies there may be another. */
+function toPage(raw: UniversityListItem[], page: number): UniversityListPage {
+  const items = raw ?? [];
+  return { items, has_more: items.length === PAGE_SIZE, page };
 }
 
 export default function RankingsScreen() {
@@ -55,14 +50,15 @@ export default function RankingsScreen() {
     queryKey: ['universities', debounced, maxTuition],
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
+      const page = pageParam as number;
       const params: Record<string, string | number> = {
-        page: pageParam,
-        page_size: PAGE_SIZE,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
       };
       if (debounced) params.search = debounced;
       if (maxTuition != null) params.max_tuition = maxTuition;
       const { data } = await api.get('/universities', { params });
-      return toPage(data, pageParam as number);
+      return toPage(data, page);
     },
     getNextPageParam: (last) => (last.has_more ? last.page + 1 : undefined),
   });
@@ -188,19 +184,20 @@ export default function RankingsScreen() {
               <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.lg }} />
             ) : null
           }
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <Pressable
               style={[s.row, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.card }]}
               onPress={() => router.push({ pathname: '/university/[id]', params: { id: item.id } })}
             >
-              <Text style={[s.rank, { color: colors.textTertiary }]}>{item.rank}</Text>
+              {/* The API returns rows already sorted by score, so rank is the 1-based position. */}
+              <Text style={[s.rank, { color: colors.textTertiary }]}>{index + 1}</Text>
 
               <View style={{ flex: 1, marginHorizontal: spacing.md }}>
                 <Text style={[s.uniName, { color: colors.textPrimary }]} numberOfLines={2}>
                   {item.name}
                 </Text>
                 <Text style={[s.uniMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {item.state ?? '—'} · Intl {formatCurrencyCompact(item.international_tuition)}/yr
+                  {item.state ?? '—'} · Intl {formatCurrencyCompact(item.tuition_out_of_state)}/yr
                 </Text>
               </View>
 
