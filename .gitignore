@@ -8,6 +8,8 @@
 !.env.sample
 mobile/.env
 mobile/.env.*
+!mobile/.env.example
+!mobile/.env.sample
 
 # ──────────────────────────────────────────────────────────────
 #  Python backend
