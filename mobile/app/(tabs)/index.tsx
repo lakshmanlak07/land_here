@@ -43,7 +43,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const completedIds = useProgressStore((s) => s.completedIds);
 
-  const { data: journey, isLoading: journeyLoading, refetch: refetchJourney, isRefetching } = useQuery<JourneyOut>({
+  const { data: journey, isLoading: journeyLoading, isError: journeyError, refetch: refetchJourney, isRefetching } = useQuery<JourneyOut>({
     queryKey: ['journey', user?.origin_country_code, user?.destination_country_code],
     queryFn: async () => {
       const params: Record<string, string> = {};
@@ -147,6 +147,16 @@ export default function HomeScreen() {
             </Text>
             {journeyLoading ? (
               <ActivityIndicator color="#fff" style={{ alignSelf: 'flex-start', marginVertical: spacing.md }} />
+            ) : journeyError ? (
+              <>
+                <Text style={s.heroSteps}>We couldn't load your steps right now.</Text>
+                <Pressable style={s.heroBtn} onPress={() => refetchJourney()}>
+                  <Text style={[s.heroBtnText, { color: colors.primary }]}>Tap to retry</Text>
+                  <Ionicons name="refresh" size={16} color={colors.primary} />
+                </Pressable>
+              </>
+            ) : totalSteps === 0 ? (
+              <Text style={s.heroSteps}>No steps yet for this corridor — check back soon.</Text>
             ) : (
               <>
                 <Text style={s.heroSteps}>{doneSteps} of {totalSteps} steps done</Text>
