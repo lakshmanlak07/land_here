@@ -5,25 +5,36 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
-import api from '../../lib/api';
+import api, { getErrorMessage } from '../../lib/api';
 import { useAuthStore } from '../../lib/store';
+import { useTheme } from '../../context/ThemeContext';
 import type { TokenOut, UserOut } from '../../lib/types';
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function LoginScreen() {
+  const { colors, radius } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const setAuth = useAuthStore((s) => s.setAuth);
   const router = useRouter();
 
+  function validate() {
+    const fe: typeof fieldErrors = {};
+    if (!email.trim()) fe.email = 'Email is required.';
+    else if (!EMAIL_RE.test(email.trim())) fe.email = 'Enter a valid email address.';
+    if (!password) fe.password = 'Password is required.';
+    setFieldErrors(fe);
+    return Object.keys(fe).length === 0;
+  }
+
   async function handleLogin() {
-    if (!email.trim() || !password) {
-      setError('Please fill in all fields.');
-      return;
-    }
-    setLoading(true);
     setError(null);
+    if (!validate()) return;
+    setLoading(true);
     try {
       const { data: tokenData } = await api.post<TokenOut>('/auth/login', {
         email: email.trim(),
@@ -34,15 +45,15 @@ export default function LoginScreen() {
       });
       setAuth(tokenData.access_token, userData);
       router.replace('/(tabs)');
-    } catch (e: any) {
-      setError(e?.response?.data?.detail ?? 'Login failed. Check your credentials.');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Login failed. Check your credentials.'));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <SafeAreaView style={s.safe}>
+    <SafeAreaView style={[s.safe, { backgroundColor: colors.bg }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={s.kav}
@@ -51,41 +62,59 @@ export default function LoginScreen() {
           <View style={s.logoRow}>
             <Text style={s.logoText}>🌍</Text>
           </View>
-          <Text style={s.title}>Welcome back</Text>
-          <Text style={s.subtitle}>Sign in to your LandHere account</Text>
+          <Text style={[s.title, { color: colors.textPrimary }]}>Welcome back</Text>
+          <Text style={[s.subtitle, { color: colors.textSecondary }]}>
+            Sign in to your LandHere account
+          </Text>
 
-          {error && <Text style={s.error}>{error}</Text>}
+          {error && (
+            <Text
+              style={[
+                s.error,
+                { backgroundColor: colors.surfaceAlt, color: colors.primary, borderRadius: radius.button },
+              ]}
+            >
+              {error}
+            </Text>
+          )}
 
           <TextInput
-            style={s.input}
+            style={[s.input, { backgroundColor: colors.surface, borderColor: fieldErrors.email ? colors.primary : colors.border, color: colors.textPrimary, borderRadius: radius.button }]}
             placeholder="Email address"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={colors.textTertiary}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(t) => { setEmail(t); if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: undefined })); }}
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
           />
+          {fieldErrors.email && <Text style={[s.fieldError, { color: colors.primary }]}>{fieldErrors.email}</Text>}
+
           <TextInput
-            style={s.input}
+            style={[s.input, { backgroundColor: colors.surface, borderColor: fieldErrors.password ? colors.primary : colors.border, color: colors.textPrimary, borderRadius: radius.button }]}
             placeholder="Password"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={colors.textTertiary}
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(t) => { setPassword(t); if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined })); }}
             secureTextEntry
           />
+          {fieldErrors.password && <Text style={[s.fieldError, { color: colors.primary }]}>{fieldErrors.password}</Text>}
 
-          <Pressable style={[s.btn, loading && s.btnDisabled]} onPress={handleLogin} disabled={loading}>
+          <Pressable
+            style={[s.btn, { backgroundColor: colors.primary, borderRadius: radius.button }, loading && s.btnDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
             {loading
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={s.btnText}>Sign In</Text>}
+              ? <ActivityIndicator color={colors.surface} />
+              : <Text style={[s.btnText, { color: colors.surface }]}>Sign In</Text>}
           </Pressable>
 
           <Link href="/(auth)/register" asChild>
             <Pressable style={s.linkRow}>
-              <Text style={s.linkText}>
+              <Text style={[s.linkText, { color: colors.textSecondary }]}>
                 Don't have an account?{'  '}
-                <Text style={s.linkBold}>Sign up</Text>
+                <Text style={[s.linkBold, { color: colors.primary }]}>Sign up</Text>
               </Text>
             </Pressable>
           </Link>
@@ -96,26 +125,23 @@ export default function LoginScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#F1F5F9' },
+  safe: { flex: 1 },
   kav: { flex: 1 },
   scroll: { padding: 24, paddingTop: 40 },
   logoRow: { alignItems: 'center', marginBottom: 24 },
   logoText: { fontSize: 48 },
-  title: { fontSize: 26, fontWeight: '700', color: '#0F172A', textAlign: 'center' },
-  subtitle: { fontSize: 15, color: '#64748B', textAlign: 'center', marginTop: 8, marginBottom: 32 },
-  error: { backgroundColor: '#FEE2E2', color: '#DC2626', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 14 },
+  title: { fontSize: 26, fontWeight: '700', textAlign: 'center' },
+  subtitle: { fontSize: 15, textAlign: 'center', marginTop: 8, marginBottom: 32 },
+  error: { padding: 12, marginBottom: 16, fontSize: 14 },
   input: {
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0',
-    borderRadius: 10, paddingHorizontal: 16, paddingVertical: 14,
-    fontSize: 15, color: '#0F172A', marginBottom: 12,
+    borderWidth: 1, paddingHorizontal: 16, paddingVertical: 14,
+    fontSize: 15, marginBottom: 12,
   },
-  btn: {
-    backgroundColor: '#2563EB', borderRadius: 10, paddingVertical: 14,
-    alignItems: 'center', marginTop: 8,
-  },
+  fieldError: { fontSize: 13, marginTop: -6, marginBottom: 12 },
+  btn: { paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  btnText: { fontSize: 16, fontWeight: '600' },
   linkRow: { marginTop: 24, alignItems: 'center' },
-  linkText: { color: '#64748B', fontSize: 14 },
-  linkBold: { color: '#2563EB', fontWeight: '700' },
+  linkText: { fontSize: 14 },
+  linkBold: { fontWeight: '700' },
 });

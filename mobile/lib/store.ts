@@ -32,13 +32,22 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const token = await SecureStore.getItemAsync(TOKEN_KEY);
       if (token) {
-        const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const user: UserOut = await res.json();
-          set({ token, user, hydrated: true });
-          return;
+        // Bound the cold-start /auth/me call so an unreachable backend can't
+        // stall boot — abort after 10s and fall through to the signed-out state.
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10000);
+        try {
+          const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          });
+          if (res.ok) {
+            const user: UserOut = await res.json();
+            set({ token, user, hydrated: true });
+            return;
+          }
+        } finally {
+          clearTimeout(timer);
         }
       }
     } catch {}
