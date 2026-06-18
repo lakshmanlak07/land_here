@@ -7,6 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuthStore } from '../../lib/store';
 import { RotatingImage } from '../../components/RotatingImage';
 import { SkeletonBlock, SkeletonCard } from '../../components/Skeleton';
+import { Card } from '../../components/Card';
 import { RotatingFacts } from '../../components/RotatingFacts';
 import { Disclaimer } from '../../components/Disclaimer';
 import { CurrencyConverter } from '../../components/CurrencyConverter';
@@ -84,20 +85,25 @@ export default function CountryDetailScreen() {
           </RotatingImage>
 
           <View style={{ padding: spacing.lg, gap: spacing.md }}>
-            {/* Visa info */}
-            {data.student_visa_name && (
-              <View style={[s.infoCard, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.card }]}>
-                <Text style={[s.infoCardLabel, { color: colors.textSecondary }]}>Student Visa</Text>
-                <Text style={[s.infoCardValue, { color: colors.textPrimary }]}>{data.student_visa_name}</Text>
-              </View>
-            )}
-
-            {/* Currency */}
-            {data.currency_code && (
-              <View style={[s.infoCard, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.card }]}>
-                <Text style={[s.infoCardLabel, { color: colors.textSecondary }]}>Currency</Text>
-                <Text style={[s.infoCardValue, { color: colors.textPrimary }]}>{data.currency_code}</Text>
-              </View>
+            {/* Key facts — visa + currency in one tidy card */}
+            {(data.student_visa_name || data.currency_code) && (
+              <Card>
+                {data.student_visa_name && (
+                  <View>
+                    <Text style={[s.infoCardLabel, { color: colors.textSecondary }]}>Student Visa</Text>
+                    <Text style={[s.infoCardValue, { color: colors.textPrimary }]}>{data.student_visa_name}</Text>
+                  </View>
+                )}
+                {data.student_visa_name && data.currency_code && (
+                  <View style={[s.divider, { backgroundColor: colors.border }]} />
+                )}
+                {data.currency_code && (
+                  <View>
+                    <Text style={[s.infoCardLabel, { color: colors.textSecondary }]}>Currency</Text>
+                    <Text style={[s.infoCardValue, { color: colors.textPrimary }]}>{data.currency_code}</Text>
+                  </View>
+                )}
+              </Card>
             )}
 
             {/* Working as a student */}
@@ -105,7 +111,7 @@ export default function CountryDetailScreen() {
               const rule = getWorkRule(data.code);
               if (!rule) return null;
               return (
-                <View style={[s.workCard, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.card }]}>
+                <Card>
                   <Text style={[s.workTitle, { color: colors.textPrimary }]}>Working as a student</Text>
 
                   {rule.note && (
@@ -127,7 +133,7 @@ export default function CountryDetailScreen() {
                   </Pressable>
 
                   <Disclaimer text={WORK_DISCLAIMER} style={{ marginTop: spacing.md }} />
-                </View>
+                </Card>
               );
             })()}
 
@@ -195,18 +201,16 @@ const s = StyleSheet.create({
   heroCode: { color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: '700', letterSpacing: 2, marginBottom: 4 },
   heroName: { color: '#fff', fontSize: 28, fontWeight: '800' },
 
-  infoCard: {
-    padding: 16, borderWidth: 1,
-  },
+  // Card supplies surface/border/radius/padding for the fact + work cards.
   infoCardLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   infoCardValue: { fontSize: 18, fontWeight: '700' },
+  divider: { height: 1, marginVertical: 14 },
 
   officialBtn: {
     paddingVertical: 14, alignItems: 'center',
   },
   officialBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
-  workCard: { padding: 16, borderWidth: 1 },
   workTitle: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
   workNote: {
     paddingHorizontal: 10, paddingVertical: 8,
