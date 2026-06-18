@@ -1,6 +1,6 @@
 import {
   View, Text, Pressable, StyleSheet, Linking,
-  ActivityIndicator, ScrollView,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,6 +9,7 @@ import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { RotatingImage } from '../../components/RotatingImage';
 import { Disclaimer } from '../../components/Disclaimer';
+import { SkeletonBlock, SkeletonCard, SkeletonText } from '../../components/Skeleton';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import {
   formatScore, formatCurrency, formatPercent, formatCount,
@@ -54,10 +55,24 @@ export default function UniversityDetailScreen() {
         <Text style={s.backText}>← Back</Text>
       </Pressable>
 
-      {isLoading && (
-        <View style={s.centered}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+      {(isLoading || (!data && !isError)) && (
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
+          <SkeletonBlock width="100%" height={320} radius={0} />
+          <View style={{ padding: spacing.lg, gap: spacing.xl }}>
+            <SkeletonCard height={190} />
+            <View style={{ gap: spacing.md }}>
+              <SkeletonText lines={1} lineHeight={18} style={{ marginBottom: spacing.xs }} />
+              <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                <SkeletonCard height={92} style={{ flex: 1 }} />
+                <SkeletonCard height={92} style={{ flex: 1 }} />
+              </View>
+              <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                <SkeletonCard height={92} style={{ flex: 1 }} />
+                <SkeletonCard height={92} style={{ flex: 1 }} />
+              </View>
+            </View>
+          </View>
+        </ScrollView>
       )}
 
       {isError && (

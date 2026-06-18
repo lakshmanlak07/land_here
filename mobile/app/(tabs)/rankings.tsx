@@ -9,6 +9,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { Disclaimer } from '../../components/Disclaimer';
+import { SkeletonListRow } from '../../components/Skeleton';
 import { formatScore, formatCurrencyCompact } from '../../lib/format';
 import type { UniversityListItem, UniversityListPage } from '../../lib/types';
 
@@ -134,8 +135,10 @@ export default function RankingsScreen() {
       />
 
       {isLoading && (
-        <View style={s.centered}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.md }}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <SkeletonListRow key={i} />
+          ))}
         </View>
       )}
 

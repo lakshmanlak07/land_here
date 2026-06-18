@@ -12,6 +12,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useProgressStore } from '../../lib/progressStore';
 import { SwipeableFacts } from '../../components/SwipeableFacts';
 import { RotatingImage } from '../../components/RotatingImage';
+import { SkeletonBlock } from '../../components/Skeleton';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import api from '../../lib/api';
 import type { JourneyOut, CountryOut } from '../../lib/types';
@@ -55,7 +56,7 @@ export default function HomeScreen() {
     enabled: !!user?.destination_country_code,
   });
 
-  const { data: destinations, refetch: refetchDest } = useQuery<CountryOut[]>({
+  const { data: destinations, isLoading: destLoading, refetch: refetchDest } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'destinations'],
     queryFn: async () => (await api.get('/countries/destinations')).data,
   });
@@ -207,9 +208,20 @@ export default function HomeScreen() {
         </View>
 
         {/* Popular destinations shelf */}
-        {popular.length > 0 && (
+        {(destLoading || popular.length > 0) && (
           <>
             <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Popular destinations</Text>
+            {destLoading ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={s.shelf}
+              >
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <SkeletonBlock key={i} width={180} height={130} radius={radius.card} />
+                ))}
+              </ScrollView>
+            ) : (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -236,6 +248,7 @@ export default function HomeScreen() {
                 </Pressable>
               ))}
             </ScrollView>
+            )}
           </>
         )}
 

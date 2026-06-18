@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet, Linking, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Linking, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthStore } from '../../lib/store';
 import { RotatingImage } from '../../components/RotatingImage';
+import { SkeletonBlock, SkeletonCard } from '../../components/Skeleton';
 import { RotatingFacts } from '../../components/RotatingFacts';
 import { Disclaimer } from '../../components/Disclaimer';
 import { CurrencyConverter } from '../../components/CurrencyConverter';
@@ -44,10 +45,15 @@ export default function CountryDetailScreen() {
         <Text style={s.backText}>← Back</Text>
       </Pressable>
 
-      {isLoading && (
-        <View style={s.centered}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+      {(isLoading || (!data && !isError)) && (
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <SkeletonBlock width="100%" height={300} radius={0} />
+          <View style={{ padding: spacing.lg, gap: spacing.md }}>
+            <SkeletonCard height={74} />
+            <SkeletonCard height={74} />
+            <SkeletonCard height={150} />
+          </View>
+        </ScrollView>
       )}
 
       {isError && (

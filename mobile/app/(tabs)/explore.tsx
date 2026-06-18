@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, FlatList, Pressable,
-  StyleSheet, ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { CityImage } from '../../components/CityImage';
+import { SkeletonCard, SkeletonBlock, SkeletonText } from '../../components/Skeleton';
 import type { CountryOut } from '../../lib/types';
 
 const DESCRIPTORS: Record<string, string> = {
@@ -84,8 +85,15 @@ export default function ExploreScreen() {
       </View>
 
       {isLoading && (
-        <View style={s.centered}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={{ padding: spacing.lg, flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} style={{ width: '47%', padding: 0, overflow: 'hidden' }}>
+              <SkeletonBlock width="100%" height={100} radius={0} />
+              <View style={{ padding: 10 }}>
+                <SkeletonText lines={2} lineHeight={10} lastLineWidth="60%" />
+              </View>
+            </SkeletonCard>
+          ))}
         </View>
       )}
 
