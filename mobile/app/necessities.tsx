@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { Disclaimer } from '../components/Disclaimer';
+import { Card } from '../components/Card';
 import {
   getNecessities, NECESSITIES_BY_COUNTRY,
   type NecessityItem, type NecessitySection,
@@ -35,7 +36,7 @@ export default function NecessitiesScreen() {
 
 // ── Country picker ───────────────────────────────────────────────────
 function NecessitiesList() {
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing } = useTheme();
   const router = useRouter();
 
   return (
@@ -57,19 +58,14 @@ function NecessitiesList() {
         {NEC_COUNTRIES.map((country) => {
           const ready = !!NECESSITIES_BY_COUNTRY[country.code];
           return (
-            <Pressable
+            <Card
               key={country.code}
-              disabled={!ready}
-              onPress={() => router.push({ pathname: '/necessities', params: { code: country.code } })}
-              style={[
-                s.row,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                  borderRadius: radius.card,
-                  opacity: ready ? 1 : 0.6,
-                },
-              ]}
+              onPress={
+                ready
+                  ? () => router.push({ pathname: '/necessities', params: { code: country.code } })
+                  : undefined
+              }
+              style={[s.row, !ready && { opacity: 0.6 }]}
             >
               <View style={[s.codeTile, { backgroundColor: ready ? colors.primary : colors.surfaceAlt }]}>
                 <Text style={[s.codeText, { color: ready ? '#fff' : colors.textTertiary }]}>
@@ -89,7 +85,7 @@ function NecessitiesList() {
                   <Text style={[s.soonText, { color: colors.textTertiary }]}>Soon</Text>
                 </View>
               )}
-            </Pressable>
+            </Card>
           );
         })}
       </ScrollView>
@@ -162,14 +158,9 @@ function ItemCard({
   accent: string;
   order: number | null;
 }) {
-  const { colors, radius } = useTheme();
+  const { colors } = useTheme();
   return (
-    <View
-      style={[
-        s.card,
-        { backgroundColor: colors.surface, borderRadius: radius.card, borderLeftColor: accent },
-      ]}
-    >
+    <Card accent={accent} style={s.card}>
       <View style={[s.badge, { backgroundColor: accent }]}>
         <Text style={s.badgeText}>{order ?? '•'}</Text>
       </View>
@@ -194,7 +185,7 @@ function ItemCard({
           </Pressable>
         )}
       </View>
-    </View>
+    </Card>
   );
 }
 
@@ -208,14 +199,8 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: '700' },
   headerSub: { fontSize: 13, marginTop: 2 },
 
-  // Country picker rows
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    padding: 14, marginBottom: 12, borderWidth: 1,
-    shadowColor: '#000', shadowOpacity: 0.05,
-    shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
+  // Country picker rows (Card supplies surface/border/radius/padding/shadow)
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 },
   codeTile: {
     width: 46, height: 46, borderRadius: 12,
     justifyContent: 'center', alignItems: 'center',
@@ -231,14 +216,8 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '700' },
   sectionTagline: { fontSize: 13, lineHeight: 19, marginTop: 4 },
 
-  card: {
-    flexDirection: 'row', gap: 14,
-    padding: 16, marginBottom: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000', shadowOpacity: 0.06,
-    shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
+  // Item cards (Card supplies surface/border/radius/padding/shadow + accent)
+  card: { flexDirection: 'row', gap: 14, marginBottom: 12 },
   badge: {
     width: 28, height: 28, borderRadius: 14,
     justifyContent: 'center', alignItems: 'center',

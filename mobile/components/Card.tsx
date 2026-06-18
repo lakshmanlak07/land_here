@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { View, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
 interface CardProps {
@@ -10,7 +10,7 @@ interface CardProps {
   accent?: string;
   /** Inner padding; defaults to the theme's `lg` step. */
   padding?: number;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 /**
