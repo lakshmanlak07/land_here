@@ -52,6 +52,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
           'The EU’s official program funding study and exchange across Europe.',
         url: 'https://erasmus-plus.ec.europa.eu/opportunities/individuals/students',
       },
+      {
+        name: 'Erasmus Mundus Joint Masters',
+        description:
+          'The EU’s official scholarship for joint master’s degrees taught across several European universities.',
+        url: 'https://erasmus-plus.ec.europa.eu/opportunities/individuals/students/erasmus-mundus-joint-masters-scholarships',
+      },
     ],
   },
   {
@@ -69,6 +75,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'U.S. government grants for international graduate students and researchers.',
         url: 'https://foreign.fulbrightonline.org/',
+      },
+      {
+        name: 'Knight-Hennessy Scholars',
+        description:
+          'Stanford University’s official graduate fellowship program open to students worldwide.',
+        url: 'https://knight-hennessy.stanford.edu/',
       },
     ],
   },
@@ -93,6 +105,18 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'The UK’s official body listing scholarships for international students.',
         url: 'https://study-uk.britishcouncil.org/scholarships',
+      },
+      {
+        name: 'Gates Cambridge Scholarships',
+        description:
+          'The University of Cambridge’s official postgraduate scholarship for international students.',
+        url: 'https://www.gatescambridge.org/',
+      },
+      {
+        name: 'Rhodes Scholarships',
+        description:
+          'The Rhodes Trust’s official postgraduate scholarship for study at the University of Oxford.',
+        url: 'https://www.rhodeshouse.ox.ac.uk/scholarships/the-rhodes-scholarship/',
       },
     ],
   },
@@ -189,6 +213,18 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'The Japanese government’s official scholarship for international students.',
         url: 'https://www.studyinjapan.go.jp/en/planning/about-scholarship/',
+      },
+    ],
+  },
+  {
+    code: 'CH',
+    title: 'Switzerland',
+    sources: [
+      {
+        name: 'Swiss Government Excellence Scholarships',
+        description:
+          'The Swiss government’s official scholarships for international researchers and postgraduate students.',
+        url: 'https://www.sbfi.admin.ch/sbfi/en/home/education/scholarships-and-grants/swiss-government-excellence-scholarships.html',
       },
     ],
   },
