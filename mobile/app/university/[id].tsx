@@ -16,13 +16,20 @@ import {
 } from '../../lib/format';
 import type { UniversityDetail } from '../../lib/types';
 
-/** Outbound ranking lookups — search links only, no data is copied in. */
+/**
+ * Outbound ranking lookups — search links only, no data is copied in.
+ * Each goes through a Google site-scoped search so it lands on the school's
+ * own page on that ranking site. (The sites' native search endpoints are
+ * JS-rendered and unreliable — QS's plain ?search= returns no results — so a
+ * scoped Google query is the dependable way to resolve to the right school.)
+ */
 function lookupLinks(name: string) {
-  const q = encodeURIComponent(name);
+  const lookup = (domain: string) =>
+    `https://www.google.com/search?q=${encodeURIComponent(`${name} site:${domain}`)}`;
   return [
-    { key: 'QS', label: 'QS', url: `https://www.topuniversities.com/universities?search=${q}` },
-    { key: 'THE', label: 'Times Higher Ed', url: `https://www.timeshighereducation.com/search?search=${q}` },
-    { key: 'USN', label: 'US News', url: `https://www.usnews.com/search?q=${q}` },
+    { key: 'QS', label: 'QS', url: lookup('topuniversities.com') },
+    { key: 'THE', label: 'Times Higher Ed', url: lookup('timeshighereducation.com') },
+    { key: 'USN', label: 'US News', url: lookup('usnews.com') },
   ];
 }
 

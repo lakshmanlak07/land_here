@@ -10,6 +10,7 @@ import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { Disclaimer } from '../../components/Disclaimer';
 import { SkeletonListRow } from '../../components/Skeleton';
+import { Card } from '../../components/Card';
 import { formatScore, formatCurrencyCompact } from '../../lib/format';
 import type { UniversityListItem, UniversityListPage } from '../../lib/types';
 
@@ -187,29 +188,42 @@ export default function RankingsScreen() {
               <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.lg }} />
             ) : null
           }
-          renderItem={({ item, index }) => (
-            <Pressable
-              style={[s.row, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.card }]}
-              onPress={() => router.push({ pathname: '/university/[id]', params: { id: item.id } })}
-            >
-              {/* The API returns rows already sorted by score, so rank is the 1-based position. */}
-              <Text style={[s.rank, { color: colors.textTertiary }]}>{index + 1}</Text>
+          renderItem={({ item, index }) => {
+            // Build the meta line from whatever is present, so a missing state
+            // or tuition never leaves a stray "—" or "Intl —/yr".
+            const meta =
+              [
+                item.state ?? null,
+                item.tuition_out_of_state != null
+                  ? `Intl ${formatCurrencyCompact(item.tuition_out_of_state)}/yr`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join('  ·  ') || 'United States';
+            return (
+              <Card
+                onPress={() => router.push({ pathname: '/university/[id]', params: { id: item.id } })}
+                style={s.row}
+              >
+                {/* The API returns rows already sorted by score, so rank is the 1-based position. */}
+                <Text style={[s.rank, { color: colors.textTertiary }]}>{index + 1}</Text>
 
-              <View style={{ flex: 1, marginHorizontal: spacing.md }}>
-                <Text style={[s.uniName, { color: colors.textPrimary }]} numberOfLines={2}>
-                  {item.name}
-                </Text>
-                <Text style={[s.uniMeta, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {item.state ?? '—'} · Intl {formatCurrencyCompact(item.tuition_out_of_state)}/yr
-                </Text>
-              </View>
+                <View style={{ flex: 1, marginHorizontal: spacing.md }}>
+                  <Text style={[s.uniName, { color: colors.textPrimary }]} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  <Text style={[s.uniMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {meta}
+                  </Text>
+                </View>
 
-              <View style={s.scoreWrap}>
-                <Text style={[s.score, { color: colors.primary }]}>{formatScore(item.landhere_score)}</Text>
-                <Text style={[s.scoreLabel, { color: colors.textTertiary }]}>SCORE</Text>
-              </View>
-            </Pressable>
-          )}
+                <View style={s.scoreWrap}>
+                  <Text style={[s.score, { color: colors.primary }]}>{formatScore(item.landhere_score)}</Text>
+                  <Text style={[s.scoreLabel, { color: colors.textTertiary }]}>SCORE</Text>
+                </View>
+              </Card>
+            );
+          }}
         />
       )}
     </SafeAreaView>
@@ -248,14 +262,12 @@ const s = StyleSheet.create({
   retryBtn: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10 },
   retryText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: 14, marginBottom: 10, borderWidth: 1,
-  },
-  rank: { fontSize: 16, fontWeight: '700', width: 28, textAlign: 'center' },
-  uniName: { fontSize: 15, fontWeight: '700' },
-  uniMeta: { fontSize: 12, marginTop: 3 },
+  // Card supplies surface/border/padding; this is just the inner row layout.
+  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  rank: { fontSize: 15, fontWeight: '700', width: 26, textAlign: 'center' },
+  uniName: { fontSize: 16, fontWeight: '700', lineHeight: 21 },
+  uniMeta: { fontSize: 13, marginTop: 4 },
   scoreWrap: { alignItems: 'center', minWidth: 52 },
   score: { fontSize: 26, fontWeight: '800', lineHeight: 30 },
-  scoreLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1 },
+  scoreLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 1 },
 });
