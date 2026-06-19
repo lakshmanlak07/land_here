@@ -205,6 +205,17 @@ export default function JourneyScreen() {
                         {step.explanation}
                       </Text>
 
+                      {/* Honest unverified flag: this step has not been
+                          human-verified against the official source. Shown
+                          whenever is_verified is false. */}
+                      {!step.is_verified && (
+                        <View style={[s.unverifiedNote, { backgroundColor: colors.surfaceAlt }]}>
+                          <Text style={[s.unverifiedText, { color: colors.textSecondary }]}>
+                            ⚠️ Unverified — always confirm on the official source.
+                          </Text>
+                        </View>
+                      )}
+
                       <Pressable
                         style={[s.sourceBtn, { borderColor: colors.border }]}
                         onPress={() => Linking.openURL(step.official_source_url)}
@@ -324,6 +335,12 @@ const s = StyleSheet.create({
   checkMark: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
   stepExplanation: { fontSize: 14, lineHeight: 22, marginBottom: 12 },
+
+  unverifiedNote: {
+    paddingHorizontal: 10, paddingVertical: 7,
+    borderRadius: 8, marginBottom: 12,
+  },
+  unverifiedText: { fontSize: 12, lineHeight: 17, fontStyle: 'italic' },
 
   sourceBtn: {
     alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7,
