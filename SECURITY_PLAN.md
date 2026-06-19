@@ -50,8 +50,8 @@ auth system is effectively open.
 
 ### 2. 🔴 Real secrets live in the working-tree `.env`
 
-**Where:** `.env` contains a real Postgres password (`postgres:Lakshman%40077`),
-a real `SCORECARD_API_KEY`, and a real `OPENALEX_API_KEY`.
+**Where:** `.env` contains a real Postgres password (redacted from this doc — see
+`DATABASE_URL` in `.env`), a real `SCORECARD_API_KEY`, and a real `OPENALEX_API_KEY`.
 
 **Risk:** `.env` is correctly **gitignored** (confirmed via `git check-ignore`), so
 it is not in git history — good. But the real API keys and DB password sit in plain
