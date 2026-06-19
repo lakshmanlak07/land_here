@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import api, { getErrorMessage } from '../../lib/api';
 import { useAuthStore } from '../../lib/store';
 import { useTheme } from '../../context/ThemeContext';
+import { FALLBACK_COUNTRIES } from '../../constants/countries';
 import type { TokenOut, UserOut, CountryOut } from '../../lib/types';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -146,15 +147,26 @@ export default function RegisterScreen() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const router = useRouter();
 
-  const { data: origins, isLoading: originsLoading } = useQuery<CountryOut[]>({
+  // The bundled list is shown immediately (placeholderData) so the picker is
+  // never empty while the request is in flight, and is kept as the fallback if
+  // the backend is unreachable or returns nothing. A successful response with
+  // at least one country replaces it with the backend's curated list.
+  const { data: origins } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'origins'],
     queryFn: async () => (await api.get('/countries/origins')).data,
+    placeholderData: FALLBACK_COUNTRIES,
   });
 
-  const { data: destinations, isLoading: destLoading } = useQuery<CountryOut[]>({
+  const { data: destinations } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'destinations'],
     queryFn: async () => (await api.get('/countries/destinations')).data,
+    placeholderData: FALLBACK_COUNTRIES,
   });
+
+  // Guarantee a non-empty source even if the backend ever returns an empty list.
+  const originList = origins && origins.length > 0 ? origins : FALLBACK_COUNTRIES;
+  const destinationList =
+    destinations && destinations.length > 0 ? destinations : FALLBACK_COUNTRIES;
 
   function validate() {
     const fe: typeof fieldErrors = {};
@@ -248,9 +260,9 @@ export default function RegisterScreen() {
           <CountryPicker
             label="Origin country"
             value={originName}
-            countries={origins}
+            countries={originList}
             onSelect={(code, name) => { setOriginCode(code); setOriginName(name); setFieldErrors((p) => ({ ...p, origin: undefined })); }}
-            loading={originsLoading}
+            loading={false}
             invalid={!!fieldErrors.origin}
           />
           {fieldErrors.origin && <Text style={[s.fieldError, { color: colors.primary }]}>{fieldErrors.origin}</Text>}
@@ -258,9 +270,9 @@ export default function RegisterScreen() {
           <CountryPicker
             label="Destination country"
             value={destinationName}
-            countries={destinations}
+            countries={destinationList}
             onSelect={(code, name) => { setDestinationCode(code); setDestinationName(name); setFieldErrors((p) => ({ ...p, destination: undefined })); }}
-            loading={destLoading}
+            loading={false}
             invalid={!!fieldErrors.destination}
           />
           {fieldErrors.destination && <Text style={[s.fieldError, { color: colors.primary }]}>{fieldErrors.destination}</Text>}
