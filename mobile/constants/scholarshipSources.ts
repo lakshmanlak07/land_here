@@ -190,6 +190,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
           'The official Dutch (Nuffic) portal for scholarships and study funding.',
         url: 'https://www.studyinnl.org/finances/scholarships',
       },
+      {
+        name: 'NL Scholarship (formerly Holland Scholarship)',
+        description:
+          'The official Dutch (Nuffic) scholarship for studying in the Netherlands.',
+        url: 'https://www.studyinnl.org/finances/nl-scholarship',
+      },
     ],
   },
   {
@@ -225,6 +231,42 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'The Swiss government’s official scholarships for international researchers and postgraduate students.',
         url: 'https://www.sbfi.admin.ch/sbfi/en/home/education/scholarships-and-grants/swiss-government-excellence-scholarships.html',
+      },
+    ],
+  },
+  {
+    code: 'CN',
+    title: 'China',
+    sources: [
+      {
+        name: 'Schwarzman Scholars',
+        description:
+          'Tsinghua University’s official master’s scholarship program in global affairs, based in Beijing.',
+        url: 'https://www.schwarzmanscholars.org/',
+      },
+    ],
+  },
+  {
+    code: 'NZ',
+    title: 'New Zealand',
+    sources: [
+      {
+        name: 'New Zealand Scholarships (Manaaki)',
+        description:
+          'New Zealand’s official government scholarships portal, run by Education New Zealand.',
+        url: 'https://www.nzscholarships.govt.nz/',
+      },
+    ],
+  },
+  {
+    code: 'KR',
+    title: 'South Korea',
+    sources: [
+      {
+        name: 'Global Korea Scholarship (GKS)',
+        description:
+          'The Korean government’s official Study in Korea portal and its GKS scholarship.',
+        url: 'https://www.studyinkorea.go.kr/',
       },
     ],
   },
