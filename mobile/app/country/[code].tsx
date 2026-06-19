@@ -7,6 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuthStore } from '../../lib/store';
 import { RotatingImage } from '../../components/RotatingImage';
 import { SkeletonBlock, SkeletonCard } from '../../components/Skeleton';
+import { FadeInView } from '../../components/FadeInView';
 import { Card } from '../../components/Card';
 import { RotatingFacts } from '../../components/RotatingFacts';
 import { Disclaimer } from '../../components/Disclaimer';
@@ -71,6 +72,7 @@ export default function CountryDetailScreen() {
       )}
 
       {data && (
+        <FadeInView style={{ flex: 1 }}>
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Rotating hero image with country name overlay */}
           <RotatingImage
@@ -157,6 +159,7 @@ export default function CountryDetailScreen() {
             )}
           </View>
         </ScrollView>
+        </FadeInView>
       )}
     </SafeAreaView>
   );

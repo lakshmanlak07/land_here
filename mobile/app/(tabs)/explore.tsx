@@ -10,6 +10,7 @@ import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { CityImage } from '../../components/CityImage';
 import { PressableScale } from '../../components/PressableScale';
+import { FadeInView } from '../../components/FadeInView';
 import { SkeletonCard, SkeletonBlock, SkeletonText } from '../../components/Skeleton';
 import type { CountryOut } from '../../lib/types';
 
@@ -121,7 +122,9 @@ export default function ExploreScreen() {
         </View>
       )}
 
-      <FlatList
+      {!isLoading && !isError && (
+        <FadeInView style={{ flex: 1 }}>
+        <FlatList
         data={filtered}
         keyExtractor={(item) => item.code}
         numColumns={2}
@@ -167,6 +170,8 @@ export default function ExploreScreen() {
           </PressableScale>
         )}
       />
+        </FadeInView>
+      )}
     </SafeAreaView>
   );
 }

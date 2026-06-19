@@ -10,6 +10,7 @@ import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { Disclaimer } from '../../components/Disclaimer';
 import { SkeletonListRow } from '../../components/Skeleton';
+import { FadeInView } from '../../components/FadeInView';
 import { Card } from '../../components/Card';
 import { formatScore, formatCurrencyCompact } from '../../lib/format';
 import type { UniversityListItem, UniversityListPage } from '../../lib/types';
@@ -157,6 +158,7 @@ export default function RankingsScreen() {
       )}
 
       {!isLoading && !isError && (
+        <FadeInView style={{ flex: 1 }}>
         <FlatList
           data={rows}
           keyExtractor={(item) => item.id}
@@ -225,6 +227,7 @@ export default function RankingsScreen() {
             );
           }}
         />
+        </FadeInView>
       )}
     </SafeAreaView>
   );

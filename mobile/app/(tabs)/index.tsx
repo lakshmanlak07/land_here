@@ -13,6 +13,7 @@ import { useProgressStore } from '../../lib/progressStore';
 import { SwipeableFacts } from '../../components/SwipeableFacts';
 import { RotatingImage } from '../../components/RotatingImage';
 import { PressableScale } from '../../components/PressableScale';
+import { FadeInView } from '../../components/FadeInView';
 import { SkeletonBlock } from '../../components/Skeleton';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import api from '../../lib/api';
@@ -223,6 +224,7 @@ export default function HomeScreen() {
                 ))}
               </ScrollView>
             ) : (
+            <FadeInView>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -249,6 +251,7 @@ export default function HomeScreen() {
                 </PressableScale>
               ))}
             </ScrollView>
+            </FadeInView>
             )}
           </>
         )}
