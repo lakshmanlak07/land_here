@@ -166,6 +166,10 @@ export default function RankingsScreen() {
           showsVerticalScrollIndicator={false}
           refreshing={isRefetching}
           onRefresh={() => refetch()}
+          // Smoother windowing for a long, simple-row list.
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={7}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
             if (hasNextPage && !isFetchingNextPage) fetchNextPage();

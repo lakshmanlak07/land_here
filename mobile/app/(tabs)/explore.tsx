@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, FlatList, Pressable,
-  StyleSheet,
+  StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -48,7 +48,7 @@ export default function ExploreScreen() {
   const router = useRouter();
   const [search, setSearch] = useState('');
 
-  const { data, isLoading, isError, refetch } = useQuery<CountryOut[]>({
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'destinations'],
     queryFn: async () => (await api.get('/countries/destinations')).data,
   });
@@ -131,6 +131,12 @@ export default function ExploreScreen() {
         contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
         columnWrapperStyle={{ gap: spacing.md }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
+        }
+        initialNumToRender={6}
+        maxToRenderPerBatch={8}
+        windowSize={7}
         renderItem={({ item }) => (
           <PressableScale
             style={[s.card, { flex: 1, backgroundColor: colors.surface, borderRadius: radius.card }]}
