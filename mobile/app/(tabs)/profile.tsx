@@ -14,7 +14,7 @@ function InfoRow({ label, value, colors }: { label: string; value: string | null
 }
 
 export default function ProfileScreen() {
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing, radius, isDark, toggleTheme } = useTheme();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
@@ -64,11 +64,11 @@ export default function ProfileScreen() {
         <View style={[s.settingRow, { borderBottomColor: colors.border }]}>
           <View style={{ flex: 1 }}>
             <Text style={[s.settingLabel, { color: colors.textPrimary }]}>Dark mode</Text>
-            <Text style={[s.settingHint, { color: colors.textTertiary }]}>Coming soon</Text>
+            <Text style={[s.settingHint, { color: colors.textTertiary }]}>{isDark ? 'On' : 'Off'}</Text>
           </View>
           <Switch
-            value={false}
-            disabled
+            value={isDark}
+            onValueChange={toggleTheme}
             trackColor={{ false: colors.border, true: colors.primary }}
           />
         </View>
@@ -77,10 +77,10 @@ export default function ProfileScreen() {
       {/* Logout */}
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
         <Pressable
-          style={[s.logoutBtn, { borderRadius: radius.button, borderColor: '#E53E3E' }]}
+          style={[s.logoutBtn, { borderRadius: radius.button, borderColor: colors.danger }]}
           onPress={handleLogout}
         >
-          <Text style={s.logoutText}>Sign Out</Text>
+          <Text style={[s.logoutText, { color: colors.danger }]}>Sign Out</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -133,5 +133,5 @@ const s = StyleSheet.create({
     borderWidth: 1.5, paddingVertical: 14,
     alignItems: 'center',
   },
-  logoutText: { color: '#E53E3E', fontSize: 15, fontWeight: '700' },
+  logoutText: { fontSize: 15, fontWeight: '700' },
 });

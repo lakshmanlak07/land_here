@@ -69,5 +69,6 @@ export const COUNTRY_COLORS: Record<string, string> = {
 };
 
 export function countryColor(code: string): string {
-  return COUNTRY_COLORS[code] ?? '#534AB7';
+  // Fallback matches the brand crimson (was #534AB7, the old indigo brand colour).
+  return COUNTRY_COLORS[code] ?? '#D12E3A';
 }

@@ -13,10 +13,6 @@ interface Props {
 // Auto-advance cadence. Pauses while the user is actively swiping, then resumes.
 const AUTO_MS = 7000;
 
-const CARD_BG = '#FFF8E8';
-const CARD_BORDER = '#F5D485';
-const LABEL_COLOR = '#B07C00';
-
 /**
  * A horizontally swipeable "Did you know?" carousel. Pulls facts from
  * getFunFacts for the given country, pages through them with snap scrolling,
@@ -79,8 +75,18 @@ export function SwipeableFacts({ countryCode }: Props) {
           onMomentumScrollEnd={settle}
           renderItem={({ item }) => (
             <View style={{ width }}>
-              <View style={[s.card, { borderRadius: radius.card, padding: spacing.lg }]}>
-                <Text style={[typography.hint, s.label]}>Did you know? 💡</Text>
+              <View
+                style={[
+                  s.card,
+                  {
+                    backgroundColor: colors.factBg,
+                    borderColor: colors.factBorder,
+                    borderRadius: radius.card,
+                    padding: spacing.lg,
+                  },
+                ]}
+              >
+                <Text style={[typography.hint, s.label, { color: colors.factLabel }]}>Did you know? 💡</Text>
                 <Text style={[typography.body, { color: colors.textPrimary }]}>{item}</Text>
               </View>
             </View>
@@ -108,13 +114,10 @@ export function SwipeableFacts({ countryCode }: Props) {
 
 const s = StyleSheet.create({
   card: {
-    backgroundColor: CARD_BG,
-    borderColor: CARD_BORDER,
     borderWidth: 1,
     minHeight: 120,
   },
   label: {
-    color: LABEL_COLOR,
     fontWeight: '700',
     marginBottom: 8,
   },

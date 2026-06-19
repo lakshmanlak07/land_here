@@ -51,14 +51,14 @@ export function RotatingFacts({ countryCode }: Props) {
       style={[
         s.card,
         {
-          backgroundColor: '#FFF8E8',
-          borderColor: '#F5D485',
+          backgroundColor: colors.factBg,
+          borderColor: colors.factBorder,
           borderRadius: radius.card,
           padding: spacing.lg,
         },
       ]}
     >
-      <Text style={[typography.hint, s.label]}>Did you know? 💡</Text>
+      <Text style={[typography.hint, s.label, { color: colors.factLabel }]}>Did you know? 💡</Text>
       <Animated.Text
         style={[
           typography.body,
@@ -76,7 +76,6 @@ const s = StyleSheet.create({
     borderWidth: 1,
   },
   label: {
-    color: '#B07C00',
     fontWeight: '700',
     marginBottom: 8,
   },

@@ -251,7 +251,7 @@ function styles(
     },
     resultValue: { fontSize: 26, fontWeight: '900', color: colors.primary },
     resultHint: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
-    errorText: { fontSize: 14, fontWeight: '600', color: '#C0392B' },
+    errorText: { fontSize: 14, fontWeight: '600', color: colors.danger },
 
     modalBackdrop: {
       flex: 1,
