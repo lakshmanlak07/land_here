@@ -2,10 +2,19 @@ import React, { useEffect } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '../../lib/store';
 import { useTheme } from '../../context/ThemeContext';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+// A soft selection tick on every tab press — the standard iOS tab-bar feel.
+// No-ops silently where haptics aren't supported.
+const tabListeners = {
+  tabPress: () => {
+    Haptics.selectionAsync().catch(() => {});
+  },
+};
 
 // Filled icon when the tab is active, outline when inactive — a small,
 // intentional cue on top of the colour change.
@@ -56,22 +65,27 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{ title: 'Home', tabBarIcon: tabIcon('home', 'home-outline') }}
+        listeners={tabListeners}
       />
       <Tabs.Screen
         name="journey"
         options={{ title: 'Journey', tabBarIcon: tabIcon('trail-sign', 'trail-sign-outline') }}
+        listeners={tabListeners}
       />
       <Tabs.Screen
         name="rankings"
         options={{ title: 'Rankings', tabBarIcon: tabIcon('trophy', 'trophy-outline') }}
+        listeners={tabListeners}
       />
       <Tabs.Screen
         name="explore"
         options={{ title: 'Explore', tabBarIcon: tabIcon('compass', 'compass-outline') }}
+        listeners={tabListeners}
       />
       <Tabs.Screen
         name="profile"
         options={{ title: 'Profile', tabBarIcon: tabIcon('person', 'person-outline') }}
+        listeners={tabListeners}
       />
     </Tabs>
   );

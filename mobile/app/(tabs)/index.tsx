@@ -12,6 +12,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useProgressStore } from '../../lib/progressStore';
 import { SwipeableFacts } from '../../components/SwipeableFacts';
 import { RotatingImage } from '../../components/RotatingImage';
+import { PressableScale } from '../../components/PressableScale';
 import { SkeletonBlock } from '../../components/Skeleton';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import api from '../../lib/api';
@@ -166,10 +167,10 @@ export default function HomeScreen() {
                 </View>
               </>
             )}
-            <Pressable style={s.heroBtn} onPress={() => router.push('/(tabs)/journey')}>
+            <PressableScale style={s.heroBtn} haptic onPress={() => router.push('/(tabs)/journey')}>
               <Text style={[s.heroBtnText, { color: colors.primary }]}>Continue journey</Text>
               <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-            </Pressable>
+            </PressableScale>
           </View>
         ) : (
           <Pressable style={s.heroEmpty} onPress={() => router.push('/(tabs)/profile')}>
@@ -185,7 +186,7 @@ export default function HomeScreen() {
         <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Quick access</Text>
         <View style={s.grid}>
           {quickAccess.map((item) => (
-            <Pressable
+            <PressableScale
               key={item.key}
               style={[s.quickCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={item.onPress}
@@ -197,7 +198,7 @@ export default function HomeScreen() {
               <Text style={[s.quickSub, { color: colors.textSecondary }]} numberOfLines={1}>
                 {item.subtitle}
               </Text>
-            </Pressable>
+            </PressableScale>
           ))}
         </View>
 
@@ -228,7 +229,7 @@ export default function HomeScreen() {
               contentContainerStyle={s.shelf}
             >
               {popular.map((country) => (
-                <Pressable
+                <PressableScale
                   key={country.code}
                   style={s.destCard}
                   onPress={() => router.push({ pathname: '/country/[code]', params: { code: country.code } })}
@@ -245,7 +246,7 @@ export default function HomeScreen() {
                       )}
                     </View>
                   </RotatingImage>
-                </Pressable>
+                </PressableScale>
               ))}
             </ScrollView>
             )}

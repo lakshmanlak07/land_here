@@ -8,6 +8,7 @@ import { Link, useRouter } from 'expo-router';
 import api, { getErrorMessage } from '../../lib/api';
 import { useAuthStore } from '../../lib/store';
 import { useTheme } from '../../context/ThemeContext';
+import { PressableScale } from '../../components/PressableScale';
 import type { TokenOut, UserOut } from '../../lib/types';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -100,15 +101,16 @@ export default function LoginScreen() {
           />
           {fieldErrors.password && <Text style={[s.fieldError, { color: colors.primary }]}>{fieldErrors.password}</Text>}
 
-          <Pressable
+          <PressableScale
             style={[s.btn, { backgroundColor: colors.primary, borderRadius: radius.button }, loading && s.btnDisabled]}
             onPress={handleLogin}
             disabled={loading}
+            haptic
           >
             {loading
               ? <ActivityIndicator color={colors.surface} />
               : <Text style={[s.btnText, { color: colors.surface }]}>Sign In</Text>}
-          </Pressable>
+          </PressableScale>
 
           <Link href="/(auth)/register" asChild>
             <Pressable style={s.linkRow}>

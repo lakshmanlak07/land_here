@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { CityImage } from '../../components/CityImage';
+import { PressableScale } from '../../components/PressableScale';
 import { SkeletonCard, SkeletonBlock, SkeletonText } from '../../components/Skeleton';
 import type { CountryOut } from '../../lib/types';
 
@@ -128,7 +129,7 @@ export default function ExploreScreen() {
         columnWrapperStyle={{ gap: spacing.md }}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
-          <Pressable
+          <PressableScale
             style={[s.card, { flex: 1, backgroundColor: colors.surface, borderRadius: radius.card }]}
             onPress={() => router.push({ pathname: '/country/[code]', params: { code: item.code } })}
           >
@@ -163,7 +164,7 @@ export default function ExploreScreen() {
                 </Text>
               )}
             </View>
-          </Pressable>
+          </PressableScale>
         )}
       />
     </SafeAreaView>
