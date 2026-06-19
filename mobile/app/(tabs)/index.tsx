@@ -229,6 +229,10 @@ export default function HomeScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={s.shelf}
+              // Snap each 180px card (+ md gap) into place for clean paging.
+              snapToInterval={180 + spacing.md}
+              snapToAlignment="start"
+              decelerationRate="fast"
             >
               {popular.map((country) => (
                 <PressableScale
