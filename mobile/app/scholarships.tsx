@@ -2,8 +2,12 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Linking, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { Disclaimer } from '../components/Disclaimer';
+import { Card } from '../components/Card';
+import { IconBadge } from '../components/IconBadge';
+import { SectionTitle } from '../components/SectionTitle';
 import {
   SCHOLARSHIP_SOURCES, SCHOLARSHIP_DISCLAIMER,
   type ScholarshipGroup, type ScholarshipSource,
@@ -40,13 +44,10 @@ export default function ScholarshipsScreen() {
 }
 
 function Group({ group }: { group: ScholarshipGroup }) {
-  const { colors, spacing } = useTheme();
+  const { spacing } = useTheme();
   return (
     <View style={{ marginBottom: spacing.xl }}>
-      <View style={[s.sectionHead, { borderLeftColor: colors.primary }]}>
-        <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>{group.title}</Text>
-      </View>
-
+      <SectionTitle title={group.title} accent />
       {group.sources.map((source) => (
         <SourceCard key={source.url} source={source} />
       ))}
@@ -55,21 +56,23 @@ function Group({ group }: { group: ScholarshipGroup }) {
 }
 
 function SourceCard({ source }: { source: ScholarshipSource }) {
-  const { colors, radius } = useTheme();
+  const { colors, spacing } = useTheme();
   return (
-    <Pressable
-      style={[
-        s.card,
-        { backgroundColor: colors.surface, borderRadius: radius.card, borderLeftColor: colors.primary },
-      ]}
+    <Card
+      accent={colors.primary}
       onPress={() => Linking.openURL(source.url)}
+      style={[s.card, { marginBottom: spacing.md }]}
     >
+      <IconBadge icon="ribbon-outline" color={colors.primary} tone="soft" size={42} />
       <View style={{ flex: 1 }}>
         <Text style={[s.title, { color: colors.textPrimary }]}>{source.name}</Text>
         <Text style={[s.desc, { color: colors.textSecondary }]}>{source.description}</Text>
-        <Text style={[s.link, { color: colors.primary }]}>Open official site  ↗</Text>
+        <View style={s.linkRow}>
+          <Text style={[s.link, { color: colors.primary }]}>Open official site</Text>
+          <Ionicons name="open-outline" size={14} color={colors.primary} />
+        </View>
       </View>
-    </Pressable>
+    </Card>
   );
 }
 
@@ -83,17 +86,9 @@ const s = StyleSheet.create({
   headerTitle: { fontSize: 22, fontWeight: '700' },
   headerSub: { fontSize: 13, marginTop: 2 },
 
-  sectionHead: { borderLeftWidth: 4, paddingLeft: 12, marginBottom: 14 },
-  sectionTitle: { fontSize: 18, fontWeight: '700' },
-
-  card: {
-    padding: 16, marginBottom: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000', shadowOpacity: 0.06,
-    shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
+  card: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
   title: { fontSize: 15, fontWeight: '700', marginBottom: 6, lineHeight: 21 },
   desc: { fontSize: 14, lineHeight: 21, marginBottom: 12 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   link: { fontSize: 13, fontWeight: '700' },
 });

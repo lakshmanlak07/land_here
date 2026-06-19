@@ -1,12 +1,23 @@
+import React from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { Card } from '../components/Card';
+import { IconBadge } from '../components/IconBadge';
+import { Pill } from '../components/Pill';
+import { SectionTitle } from '../components/SectionTitle';
 
-const BUCKETS = [
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+const BUCKETS: {
+  title: string; weight: string; blurb: string; icon: IoniconName; factors: string[];
+}[] = [
   {
     title: 'Research',
     weight: '50%',
+    icon: 'flask-outline',
     blurb: 'How much knowledge the institution produces and how widely it lands.',
     factors: [
       'Research output — volume of published work',
@@ -16,6 +27,7 @@ const BUCKETS = [
   {
     title: 'Outcomes',
     weight: '50%',
+    icon: 'trending-up-outline',
     blurb: "What actually happens to students after they enrol.",
     factors: [
       'Median earnings of graduates',
@@ -25,21 +37,23 @@ const BUCKETS = [
   },
 ];
 
-const SOURCES = [
+const SOURCES: { name: string; org: string; blurb: string; icon: IoniconName }[] = [
   {
     name: 'College Scorecard',
     org: 'U.S. Department of Education',
+    icon: 'school-outline',
     blurb: 'Tuition, net price, graduation rates, and post-graduation earnings.',
   },
   {
     name: 'OpenAlex',
     org: 'Open catalog of scholarly works',
+    icon: 'library-outline',
     blurb: 'Research output and citation impact across publications.',
   },
 ];
 
 export default function MethodologyScreen() {
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing } = useTheme();
   const router = useRouter();
 
   return (
@@ -52,12 +66,15 @@ export default function MethodologyScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.lg }}
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.xl }}
         showsVerticalScrollIndicator={false}
       >
         {/* Intro */}
         <View>
-          <Text style={[s.h1, { color: colors.textPrimary }]}>The LandHere Score</Text>
+          <View style={s.introRow}>
+            <IconBadge icon="shield-checkmark-outline" color={colors.primary} tone="soft" size={40} />
+            <Text style={[s.h1, { color: colors.textPrimary }]}>The LandHere Score</Text>
+          </View>
           <Text style={[s.body, { color: colors.textSecondary }]}>
             The LandHere Score is our own objective score, calculated from open
             public data. It is <Text style={s.bold}>not</Text> an opinion survey,
@@ -69,7 +86,7 @@ export default function MethodologyScreen() {
 
         {/* Weighting */}
         <View>
-          <Text style={[s.sectionHeader, { color: colors.textPrimary }]}>What goes into the score</Text>
+          <SectionTitle title="What goes into the score" accent />
           <Text style={[s.body, { color: colors.textSecondary, marginBottom: spacing.md }]}>
             The score is split evenly between two things that matter most:
             the research a university produces, and the real-world outcomes for
@@ -77,24 +94,20 @@ export default function MethodologyScreen() {
           </Text>
 
           {BUCKETS.map((b) => (
-            <View
-              key={b.title}
-              style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.card }]}
-            >
+            <Card key={b.title} style={{ marginBottom: spacing.md }}>
               <View style={s.cardHead}>
+                <IconBadge icon={b.icon} color={colors.primary} tone="soft" size={40} />
                 <Text style={[s.cardTitle, { color: colors.textPrimary }]}>{b.title}</Text>
-                <View style={[s.weightPill, { backgroundColor: colors.primary, borderRadius: radius.pill }]}>
-                  <Text style={s.weightText}>{b.weight}</Text>
-                </View>
+                <Pill label={b.weight} tone="solid" />
               </View>
               <Text style={[s.cardBlurb, { color: colors.textSecondary }]}>{b.blurb}</Text>
               {b.factors.map((f) => (
                 <View key={f} style={s.factorLine}>
-                  <Text style={[s.bullet, { color: colors.primary }]}>•</Text>
+                  <Ionicons name="ellipse" size={6} color={colors.primary} style={{ marginTop: 7, marginRight: 9 }} />
                   <Text style={[s.factorText, { color: colors.textPrimary }]}>{f}</Text>
                 </View>
               ))}
-            </View>
+            </Card>
           ))}
 
           <Text style={[s.note, { color: colors.textTertiary }]}>
@@ -105,22 +118,25 @@ export default function MethodologyScreen() {
 
         {/* Data sources */}
         <View>
-          <Text style={[s.sectionHeader, { color: colors.textPrimary }]}>Where the data comes from</Text>
+          <SectionTitle title="Where the data comes from" accent />
           {SOURCES.map((src) => (
-            <View
-              key={src.name}
-              style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.card }]}
-            >
-              <Text style={[s.cardTitle, { color: colors.textPrimary }]}>{src.name}</Text>
-              <Text style={[s.sourceOrg, { color: colors.textTertiary }]}>{src.org}</Text>
-              <Text style={[s.cardBlurb, { color: colors.textSecondary, marginTop: 6 }]}>{src.blurb}</Text>
-            </View>
+            <Card key={src.name} style={[s.sourceCard, { marginBottom: spacing.md }]}>
+              <IconBadge icon={src.icon} color={colors.after_acceptance} tone="soft" size={42} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.cardTitle, { color: colors.textPrimary }]}>{src.name}</Text>
+                <Text style={[s.sourceOrg, { color: colors.textTertiary }]}>{src.org}</Text>
+                <Text style={[s.cardBlurb, { color: colors.textSecondary, marginTop: 6 }]}>{src.blurb}</Text>
+              </View>
+            </Card>
           ))}
         </View>
 
         {/* Disclaimer */}
-        <View style={[s.disclaimer, { backgroundColor: colors.surfaceAlt, borderRadius: radius.card }]}>
-          <Text style={[s.disclaimerTitle, { color: colors.textPrimary }]}>This is an estimate</Text>
+        <Card tinted elevation="none">
+          <View style={s.introRow}>
+            <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
+            <Text style={[s.disclaimerTitle, { color: colors.textPrimary }]}>This is an estimate</Text>
+          </View>
           <Text style={[s.body, { color: colors.textSecondary }]}>
             The LandHere Score is a model built from public data and reflects only
             the factors above. It can't capture everything that matters to you —
@@ -128,7 +144,7 @@ export default function MethodologyScreen() {
             situation. Treat it as a starting point, and always do your own
             research before making a decision.
           </Text>
-        </View>
+        </Card>
       </ScrollView>
     </SafeAreaView>
   );
@@ -143,26 +159,22 @@ const s = StyleSheet.create({
   back: { fontSize: 15, fontWeight: '600' },
   headerTitle: { fontSize: 20, fontWeight: '700' },
 
-  h1: { fontSize: 24, fontWeight: '800', marginBottom: 10 },
-  sectionHeader: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  introRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  h1: { fontSize: 24, fontWeight: '800', flex: 1 },
   body: { fontSize: 14, lineHeight: 22 },
   bold: { fontWeight: '800' },
 
-  card: { padding: 16, borderWidth: 1, marginBottom: 12 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitle: { fontSize: 17, fontWeight: '700' },
-  cardBlurb: { fontSize: 13, lineHeight: 19, marginTop: 6, marginBottom: 8 },
-  weightPill: { paddingHorizontal: 12, paddingVertical: 4 },
-  weightText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cardTitle: { fontSize: 17, fontWeight: '700', flex: 1 },
+  cardBlurb: { fontSize: 13, lineHeight: 19, marginTop: 10, marginBottom: 8 },
 
   factorLine: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 6 },
-  bullet: { fontSize: 16, fontWeight: '800', marginRight: 8, lineHeight: 20 },
   factorText: { fontSize: 14, flex: 1, lineHeight: 20 },
 
   note: { fontSize: 12, lineHeight: 18, marginTop: 4, fontStyle: 'italic' },
 
+  sourceCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
   sourceOrg: { fontSize: 12, marginTop: 2 },
 
-  disclaimer: { padding: 16 },
-  disclaimerTitle: { fontSize: 15, fontWeight: '700', marginBottom: 8 },
+  disclaimerTitle: { fontSize: 15, fontWeight: '700' },
 });
