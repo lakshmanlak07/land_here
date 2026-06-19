@@ -99,7 +99,10 @@ function NecessitiesDetail({ code }: { code: string }) {
   const router = useRouter();
 
   const { countryCode, sections } = getNecessities(code);
-  const where = COUNTRY_NAMES[countryCode] ?? countryCode;
+  const country = NEC_COUNTRIES.find((c) => c.code === countryCode);
+  const countryName = country?.name ?? COUNTRY_NAMES[countryCode] ?? countryCode;
+  const where = COUNTRY_NAMES[countryCode] ?? countryName;
+  const hasContent = sections.length > 0;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
@@ -109,20 +112,34 @@ function NecessitiesDetail({ code }: { code: string }) {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={[s.headerTitle, { color: colors.textPrimary }]}>Necessities</Text>
-          <Text style={[s.headerSub, { color: colors.textSecondary }]}>After you arrive in {where}</Text>
+          <Text style={[s.headerSub, { color: colors.textSecondary }]}>
+            {hasContent ? `After you arrive in ${where}` : countryName}
+          </Text>
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }}
-        showsVerticalScrollIndicator={false}
-      >
-        {sections.map((section) => (
-          <Section key={section.key} section={section} />
-        ))}
+      {hasContent ? (
+        <ScrollView
+          contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }}
+          showsVerticalScrollIndicator={false}
+        >
+          {sections.map((section) => (
+            <Section key={section.key} section={section} />
+          ))}
 
-        <Disclaimer text={DISCLAIMER_TEXT} style={{ marginTop: spacing.sm }} />
-      </ScrollView>
+          <Disclaimer text={DISCLAIMER_TEXT} style={{ marginTop: spacing.sm }} />
+        </ScrollView>
+      ) : (
+        // No content for this country yet — show an explicit empty state rather
+        // than another country's setup steps.
+        <View style={s.centered}>
+          <Text style={s.emptyIcon}>🧭</Text>
+          <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Not available yet</Text>
+          <Text style={[s.emptyBody, { color: colors.textSecondary }]}>
+            We haven't published the necessities for {countryName} yet. Check back soon.
+          </Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -198,6 +215,12 @@ const s = StyleSheet.create({
   back: { fontSize: 15, fontWeight: '600' },
   headerTitle: { fontSize: 22, fontWeight: '700' },
   headerSub: { fontSize: 13, marginTop: 2 },
+
+  // Empty state shown when a country has no necessities content yet.
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  emptyIcon: { fontSize: 48, marginBottom: 16 },
+  emptyTitle: { fontSize: 17, fontWeight: '700', marginBottom: 8 },
+  emptyBody: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
   // Country picker rows (Card supplies surface/border/radius/padding/shadow)
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 },

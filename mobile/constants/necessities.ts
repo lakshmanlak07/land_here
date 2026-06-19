@@ -142,16 +142,15 @@ export const NECESSITIES_BY_COUNTRY: Record<string, NecessitySection[]> = {
 };
 
 /**
- * Returns the necessities sections for a country, falling back to the US
- * first pass when no country-specific content exists yet.
+ * Returns the necessities sections for a country, or an EMPTY list when no
+ * country-specific content exists yet. Never falls back to another country's
+ * data — showing the wrong country's setup steps would be misleading. Callers
+ * must render an explicit "not available yet" state when `sections` is empty.
  */
 export function getNecessities(countryCode?: string | null): {
   countryCode: string;
   sections: NecessitySection[];
 } {
   const code = countryCode?.toUpperCase() ?? '';
-  if (NECESSITIES_BY_COUNTRY[code]) {
-    return { countryCode: code, sections: NECESSITIES_BY_COUNTRY[code] };
-  }
-  return { countryCode: 'US', sections: US_SECTIONS };
+  return { countryCode: code, sections: NECESSITIES_BY_COUNTRY[code] ?? [] };
 }
