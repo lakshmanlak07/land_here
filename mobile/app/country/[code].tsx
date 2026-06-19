@@ -6,6 +6,7 @@ import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthStore } from '../../lib/store';
 import { RotatingImage } from '../../components/RotatingImage';
+import { ImageScrim } from '../../components/ImageScrim';
 import { SkeletonBlock, SkeletonCard } from '../../components/Skeleton';
 import { FadeInView } from '../../components/FadeInView';
 import { Card } from '../../components/Card';
@@ -80,6 +81,7 @@ export default function CountryDetailScreen() {
             countryCode={data.code}
             style={s.hero}
           >
+            <ImageScrim intensity="strong" />
             <View style={s.heroOverlay}>
               <Text style={s.heroCode}>{data.code}</Text>
               <Text style={s.heroName}>{data.name}</Text>
@@ -197,7 +199,6 @@ const s = StyleSheet.create({
   hero: { height: 320, width: '100%' },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.42)',
     justifyContent: 'flex-end',
     padding: 20,
   },

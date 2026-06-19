@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { RotatingImage } from '../../components/RotatingImage';
+import { ImageScrim } from '../../components/ImageScrim';
 import { Disclaimer } from '../../components/Disclaimer';
 import { SkeletonBlock, SkeletonCard, SkeletonText } from '../../components/Skeleton';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
@@ -99,8 +100,7 @@ export default function UniversityDetailScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
           {/* Hero — labelled campus/city photo for this university */}
           <RotatingImage queries={heroQueries} countryCode="US" style={s.hero}>
-            <View style={s.heroScrim} />
-            <View style={s.heroGradient} />
+            <ImageScrim intensity="strong" />
             <View style={s.heroContent}>
               <Text style={s.heroEyebrow}>UNIVERSITY</Text>
               <Text style={s.heroName}>{data.name}</Text>
@@ -262,12 +262,6 @@ const s = StyleSheet.create({
   retryText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 
   hero: { height: 320, width: '100%' },
-  // Layered scrims fake a soft top-to-bottom gradient for clean text legibility.
-  heroScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.18)' },
-  heroGradient: {
-    position: 'absolute', left: 0, right: 0, bottom: 0,
-    height: '62%', backgroundColor: 'rgba(0,0,0,0.5)',
-  },
   heroContent: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 22 },
   heroEyebrow: { color: 'rgba(255,255,255,0.78)', fontSize: 12, fontWeight: '700', letterSpacing: 2, marginBottom: 6 },
   heroName: { color: '#fff', fontSize: 30, fontWeight: '800', lineHeight: 36 },

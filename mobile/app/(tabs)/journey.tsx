@@ -10,6 +10,7 @@ import { useAuthStore } from '../../lib/store';
 import { useTheme } from '../../context/ThemeContext';
 import { useProgressStore } from '../../lib/progressStore';
 import { RotatingImage } from '../../components/RotatingImage';
+import { ImageScrim } from '../../components/ImageScrim';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import type { JourneyOut } from '../../lib/types';
 
@@ -247,6 +248,7 @@ export default function JourneyScreen() {
           countryCode={destCode}
           style={StyleSheet.absoluteFillObject}
         >
+          <ImageScrim intensity="strong" />
           <View style={[s.heroOverlay, { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }]}>
             <Text style={s.heroTitle}>Your Journey</Text>
             {data.origin && (
@@ -293,7 +295,6 @@ const s = StyleSheet.create({
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.48)',
     justifyContent: 'flex-end',
   },
   heroTitle: { color: '#fff', fontSize: 22, fontWeight: '700', marginBottom: 2 },

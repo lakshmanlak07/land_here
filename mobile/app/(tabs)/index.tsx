@@ -12,6 +12,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useProgressStore } from '../../lib/progressStore';
 import { SwipeableFacts } from '../../components/SwipeableFacts';
 import { RotatingImage } from '../../components/RotatingImage';
+import { ImageScrim } from '../../components/ImageScrim';
 import { PressableScale } from '../../components/PressableScale';
 import { FadeInView } from '../../components/FadeInView';
 import { SkeletonBlock } from '../../components/Skeleton';
@@ -245,6 +246,7 @@ export default function HomeScreen() {
                     countryCode={country.code}
                     style={s.destImage}
                   >
+                    <ImageScrim intensity="medium" />
                     <View style={s.destOverlay}>
                       <Text style={s.destName} numberOfLines={1}>{country.name}</Text>
                       {country.student_visa_name && (
@@ -352,7 +354,6 @@ function styles(
     destImage: { width: '100%', height: '100%' },
     destOverlay: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.32)',
       justifyContent: 'flex-end', padding: spacing.md,
     },
     destName: { color: '#fff', fontSize: 15, fontWeight: '700' },

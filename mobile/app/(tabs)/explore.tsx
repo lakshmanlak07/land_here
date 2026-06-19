@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { CityImage } from '../../components/CityImage';
+import { Pill } from '../../components/Pill';
 import { PressableScale } from '../../components/PressableScale';
 import { FadeInView } from '../../components/FadeInView';
 import { SkeletonCard, SkeletonBlock, SkeletonText } from '../../components/Skeleton';
@@ -160,11 +161,7 @@ export default function ExploreScreen() {
               )}
 
               {item.currency_code && (
-                <View style={[s.currencyPill, { backgroundColor: colors.surfaceAlt }]}>
-                  <Text style={[s.currencyText, { color: colors.textSecondary }]}>
-                    {item.currency_code}
-                  </Text>
-                </View>
+                <Pill label={item.currency_code} tone="accent" style={s.currencyPill} />
               )}
 
               {DESCRIPTORS[item.code] && (
@@ -216,13 +213,6 @@ const s = StyleSheet.create({
   cardBody: { padding: 10 },
   cardName: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
   cardVisa: { fontSize: 11, marginBottom: 4 },
-  currencyPill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginBottom: 4,
-  },
-  currencyText: { fontSize: 11, fontWeight: '600' },
+  currencyPill: { marginBottom: 4 },
   cardDesc: { fontSize: 11, lineHeight: 15 },
 });
