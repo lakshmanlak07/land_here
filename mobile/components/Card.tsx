@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from './PressableScale';
 
@@ -11,45 +11,45 @@ interface CardProps {
   accent?: string;
   /** Inner padding; defaults to the theme's `lg` step. */
   padding?: number;
+  /**
+   * Depth preset. `card` (default) lifts gently; `raised` for hero/feature
+   * cards; `none` to sit flat (border only). Maps to the theme's mode-aware
+   * elevation, so shadows soften automatically in dark mode.
+   */
+  elevation?: 'card' | 'raised' | 'none';
+  /** Use the subtly tinted surface (surfaceAlt) instead of the plain surface. */
+  tinted?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
 /**
  * The shared surface primitive used across the app's card-based screens.
- * Pulls its colours and radius from the theme so it reads correctly in light
- * and dark mode; shadow uses the platform default (black) so no colour token
- * is hardcoded. Pass `onPress` for tappable rows, `accent` for a left stripe.
+ * Pulls its colours, radius and elevation from the theme so it reads correctly
+ * in light and dark mode. Pass `onPress` for tappable rows, `accent` for a left
+ * stripe, `elevation` for depth, `tinted` for a subtly distinct surface.
  */
-export function Card({ children, onPress, accent, padding, style }: CardProps) {
-  const { colors, radius, spacing } = useTheme();
+export function Card({
+  children, onPress, accent, padding, elevation = 'card', tinted, style,
+}: CardProps) {
+  const { colors, radius, spacing, elevation: elev } = useTheme();
 
   const base: ViewStyle = {
-    backgroundColor: colors.surface,
+    backgroundColor: tinted ? colors.surfaceAlt : colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
     borderRadius: radius.card,
     padding: padding ?? spacing.lg,
+    ...(elevation !== 'none' ? elev[elevation] : null),
     ...(accent ? { borderLeftWidth: 4, borderLeftColor: accent } : null),
   };
 
   if (onPress) {
     return (
-      <PressableScale onPress={onPress} style={[base, s.shadow, style]}>
+      <PressableScale onPress={onPress} style={[base, style]}>
         {children}
       </PressableScale>
     );
   }
 
-  return <View style={[base, s.shadow, style]}>{children}</View>;
+  return <View style={[base, style]}>{children}</View>;
 }
-
-const s = StyleSheet.create({
-  // No shadowColor → platform default (black), so no colour is hardcoded and
-  // it behaves consistently in both themes.
-  shadow: {
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-});
