@@ -194,7 +194,7 @@ const s = StyleSheet.create({
   retryBtn: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10 },
   retryText: { color: '#fff', fontWeight: '600', fontSize: 14 },
 
-  hero: { height: 300, width: '100%' },
+  hero: { height: 320, width: '100%' },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.42)',

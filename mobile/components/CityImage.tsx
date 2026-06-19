@@ -44,7 +44,7 @@ export function CityImage({ query, countryCode, style, children, showCodeFallbac
         style={StyleSheet.absoluteFillObject}
       />
       {children}
-      <Text style={s.credit}>{result.credit}</Text>
+      <Text style={s.credit} numberOfLines={1}>{result.credit}</Text>
     </View>
   );
 }

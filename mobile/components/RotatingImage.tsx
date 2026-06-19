@@ -60,7 +60,7 @@ export function RotatingImage({ queries, countryCode, style, children }: Props) 
         style={StyleSheet.absoluteFillObject}
       />
       {children}
-      <Text style={s.credit}>{current.credit}</Text>
+      <Text style={s.credit} numberOfLines={1}>{current.credit}</Text>
     </View>
   );
 }

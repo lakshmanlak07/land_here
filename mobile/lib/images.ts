@@ -29,7 +29,9 @@ export async function getCityImage(query: string): Promise<ImageResult | null> {
     if (!photo?.urls?.regular) { cache.set(query, null); return null; }
     const result: ImageResult = {
       url: photo.urls.regular,
-      credit: photo.user?.name ?? 'Unsplash',
+      // Always attribute Unsplash alongside the photographer (Unsplash credit
+      // guidelines); fall back to just "Unsplash" when no name is returned.
+      credit: photo.user?.name ? `${photo.user.name} · Unsplash` : 'Unsplash',
     };
     console.log('[images] loaded:', query.substring(0, 40), '| credit:', result.credit);
     cache.set(query, result);
