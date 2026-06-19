@@ -18,6 +18,31 @@ const phaseColors = {
 const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 const radius = { card: 16, button: 12, pill: 20 } as const;
 
+// Mode-aware elevation presets. In LIGHT mode cards lift with a soft black
+// shadow; in DARK mode shadows are nearly invisible against near-black, so we
+// drop them and instead let the lighter surface + border do the separating.
+// Spread one of these onto a card style: `...elevation.card`.
+type ElevationStyle = {
+  shadowColor: string;
+  shadowOpacity: number;
+  shadowRadius: number;
+  shadowOffset: { width: number; height: number };
+  elevation: number;
+};
+type ElevationSet = { card: ElevationStyle; raised: ElevationStyle; hero: ElevationStyle };
+
+const lightElevation: ElevationSet = {
+  card: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  raised: { shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
+  hero: { shadowColor: '#000', shadowOpacity: 0.14, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+};
+
+const darkElevation: ElevationSet = {
+  card: { shadowColor: '#000', shadowOpacity: 0, shadowRadius: 0, shadowOffset: { width: 0, height: 0 }, elevation: 0 },
+  raised: { shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+  hero: { shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+};
+
 const typography = {
   screenTitle: { fontSize: 24, fontWeight: '600' as const },
   sectionHeader: { fontSize: 18, fontWeight: '600' as const },
@@ -86,6 +111,8 @@ interface Theme {
   spacing: typeof spacing;
   radius: typeof radius;
   typography: typeof typography;
+  /** Mode-aware shadow presets — spread onto a card style, e.g. `...elevation.card`. */
+  elevation: ElevationSet;
   isDark: boolean;
   /** Toggle between light and dark for the whole app, live. */
   toggleTheme: () => void;
@@ -98,6 +125,7 @@ const defaultTheme: Theme = {
   spacing,
   radius,
   typography,
+  elevation: lightElevation,
   isDark: false,
   toggleTheme: () => {},
   setDark: () => {},
@@ -116,10 +144,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setDark = useCallback((value: boolean) => setOverride(value), []);
 
   const colors = isDark ? darkPalette : lightPalette;
+  const elevation = isDark ? darkElevation : lightElevation;
 
   const value = useMemo<Theme>(
-    () => ({ colors, spacing, radius, typography, isDark, toggleTheme, setDark }),
-    [colors, isDark, toggleTheme, setDark],
+    () => ({ colors, spacing, radius, typography, elevation, isDark, toggleTheme, setDark }),
+    [colors, elevation, isDark, toggleTheme, setDark],
   );
 
   return (
