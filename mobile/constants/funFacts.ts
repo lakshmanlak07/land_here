@@ -1,11 +1,9 @@
 const facts: Record<string, string[]> = {
   US: [
-    'The US has over 4,000 universities — more than any other country in the world.',
     'Over 1 million international students study in the US each year.',
     'The US National Park system protects over 85 million acres across 63 parks.',
     'American English has absorbed words from over 150 languages.',
     'The US spans 6 time zones and an extraordinary range of climates.',
-    'The Library of Congress holds over 170 million items — the world\'s largest library.',
     'Silicon Valley accounts for roughly one-third of all US venture capital investment.',
     'The Smithsonian Institution runs 19 museums in Washington DC — all free to the public.',
     'The US has won more total Olympic medals than any other country in history.',
@@ -15,7 +13,6 @@ const facts: Record<string, string[]> = {
     'The Grand Canyon was carved by the Colorado River over millions of years — up to 29 km wide.',
     'Baseball, basketball, and American football were all invented in the United States.',
     'The US is the world\'s largest producer of corn and soybeans.',
-    'New York City\'s subway has 472 stations — the most of any metro system in the world.',
     'The greater Boston area is home to over 50 colleges and universities.',
     'Yellowstone, established in 1872, was the world\'s first national park.',
     'The US issues more patents annually than any other country.',
@@ -23,7 +20,6 @@ const facts: Record<string, string[]> = {
   ],
   GB: [
     'Oxford University has been continuously teaching students since around 1096 — nearly 1,000 years old.',
-    'The British Library holds over 170 million items, one of the largest collections in the world.',
     'The UK has produced more Nobel Prize winners per capita than almost any other country.',
     'Britain has more castles per square mile than almost any other country — over 6,000 in total.',
     'The London Underground opened in 1863 — the world\'s first underground railway system.',
@@ -45,7 +41,6 @@ const facts: Record<string, string[]> = {
   ],
   UK: [
     'Oxford University has been continuously teaching students since around 1096 — nearly 1,000 years old.',
-    'The British Library holds over 170 million items, one of the largest collections in the world.',
     'The UK has produced more Nobel Prize winners per capita than almost any other country.',
     'Britain has more castles per square mile than almost any other country — over 6,000 in total.',
     'The London Underground opened in 1863 — the world\'s first underground railway system.',
@@ -89,7 +84,6 @@ const facts: Record<string, string[]> = {
   ],
   AU: [
     'Australia is the only country that is also an entire continent.',
-    '8 of the world\'s top 100 universities are in Australia.',
     'The Great Barrier Reef is the world\'s largest living structure, visible from space.',
     'Australia is home to more venomous animal species than any other country — but encounters are rare.',
     'Australians invented WiFi, the cochlear implant, and the black box flight recorder.',
@@ -110,7 +104,6 @@ const facts: Record<string, string[]> = {
     'The Daintree Rainforest in Queensland is the world\'s oldest tropical rainforest.',
   ],
   DE: [
-    'Most German public universities charge no tuition fees — even for international students.',
     'Germany has over 400 universities and more than 19,000 degree programs to choose from.',
     'Germany produces more than 1,500 different types of bread — a recognised cultural institution.',
     'Germany is the largest economy in Europe and one of the top exporters globally.',
@@ -126,7 +119,6 @@ const facts: Record<string, string[]> = {
     'Albert Einstein, Max Planck, and Werner Heisenberg were all born in Germany.',
     'Neuschwanstein Castle in Bavaria inspired the design of Disney\'s iconic fairy-tale castle.',
     'Germany hosts the Frankfurt Book Fair — the world\'s largest trade fair for books, since 1454.',
-    'Germany is the world\'s second-largest exporter of goods, behind only China.',
     'Cologne Cathedral took over 600 years to build and is now a UNESCO World Heritage Site.',
     'Germany has more than 1,500 registered breweries — one of the densest concentrations in the world.',
     'The German university system invented the research university model, now adopted worldwide.',
@@ -352,7 +344,6 @@ const facts: Record<string, string[]> = {
     'The Trevi Fountain in Rome collects around €3,000 in coins per day — tossed by visitors for luck.',
   ],
   IN: [
-    'India has the world\'s largest student population, with over 38 million enrolled in higher education.',
     'India produces more English-speaking graduates each year than any other country.',
     'The IIT network has produced leaders at Google, Microsoft, and Adobe, among many others.',
     'India has 42 UNESCO World Heritage Sites — from the Taj Mahal to the caves of Ajanta.',
