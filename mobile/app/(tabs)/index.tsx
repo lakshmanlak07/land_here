@@ -154,7 +154,7 @@ export default function HomeScreen() {
               <>
                 <Text style={s.heroSteps}>We couldn't load your steps right now.</Text>
                 <Pressable style={s.heroBtn} onPress={() => refetchJourney()}>
-                  <Text style={[s.heroBtnText, { color: colors.primary }]}>Tap to retry</Text>
+                  <Text style={[s.heroBtnText, { color: colors.primary }]}>Try again</Text>
                   <Ionicons name="refresh" size={16} color={colors.primary} />
                 </Pressable>
               </>

@@ -284,7 +284,7 @@ export default function RegisterScreen() {
           >
             {loading
               ? <ActivityIndicator color={colors.surface} />
-              : <Text style={[s.btnText, { color: colors.surface }]}>Create Account</Text>}
+              : <Text style={[s.btnText, { color: colors.surface }]}>Create account</Text>}
           </Pressable>
 
           <Link href="/(auth)/login" asChild>

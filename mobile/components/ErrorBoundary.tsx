@@ -22,7 +22,7 @@ function ErrorFallback({ onRetry }: { onRetry: () => void }) {
         onPress={onRetry}
         style={[styles.btn, { backgroundColor: colors.primary, borderRadius: radius.button }]}
       >
-        <Text style={styles.btnText}>Tap to retry</Text>
+        <Text style={styles.btnText}>Try again</Text>
       </Pressable>
     </View>
   );

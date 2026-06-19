@@ -109,7 +109,7 @@ export default function LoginScreen() {
           >
             {loading
               ? <ActivityIndicator color={colors.surface} />
-              : <Text style={[s.btnText, { color: colors.surface }]}>Sign In</Text>}
+              : <Text style={[s.btnText, { color: colors.surface }]}>Sign in</Text>}
           </PressableScale>
 
           <Link href="/(auth)/register" asChild>

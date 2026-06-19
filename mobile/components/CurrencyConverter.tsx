@@ -134,7 +134,7 @@ export function CurrencyConverter({ defaultFrom, defaultTo }: Props) {
           <ActivityIndicator color={colors.primary} />
         ) : isError ? (
           <Pressable onPress={() => refetch()} hitSlop={8}>
-            <Text style={s.errorText}>Rates unavailable — tap to retry</Text>
+            <Text style={s.errorText}>Rates unavailable — tap to try again</Text>
           </Pressable>
         ) : converted === null ? (
           <Text style={s.resultHint}>Enter an amount to convert</Text>

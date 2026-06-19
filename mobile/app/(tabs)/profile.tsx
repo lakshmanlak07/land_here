@@ -80,7 +80,7 @@ export default function ProfileScreen() {
           style={[s.logoutBtn, { borderRadius: radius.button, borderColor: colors.danger }]}
           onPress={handleLogout}
         >
-          <Text style={[s.logoutText, { color: colors.danger }]}>Sign Out</Text>
+          <Text style={[s.logoutText, { color: colors.danger }]}>Sign out</Text>
         </Pressable>
       </View>
     </SafeAreaView>

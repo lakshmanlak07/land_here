@@ -154,7 +154,7 @@ export default function CountryDetailScreen() {
                 style={[s.officialBtn, { backgroundColor: colors.primary, borderRadius: radius.button }]}
                 onPress={() => Linking.openURL(data.official_immigration_url!)}
               >
-                <Text style={s.officialBtnText}>Official Immigration Site  ↗</Text>
+                <Text style={s.officialBtnText}>Official immigration site  ↗</Text>
               </Pressable>
             )}
           </View>
