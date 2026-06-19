@@ -33,7 +33,16 @@ export default function RootLayout() {
                 catches any render error in the screen tree and shows a themed
                 fallback instead of a blank white screen. */}
             <ErrorBoundary>
-              <Stack screenOptions={{ headerShown: false }} />
+              {/* Consistent horizontal slide for pushed screens (country/uni
+                  detail, methodology, etc.) with edge-swipe back — the standard
+                  premium native-stack feel. */}
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: 'slide_from_right',
+                  gestureEnabled: true,
+                }}
+              />
             </ErrorBoundary>
             {!ready && (
               <View style={StyleSheet.absoluteFill}>

@@ -13,5 +13,8 @@ export default function AuthLayout() {
     }
   }, [token, hydrated]);
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  // Match the root stack's slide so login -> register feels consistent.
+  return (
+    <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', gestureEnabled: true }} />
+  );
 }
