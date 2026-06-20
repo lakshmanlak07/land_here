@@ -33,7 +33,7 @@ const PHASE_ICONS: Record<string, string> = {
 const HERO_HEIGHT = 220;
 
 export default function JourneyScreen() {
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing, radius, elevation } = useTheme();
   const user = useAuthStore((s) => s.user);
   const { toggle, isCompleted } = useProgressStore();
 
@@ -165,6 +165,7 @@ export default function JourneyScreen() {
                     key={step.id}
                     style={[
                       s.stepCard,
+                      elevation.card,
                       {
                         backgroundColor: colors.surface,
                         borderRadius: radius.card,
@@ -315,9 +316,6 @@ const s = StyleSheet.create({
     flexDirection: 'row', gap: 14,
     padding: 16, marginBottom: 12,
     borderLeftWidth: 4,
-    shadowColor: '#000', shadowOpacity: 0.06,
-    shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
   stepBadge: {
     width: 28, height: 28, borderRadius: 14,
