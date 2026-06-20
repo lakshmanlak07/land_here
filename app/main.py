@@ -29,10 +29,17 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal server error"},
     )
 
+# The API authenticates with Bearer tokens in the Authorization header (see
+# app/core/deps.py), NOT cookies — so it does not need credentialed CORS.
+# With allow_credentials=False a wildcard origin is safe: browsers will share
+# responses but cannot attach a victim's cookies/credentials to the request,
+# and the native mobile client isn't subject to CORS at all. Locking
+# allow_origins to the real web/prod domain(s) is a production step — see
+# PRE_LAUNCH_SECURITY.md (#2). Do NOT combine "*" with allow_credentials=True.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

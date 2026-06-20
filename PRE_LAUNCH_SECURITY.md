@@ -34,13 +34,20 @@ This list complements `SECURITY_PLAN.md`. None of it is a guarantee of being
       return v
   ```
 
-## 2. CORS — lock to known origins
-`app/main.py` currently uses `allow_origins=["*"]` with `allow_credentials=True`.
-That wildcard is intentional for local Expo testing, but for production:
-- Set `allow_origins` to the explicit web origin(s) you actually serve.
-- The app authenticates with **Bearer tokens (Authorization header), not cookies**,
-  so `allow_credentials` can be `False`. (`allow_credentials=True` + `"*"` is also
-  rejected by browsers, so this needs fixing before any cookie-based flow.)
+## 2. CORS — lock origins to the real web/prod domain(s)
+**Done in dev:** `allow_credentials` is now `False` in `app/main.py`. Because the
+app authenticates with **Bearer tokens (Authorization header), not cookies**, the
+remaining `allow_origins=["*"]` is safe — a wildcard origin only matters for
+credentialed (cookie) requests, and the native mobile client isn't subject to CORS
+at all. The wildcard is kept intentionally so local Expo testing against the LAN IP
+keeps working.
+
+**Still TODO before launch:**
+- Lock `allow_origins` to the explicit web/prod origin(s) you actually serve (only
+  relevant once there's a browser-based client; the mobile app does not need it).
+- Never reintroduce `allow_credentials=True` alongside `"*"` — browsers reject that
+  combination, and it would be unsafe. If a cookie-based flow is ever added, set an
+  explicit origin allowlist *and* `allow_credentials=True` together, never wildcard.
 
 ## 3. HTTPS / HSTS
 - Terminate TLS at the proxy/load balancer; redirect HTTP → HTTPS.
