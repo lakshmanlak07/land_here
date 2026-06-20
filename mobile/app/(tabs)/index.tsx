@@ -14,6 +14,7 @@ import { SwipeableFacts } from '../../components/SwipeableFacts';
 import { RotatingImage } from '../../components/RotatingImage';
 import { ImageScrim } from '../../components/ImageScrim';
 import { PressableScale } from '../../components/PressableScale';
+import { IconBadge } from '../../components/IconBadge';
 import { FadeInView } from '../../components/FadeInView';
 import { SkeletonBlock } from '../../components/Skeleton';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
@@ -193,10 +194,18 @@ export default function HomeScreen() {
               style={[s.quickCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={item.onPress}
             >
-              <View style={[s.quickTile, { backgroundColor: item.tile }]}>
-                <Ionicons name={item.icon} size={22} color="#fff" />
-              </View>
-              <Text style={[s.quickTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+              {/* Subtle accent-tinted chip (soft tone) — quieter and cleaner than
+                  a solid tile, and theme-aware so it reads in light and dark. */}
+              <IconBadge
+                icon={item.icon}
+                color={item.tile}
+                tone="soft"
+                size={44}
+                style={{ marginBottom: spacing.md }}
+              />
+              <Text style={[s.quickTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                {item.title}
+              </Text>
               <Text style={[s.quickSub, { color: colors.textSecondary }]} numberOfLines={1}>
                 {item.subtitle}
               </Text>
@@ -335,10 +344,6 @@ function styles(
       borderRadius: radius.card, borderWidth: 1, padding: spacing.lg,
       shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8,
       shadowOffset: { width: 0, height: 2 }, elevation: 2,
-    },
-    quickTile: {
-      width: 44, height: 44, borderRadius: radius.button,
-      justifyContent: 'center', alignItems: 'center', marginBottom: spacing.md,
     },
     quickTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
     quickSub: { fontSize: 12 },
