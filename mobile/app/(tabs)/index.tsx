@@ -43,7 +43,7 @@ function countryName(code: string): string {
 }
 
 export default function HomeScreen() {
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing, radius, elevation } = useTheme();
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
   const completedIds = useProgressStore((s) => s.completedIds);
@@ -197,7 +197,7 @@ export default function HomeScreen() {
           {quickAccess.map((item) => (
             <PressableScale
               key={item.key}
-              style={[s.quickCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[s.quickCard, elevation.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={item.onPress}
             >
               {/* Subtle accent-tinted chip (soft tone) — quieter and cleaner than
@@ -253,7 +253,7 @@ export default function HomeScreen() {
               {popular.map((country) => (
                 <PressableScale
                   key={country.code}
-                  style={s.destCard}
+                  style={[s.destCard, elevation.card]}
                   onPress={() => router.push({ pathname: '/country/[code]', params: { code: country.code } })}
                 >
                   <RotatingImage
@@ -352,8 +352,6 @@ function styles(
     quickCard: {
       width: '47.5%', flexGrow: 1,
       borderRadius: radius.card, borderWidth: 1, padding: spacing.lg,
-      shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 }, elevation: 2,
     },
     quickTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
     quickSub: { fontSize: 12 },
@@ -363,8 +361,6 @@ function styles(
     shelf: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm },
     destCard: {
       width: 180, height: 130, borderRadius: radius.card, overflow: 'hidden',
-      shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 }, elevation: 3,
     },
     destImage: { width: '100%', height: '100%' },
     destOverlay: {
