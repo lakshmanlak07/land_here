@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, EmailStr, Field
+from typing import Annotated
+from pydantic import AfterValidator, BaseModel, EmailStr, Field
 
 # Upper bound guards against very long inputs (bcrypt work scales with length;
 # it also only uses the first 72 bytes, so longer is pointless). The mobile app
@@ -8,8 +9,21 @@ from pydantic import BaseModel, EmailStr, Field
 _MAX_PASSWORD_LEN = 128
 
 
+def _normalize_email(value: str) -> str:
+    """Trim surrounding whitespace and lower-case the address so that, e.g.,
+    'Foo@X.com ' and 'foo@x.com' resolve to the same account. Applied at the
+    schema layer so registration, login, and every lookup that flows through
+    these models normalize identically and can never drift apart."""
+    return value.strip().lower()
+
+
+# EmailStr validates RFC format first; the AfterValidator then normalizes the
+# already-valid address. Reused by every auth model so the rule lives in one place.
+NormalizedEmail = Annotated[EmailStr, AfterValidator(_normalize_email)]
+
+
 class UserRegister(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
     password: str = Field(min_length=8, max_length=_MAX_PASSWORD_LEN)
     full_name: str | None = None
     origin_country_code: str | None = None
@@ -17,7 +31,7 @@ class UserRegister(BaseModel):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    email: NormalizedEmail
     # No minimum here (avoids rejecting any pre-existing account); cap only.
     password: str = Field(max_length=_MAX_PASSWORD_LEN)
 
