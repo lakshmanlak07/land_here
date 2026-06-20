@@ -59,13 +59,28 @@ Add at the proxy or via middleware in production:
 `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
 `Referrer-Policy: no-referrer`, and a Content-Security-Policy for any web build.
 
-## 5. Rate limiting — move to a shared store
+## 5. Rate limiting — shared store + trusted-proxy config in production
 The current limiter (`app/core/rate_limit.py`) is **in-memory, single-process,
 fail-open**. It resets on restart and does not coordinate across workers.
 - For multi-worker / multi-instance production, back it with Redis
   (e.g. `slowapi` + Redis) so limits hold globally.
 - Re-tune limits under real traffic; consider per-account lockout on repeated
   failed logins, not just per-IP.
+
+**Trusted-proxy client-IP resolution (done in dev, must be configured in prod):**
+- `_client_ip()` now reads the real client IP from `X-Forwarded-For`, but only
+  when `TRUST_PROXY_HEADERS=true` (default **false** for local dev, where there is
+  no proxy and the socket peer is correct). In production **behind a reverse proxy
+  / load balancer**, set:
+  - `TRUST_PROXY_HEADERS=true`
+  - `TRUSTED_PROXY_HOPS=<number of proxies in front of the app>` (e.g. `1`).
+- Getting the hop count wrong matters: too low trusts a spoofable client-supplied
+  value; too high keys everyone by the proxy IP again. Confirm against your actual
+  deployment topology, and make sure the proxy **overwrites** (not just appends)
+  inbound `X-Forwarded-For` so clients can't pre-seed fake hops.
+- Leaving `TRUST_PROXY_HEADERS=false` in production behind a proxy reintroduces the
+  original bug (all users share one bucket — finding #3). The in-memory store
+  (finding #6, above) still needs Redis regardless.
 
 ## 6. Token / auth lifecycle
 - `ACCESS_TOKEN_EXPIRE_MINUTES` is currently **10080 (7 days)**. Consider a

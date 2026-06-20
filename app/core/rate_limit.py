@@ -23,12 +23,37 @@ from collections import defaultdict
 
 from fastapi import HTTPException, Request, status
 
+from app.core.config import settings
+
 # (timestamps) per key. Trimmed to the active window on each check.
 _hits: dict[str, list[float]] = defaultdict(list)
 _lock = threading.Lock()
 
 
 def _client_ip(request: Request) -> str:
+    """Best-effort real client IP for per-IP rate limiting.
+
+    `request.client.host` is the direct socket peer. Behind a reverse proxy that
+    is the PROXY's IP — so every user would share one bucket. To fix that we read
+    the client IP from X-Forwarded-For, but ONLY when explicitly told we sit
+    behind a trusted proxy (settings.TRUST_PROXY_HEADERS): the header is
+    client-supplied and trivially spoofable, so trusting it from arbitrary
+    clients would let an attacker forge a fresh IP per request and bypass limits.
+
+    With N trusted proxy hops, the genuine client is the Nth entry from the right
+    of X-Forwarded-For (everything further left is client-controlled and not
+    trustworthy). Default config (TRUST_PROXY_HEADERS=False) preserves the
+    original local-dev behaviour exactly.
+    """
+    if settings.TRUST_PROXY_HEADERS:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+            if parts:
+                hops = max(1, settings.TRUSTED_PROXY_HOPS)
+                # Clamp to available entries; take the Nth-from-right (the IP our
+                # own trusted proxy observed), not the spoofable left-most one.
+                return parts[-min(hops, len(parts))]
     if request.client and request.client.host:
         return request.client.host
     return "unknown"
