@@ -45,7 +45,7 @@ const DESCRIPTORS: Record<string, string> = {
 };
 
 export default function ExploreScreen() {
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing, radius, elevation } = useTheme();
   const router = useRouter();
   const [search, setSearch] = useState('');
 
@@ -140,7 +140,7 @@ export default function ExploreScreen() {
         windowSize={7}
         renderItem={({ item }) => (
           <PressableScale
-            style={[s.card, { flex: 1, backgroundColor: colors.surface, borderRadius: radius.card }]}
+            style={[s.card, elevation.card, { flex: 1, backgroundColor: colors.surface, borderRadius: radius.card }]}
             onPress={() => router.push({ pathname: '/country/[code]', params: { code: item.code } })}
           >
             <CityImage
@@ -205,9 +205,6 @@ const s = StyleSheet.create({
 
   card: {
     overflow: 'hidden',
-    shadowColor: '#000', shadowOpacity: 0.07,
-    shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
   cardImage: { height: 100, width: '100%' },
   cardBody: { padding: 10 },
