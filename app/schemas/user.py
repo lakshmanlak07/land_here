@@ -50,3 +50,10 @@ class UserOut(BaseModel):
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class AccountDeleteRequest(BaseModel):
+    # Re-entering the password is the irreversible-action confirmation: deletion
+    # must require proof of identity beyond merely possessing the token (e.g. an
+    # unlocked, unattended device). Cap only — never reject an existing password.
+    password: str = Field(max_length=_MAX_PASSWORD_LEN)

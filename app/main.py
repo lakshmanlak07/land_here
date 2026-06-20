@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.routes import auth, countries, info, guides, universities
+from app.routes import account, auth, countries, info, guides, universities
 
 logger = logging.getLogger("landhere")
 
@@ -45,6 +45,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(account.router)
 app.include_router(countries.router)
 app.include_router(info.router)
 app.include_router(guides.router)
