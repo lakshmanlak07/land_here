@@ -31,13 +31,17 @@ export const useAuthStore = create<AuthState>((set) => ({
   hydrate: async () => {
     try {
       const token = await SecureStore.getItemAsync(TOKEN_KEY);
-      if (token) {
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      // Guard a missing API URL: without it we'd fetch `undefined/auth/me` and
+      // fail confusingly. api.ts already logs the misconfiguration loudly at
+      // startup; here we just skip the call and settle into signed-out.
+      if (token && apiUrl) {
         // Bound the cold-start /auth/me call so an unreachable backend can't
         // stall boot — abort after 10s and fall through to the signed-out state.
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 10000);
         try {
-          const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/auth/me`, {
+          const res = await fetch(`${apiUrl}/auth/me`, {
             headers: { Authorization: `Bearer ${token}` },
             signal: controller.signal,
           });

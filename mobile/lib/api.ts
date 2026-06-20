@@ -1,8 +1,26 @@
 import axios from 'axios';
 import { useAuthStore } from './store';
 
+/**
+ * The backend base URL, injected at build time via Expo's public env. Exported
+ * so other callers (e.g. the session hydrate fetch) resolve it from one place
+ * instead of reaching for `process.env` and silently building `undefined/...`.
+ */
+export const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+// Validate once at startup: a missing URL otherwise surfaces as a confusing
+// "can't reach server" on every request that looks like an outage rather than
+// the real cause — a misconfigured env. Loud in dev; harmless no-op in prod.
+if (!API_URL) {
+  console.error(
+    '[config] EXPO_PUBLIC_API_URL is not set — the app cannot reach the backend. ' +
+      'Set it in mobile/.env (e.g. EXPO_PUBLIC_API_URL=http://<your-LAN-IP>:8000) ' +
+      'and restart the Expo dev server.',
+  );
+}
+
 const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL,
+  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
   // Fail fast instead of hanging on the OS-level TCP timeout when the
   // backend is unreachable (stale LAN IP, server down, firewall).
