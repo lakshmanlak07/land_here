@@ -75,7 +75,12 @@ export default function HomeScreen() {
 
   const destCode = user?.destination_country_code ?? '';
   const originCode = user?.origin_country_code ?? '';
-  const firstName = user?.full_name?.trim().split(' ')[0] ?? 'there';
+  // Personalise the hero headline with the user's first name when we have it;
+  // otherwise fall back to the generic greeting.
+  const displayName = user?.full_name?.trim().split(' ')[0] ?? '';
+  const heroHeadline = displayName
+    ? `Hey ${displayName}, ready to move abroad?`
+    : 'Hey, ready to move abroad?';
   const initial = (user?.full_name?.trim()?.[0] ?? user?.email?.[0] ?? '?').toUpperCase();
 
   const quickAccess: {
@@ -127,21 +132,22 @@ export default function HomeScreen() {
           <RefreshControl refreshing={isRefetching} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
       >
-        {/* Greeting + avatar */}
-        <View style={s.greetingRow}>
-          <View style={{ flex: 1 }}>
+        {/* Greeting hero — time-based hint + avatar, then a prominent headline */}
+        <View style={s.header}>
+          <View style={s.headerTopRow}>
             <Text style={[s.greetingHint, { color: colors.textSecondary }]}>{greeting()}</Text>
-            <Text style={[s.greetingName, { color: colors.textPrimary }]} numberOfLines={1}>
-              {firstName}
-            </Text>
+            <Pressable
+              style={[s.avatar, { backgroundColor: colors.primary }]}
+              onPress={() => router.push('/(tabs)/profile')}
+              hitSlop={8}
+            >
+              <Text style={s.avatarText}>{initial}</Text>
+            </Pressable>
           </View>
-          <Pressable
-            style={[s.avatar, { backgroundColor: colors.primary }]}
-            onPress={() => router.push('/(tabs)/profile')}
-            hitSlop={8}
-          >
-            <Text style={s.avatarText}>{initial}</Text>
-          </Pressable>
+          <Text style={[s.heroHeadline, { color: colors.textPrimary }]}>{heroHeadline}</Text>
+          <Text style={[s.heroSubtitle, { color: colors.textSecondary }]}>
+            Your step-by-step companion for the whole journey.
+          </Text>
         </View>
 
         {/* Journey hero card */}
@@ -286,12 +292,16 @@ function styles(
     safe: { flex: 1, backgroundColor: colors.bg },
     scroll: { paddingBottom: spacing.xxl },
 
-    greetingRow: {
-      flexDirection: 'row', alignItems: 'center',
+    header: {
       paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.lg,
     },
-    greetingHint: { fontSize: 14 },
-    greetingName: { fontSize: 26, fontWeight: '700', marginTop: 2 },
+    headerTopRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginBottom: spacing.md,
+    },
+    greetingHint: { fontSize: 14, fontWeight: '600' },
+    heroHeadline: { fontSize: 27, fontWeight: '800', lineHeight: 33, marginBottom: 6 },
+    heroSubtitle: { fontSize: 14, lineHeight: 20 },
     avatar: {
       width: 44, height: 44, borderRadius: 22,
       justifyContent: 'center', alignItems: 'center',
