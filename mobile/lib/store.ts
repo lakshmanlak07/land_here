@@ -50,6 +50,13 @@ export const useAuthStore = create<AuthState>((set) => ({
             set({ token, user, hydrated: true });
             return;
           }
+          // Explicit auth rejection → the stored token is bad (expired/invalid).
+          // Drop it so it isn't re-sent and re-rejected on every cold start. A
+          // network failure (caught below) keeps the token to retry next launch,
+          // since we can't tell "backend down" from "token invalid" there.
+          if (res.status === 401) {
+            await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+          }
         } finally {
           clearTimeout(timer);
         }
