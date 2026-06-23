@@ -16,7 +16,10 @@ const phaseColors = {
 } as const;
 
 const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
-const radius = { card: 16, button: 12, pill: 20 } as const;
+// Design-system corner radii (8 / 12 / 16 / 20 / 26). `card`/`button`/`pill`
+// keep their original names so existing screens compile unchanged; `lg`/`xl`
+// are the larger radii the richer ported cards use.
+const radius = { card: 16, button: 12, pill: 20, lg: 20, xl: 26 } as const;
 
 // Mode-aware elevation presets. In LIGHT mode cards lift with a soft black
 // shadow; in DARK mode shadows are nearly invisible against near-black, so we
@@ -66,38 +69,42 @@ const typography = {
 // adapt to dark mode instead of being a fixed cream.
 
 const lightPalette = {
-  bg: '#F7F7F9',
+  bg: '#FBF9F7',
   surface: '#FFFFFF',
-  surfaceAlt: '#F0F0F2',
-  textPrimary: '#1A1A1A',
-  textSecondary: '#6B6B6B',
-  textTertiary: '#9B9B9B',
-  border: '#E6E6E9',
-  primary: '#D12E3A',
-  primarySoft: '#E15B64',
-  primaryPressed: '#B0252F',
-  primarySubtle: '#FBE7E9',
-  danger: '#E53E3E',
-  factBg: '#FFF8E8',
-  factBorder: '#F5D485',
-  factLabel: '#B07C00',
+  surfaceAlt: '#F4EEF0',
+  textPrimary: '#1B1416',
+  textSecondary: '#6E646A',
+  textTertiary: '#9A8E94',
+  border: '#F0EAEC',
+  primary: '#A4133C',
+  primarySoft: '#C4456A',
+  primaryPressed: '#8E1133',
+  primarySubtle: '#FBEAEE',
+  danger: '#C23A2A',
+  success: '#1E8A5A',
+  warning: '#B87514',
+  factBg: '#FBF0DC',
+  factBorder: '#E0B564',
+  factLabel: '#B87514',
   ...phaseColors,
 };
 
 const darkPalette: typeof lightPalette = {
-  bg: '#121212',
-  surface: '#1E1E1E',
-  surfaceAlt: '#2A2A2A',
-  textPrimary: '#FFFFFF',
-  textSecondary: '#AAAAAA',
-  textTertiary: '#777777',
-  border: '#333333',
+  bg: '#121013',
+  surface: '#1C181B',
+  surfaceAlt: '#2A262A',
+  textPrimary: '#F4F0F2',
+  textSecondary: '#9A9095',
+  textTertiary: '#8C8288',
+  border: 'rgba(255,255,255,0.07)',
   // Brighter on dark so the crimson stays legible against near-black surfaces.
-  primary: '#F0555F',
+  primary: '#FF5A78',
   primarySoft: '#F47C84',
-  primaryPressed: '#D12E3A',
-  primarySubtle: '#3A2326',
-  danger: '#FF6B6B',
+  primaryPressed: '#E0506B',
+  primarySubtle: 'rgba(164,19,60,0.22)',
+  danger: '#FF6B52',
+  success: '#46C88A',
+  warning: '#E0A33A',
   factBg: '#2E2716',
   factBorder: '#4A3F1E',
   factLabel: '#E0B64D',

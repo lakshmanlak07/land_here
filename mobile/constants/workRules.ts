@@ -113,6 +113,65 @@ export const WORK_RULES_BY_COUNTRY: Record<string, WorkRule> = {
       url: 'https://www.irishimmigration.ie/coming-to-study-in-ireland/what-are-my-rights-and-conditions-as-a-student/working-in-ireland/',
     },
   },
+
+  NL: {
+    termTime:
+      'Up to 16 hours/week of paid work while your course is in session — or full-time, but only in June, July and August (you cannot combine the two).',
+    breaks:
+      'Full-time paid work is allowed only during June, July and August. There is no separate allowance for shorter breaks.',
+    onCampus:
+      'The Netherlands does not distinguish on- from off-campus work — all paid employment counts toward the 16 hrs/week limit and your employer must hold a work permit (TWV).',
+    offCampus:
+      'For any paid job your employer must first apply to the UWV (Dutch labour authority) for a work permit (TWV). Self-employment / freelance work is allowed and is not subject to the 16 hrs/week limit.',
+    source: {
+      name: 'IND — Student residence permit',
+      url: 'https://ind.nl/en/residence-permits/study/student-residence-permit-for-university-or-higher-professional-education',
+    },
+  },
+
+  NZ: {
+    termTime: 'Up to 25 hours/week during the semester for eligible full-time tertiary students.',
+    breaks: 'Full-time work is allowed during scheduled study breaks (e.g. the summer holidays) if your visa conditions permit.',
+    onCampus:
+      'New Zealand does not distinguish on- from off-campus work. PhD and Research Masters students at NZ tertiary institutions have no weekly hour limit.',
+    offCampus:
+      'The same 25 hrs/week in-study limit applies to all work. Eligibility depends on your course and provider; your exact conditions are stated on your visa.',
+    source: {
+      name: 'Immigration New Zealand — Working on a student visa',
+      url: 'https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/',
+    },
+    note:
+      'The in-study limit rose from 20 to 25 hrs/week on 3 November 2025 — confirm the current figure on the official site.',
+  },
+
+  FR: {
+    termTime:
+      'Up to 964 hours per year (about 60% of full-time, roughly 20 hrs/week). France uses an annual cap, not a weekly one.',
+    breaks: 'There is no separate break allowance — holiday work counts toward the same 964-hour annual limit.',
+    onCampus: 'No separate on-campus regime; campus jobs count toward the same 964-hour annual cap.',
+    offCampus:
+      'Non-EU students on a student residence permit (VLS-TS) no longer need a separate work permit, provided they stay within 964 hours/year. Different rules apply to Algerian nationals.',
+    source: {
+      name: 'Campus France — Working while studying',
+      url: 'https://www.campusfrance.org/en/working-student',
+    },
+    note:
+      'France uses an annual cap (964 hrs/year ≈ 20 hrs/week), not a weekly limit — pace your hours across the year and confirm the figure on the official site.',
+  },
+
+  SG: {
+    termTime: 'Up to 16 hours/week during term, and only if you study at an institution on MOM’s approved list.',
+    breaks: 'No hour limit during scheduled vacation for eligible full-time matriculated/registered students aged 14 and above.',
+    onCampus: 'No on- vs off-campus distinction — the rules apply wherever you work.',
+    offCampus:
+      'Only Student’s Pass holders at MOM-approved institutions are exempt from needing a separate work pass. Exchange students may not work at all.',
+    source: {
+      name: 'Ministry of Manpower — Work pass exemption for foreign students',
+      url: 'https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students',
+    },
+    note:
+      'You may only work if your institution is on MOM’s approved list, and exchange students cannot work at all — check your eligibility first.',
+  },
 };
 
 /** Returns the work rule for a country code, or null if we have no data yet. */
@@ -156,6 +215,10 @@ export const WORK_HOURS_COUNTRIES: WorkHoursEntry[] = [
   { code: 'CA', badge: 'CA', name: 'Canada', visa: 'Study permit · off-campus', term: '24 hrs/wk', breaks: 'Full-time', sourceHost: 'canada.ca', accent: '#C0392B' },
   { code: 'AU', badge: 'AU', name: 'Australia', visa: 'Student visa (500)', term: '48 hrs/fortnight', breaks: 'Unlimited', sourceHost: 'homeaffairs.gov.au', accent: '#1E6F8A' },
   { code: 'IE', badge: 'IE', name: 'Ireland', visa: 'Stamp 2', term: '20 hrs/wk', breaks: '40 hrs/wk', sourceHost: 'irishimmigration.ie', accent: '#1E8A5A' },
+  { code: 'NL', badge: 'NL', name: 'Netherlands', visa: 'Study residence permit', term: '16 hrs/wk', breaks: 'Jun–Aug only', sourceHost: 'ind.nl', accent: '#21468B' },
+  { code: 'NZ', badge: 'NZ', name: 'New Zealand', visa: 'Student visa', term: '25 hrs/wk', breaks: 'Full-time', sourceHost: 'immigration.govt.nz', accent: '#00247D' },
+  { code: 'FR', badge: 'FR', name: 'France', visa: 'VLS-TS étudiant', term: '964 hrs/yr', breaks: 'Same annual cap', sourceHost: 'campusfrance.org', accent: '#0055A4' },
+  { code: 'SG', badge: 'SG', name: 'Singapore', visa: 'Student’s Pass', term: '16 hrs/wk', breaks: 'Unlimited', sourceHost: 'mom.gov.sg', accent: '#EF3340' },
 ];
 
 /** Footer caption for the Work hours screen. */

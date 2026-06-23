@@ -43,8 +43,31 @@ class UserOut(BaseModel):
     origin_country_code: str | None
     destination_country_code: str | None
     created_at: datetime
+    stage: str | None
+    wants_to_work: bool | None
+    wants_scholarships: bool | None
+    concerns: list[str] | None
+    first_month_priority: str | None
+    first_timer: bool | None
+    confidence: int | None
+    primary_goal: str | None
 
     model_config = {"from_attributes": True}
+
+
+class UserOnboarding(BaseModel):
+    """Partial onboarding profile — every field optional so callers can PATCH
+    one answer at a time. Only fields actually present in the request body are
+    applied (see PATCH /auth/me); unset fields are left untouched."""
+
+    stage: str | None = None
+    wants_to_work: bool | None = None
+    wants_scholarships: bool | None = None
+    concerns: list[str] | None = None
+    first_month_priority: str | None = None
+    first_timer: bool | None = None
+    confidence: int | None = None
+    primary_goal: str | None = None
 
 
 class TokenOut(BaseModel):

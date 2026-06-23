@@ -6,7 +6,7 @@ from app.core.deps import get_current_user
 from app.core.rate_limit import rate_limiter
 from app.core.security import hash_password, verify_password, create_access_token
 from app.models.user import User
-from app.schemas.user import UserRegister, UserLogin, UserOut, TokenOut
+from app.schemas.user import UserRegister, UserLogin, UserOut, UserOnboarding, TokenOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -52,4 +52,19 @@ def login(body: UserLogin, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(
+    body: UserOnboarding,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    # exclude_unset → apply only the fields the client actually sent. An omitted
+    # field is left untouched; a field sent explicitly as null clears that value.
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(current_user, field, value)
+    db.commit()
+    db.refresh(current_user)
     return current_user

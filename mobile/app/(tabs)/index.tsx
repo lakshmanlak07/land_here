@@ -3,7 +3,9 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -14,14 +16,17 @@ import { SwipeableFacts } from '../../components/SwipeableFacts';
 import { RotatingImage } from '../../components/RotatingImage';
 import { ImageScrim } from '../../components/ImageScrim';
 import { PressableScale } from '../../components/PressableScale';
-import { IconBadge } from '../../components/IconBadge';
 import { FadeInView } from '../../components/FadeInView';
 import { SkeletonBlock } from '../../components/Skeleton';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import api from '../../lib/api';
-import type { JourneyOut, CountryOut } from '../../lib/types';
+import type { JourneyOut, CountryOut, InfoStep } from '../../lib/types';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+// Crimson gradient stops reused across the hero overlay, momentum card and
+// quick-access tiles — the design's signature brand wash.
+const CRIMSON_GRAD = ['#B5163F', '#8E1133', '#6B0F2C'] as const;
 
 // Display names for the corridor banner; falls back to the raw code.
 const COUNTRY_NAMES: Record<string, string> = {
@@ -42,11 +47,40 @@ function countryName(code: string): string {
   return COUNTRY_NAMES[code] ?? code;
 }
 
+/** SVG progress ring used in the momentum card. */
+function ProgressRing({
+  size, stroke, progress, track, fill, children,
+}: {
+  size: number; stroke: number; progress: number;
+  track: string; fill: string; children?: React.ReactNode;
+}) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - Math.max(0, Math.min(1, progress)));
+  return (
+    <View style={{ width: size, height: size }}>
+      <Svg width={size} height={size}>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={track} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx={size / 2} cy={size / 2} r={r}
+          stroke={fill} strokeWidth={stroke} fill="none" strokeLinecap="round"
+          strokeDasharray={circ} strokeDashoffset={offset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>{children}</View>
+      </View>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
-  const { colors, spacing, radius, elevation } = useTheme();
-  const user = useAuthStore((s) => s.user);
+  const { colors, spacing, radius, isDark, toggleTheme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const user = useAuthStore((st) => st.user);
   const router = useRouter();
-  const completedIds = useProgressStore((s) => s.completedIds);
+  const completedIds = useProgressStore((st) => st.completedIds);
 
   const { data: journey, isLoading: journeyLoading, isError: journeyError, refetch: refetchJourney, isRefetching } = useQuery<JourneyOut>({
     queryKey: ['journey', user?.origin_country_code, user?.destination_country_code],
@@ -66,57 +100,38 @@ export default function HomeScreen() {
   });
 
   const allStepIds = useMemo(
-    () => journey?.phases.flatMap((p) => p.steps.map((s) => s.id)) ?? [],
+    () => journey?.phases.flatMap((p) => p.steps.map((st) => st.id)) ?? [],
     [journey],
   );
   const totalSteps = allStepIds.length;
   const doneSteps = allStepIds.filter((id) => !!completedIds[id]).length;
   const progress = totalSteps > 0 ? doneSteps / totalSteps : 0;
 
+  // First not-yet-completed step — drives the "Next step" banner.
+  const nextStep = useMemo<InfoStep | null>(() => {
+    for (const p of journey?.phases ?? []) {
+      for (const st of p.steps) {
+        if (!completedIds[st.id]) return st;
+      }
+    }
+    return null;
+  }, [journey, completedIds]);
+
   const destCode = user?.destination_country_code ?? '';
   const originCode = user?.origin_country_code ?? '';
-  // Personalise the hero headline with the user's first name when we have it;
-  // otherwise fall back to the generic greeting.
   const displayName = user?.full_name?.trim().split(' ')[0] ?? '';
-  const heroHeadline = displayName
-    ? `Hey ${displayName}, ready to move abroad?`
-    : 'Hey, ready to move abroad?';
   const initial = (user?.full_name?.trim()?.[0] ?? user?.email?.[0] ?? '?').toUpperCase();
 
   const quickAccess: {
     key: string; title: string; subtitle: string;
-    icon: IoniconName; tile: string; onPress: () => void;
+    icon: IoniconName; onPress: () => void;
   }[] = [
-    {
-      key: 'necessities', title: 'Necessities', subtitle: 'Setup after you arrive',
-      icon: 'checkmark-done-outline', tile: colors.after_arrival,
-      onPress: () => router.push('/necessities'),
-    },
-    {
-      key: 'rankings', title: 'Rankings', subtitle: 'Top universities',
-      icon: 'trophy-outline', tile: colors.primary,
-      onPress: () => router.push('/(tabs)/rankings'),
-    },
-    {
-      key: 'scholarships', title: 'Scholarships', subtitle: 'Official sources',
-      icon: 'ribbon-outline', tile: colors.primarySoft,
-      onPress: () => router.push('/scholarships'),
-    },
-    {
-      key: 'work-hours', title: 'Work hours', subtitle: 'Earn while you study',
-      icon: 'briefcase-outline', tile: colors.visa_process,
-      onPress: () => router.push('/work-hours'),
-    },
-    {
-      key: 'visa', title: 'Visa steps', subtitle: 'Your journey guide',
-      icon: 'document-text-outline', tile: colors.before_departure,
-      onPress: () => router.push('/(tabs)/journey'),
-    },
-    {
-      key: 'explore', title: 'Explore', subtitle: 'Browse destinations',
-      icon: 'compass-outline', tile: colors.after_acceptance,
-      onPress: () => router.push('/(tabs)/explore'),
-    },
+    { key: 'necessities', title: 'Necessities', subtitle: 'What to pack & do', icon: 'document-text-outline', onPress: () => router.push('/necessities') },
+    { key: 'money', title: 'Money Setup', subtitle: 'Bank & currency tools', icon: 'card-outline', onPress: () => router.push('/(tabs)/explore') },
+    { key: 'rankings', title: 'Rankings', subtitle: '500 schools, scored', icon: 'trophy-outline', onPress: () => router.push('/(tabs)/rankings') },
+    { key: 'scholarships', title: 'Scholarships', subtitle: 'Official sources', icon: 'ribbon-outline', onPress: () => router.push('/scholarships') },
+    { key: 'work-hours', title: 'Work hours', subtitle: 'Earn while you study', icon: 'briefcase-outline', onPress: () => router.push('/work-hours') },
+    { key: 'visa', title: 'Visa steps', subtitle: 'Your journey guide', icon: 'compass-outline', onPress: () => router.push('/(tabs)/journey') },
   ];
 
   const popular = (destinations ?? []).slice(0, 6);
@@ -129,162 +144,188 @@ export default function HomeScreen() {
   const s = styles(colors, spacing, radius);
 
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
+    <View style={s.root}>
       <ScrollView
-        contentContainerStyle={s.scroll}
+        contentContainerStyle={{ paddingBottom: spacing.xxl }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={isRefetching} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
       >
-        {/* Greeting hero — time-based hint + avatar, then a prominent headline */}
-        <View style={s.header}>
-          <View style={s.headerTopRow}>
-            <Text style={[s.greetingHint, { color: colors.textSecondary }]}>{greeting()}</Text>
-            <Pressable
-              style={[s.avatar, { backgroundColor: colors.primary }]}
-              onPress={() => router.push('/(tabs)/profile')}
-              hitSlop={8}
-            >
-              <Text style={s.avatarText}>{initial}</Text>
-            </Pressable>
-          </View>
-          <Text style={[s.heroHeadline, { color: colors.textPrimary }]}>{heroHeadline}</Text>
-          <Text style={[s.heroSubtitle, { color: colors.textSecondary }]}>
-            Your step-by-step companion for the whole journey.
-          </Text>
-        </View>
-
-        {/* Journey hero card */}
-        {user?.destination_country_code ? (
-          <View style={[s.hero, { backgroundColor: colors.primary }]}>
-            <Text style={s.heroCorridor}>
-              {originCode ? `${countryName(originCode)} → ` : ''}{countryName(destCode)}
-            </Text>
-            {journeyLoading ? (
-              <ActivityIndicator color="#fff" style={{ alignSelf: 'flex-start', marginVertical: spacing.md }} />
-            ) : journeyError ? (
-              <>
-                <Text style={s.heroSteps}>We couldn't load your steps right now.</Text>
-                <Pressable style={s.heroBtn} onPress={() => refetchJourney()}>
-                  <Text style={[s.heroBtnText, { color: colors.primary }]}>Try again</Text>
-                  <Ionicons name="refresh" size={16} color={colors.primary} />
-                </Pressable>
-              </>
-            ) : totalSteps === 0 ? (
-              <Text style={s.heroSteps}>No steps yet for this corridor — check back soon.</Text>
-            ) : (
-              <>
-                <Text style={s.heroSteps}>{doneSteps} of {totalSteps} steps done</Text>
-                <View style={s.heroTrack}>
-                  <View style={[s.heroFill, { width: `${Math.round(progress * 100)}%` }]} />
+        {/* ───────── Image hero ───────── */}
+        <View style={s.hero}>
+          <RotatingImage
+            queries={CAMPUS_QUERIES[destCode] ?? CAMPUS_QUERIES['US'] ?? ['university campus']}
+            countryCode={destCode || 'US'}
+            style={StyleSheet.absoluteFillObject as object}
+          />
+          <LinearGradient
+            colors={['rgba(107,15,44,0.34)', 'rgba(107,15,44,0.82)', colors.bg] as [string, string, string]}
+            locations={[0, 0.58, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[s.heroContent, { paddingTop: insets.top + 14 }]}>
+            <View style={s.heroTopRow}>
+              <View style={s.brandRow}>
+                <View style={s.brandMark}>
+                  <Ionicons name="location" size={17} color="#fff" />
                 </View>
-              </>
-            )}
-            <PressableScale style={s.heroBtn} haptic onPress={() => router.push('/(tabs)/journey')}>
-              <Text style={[s.heroBtnText, { color: colors.primary }]}>Continue journey</Text>
-              <Ionicons name="arrow-forward" size={16} color={colors.primary} />
-            </PressableScale>
-          </View>
-        ) : (
-          <Pressable style={s.heroEmpty} onPress={() => router.push('/(tabs)/profile')}>
-            <Ionicons name="airplane-outline" size={32} color={colors.primary} />
-            <Text style={[s.heroEmptyTitle, { color: colors.textPrimary }]}>Set your destination</Text>
-            <Text style={[s.heroEmptyBody, { color: colors.textSecondary }]}>
-              Head to Profile to choose where you're going.
+                <Text style={s.brandName}>LandHere</Text>
+              </View>
+              <View style={s.heroActions}>
+                <Pressable onPress={toggleTheme} hitSlop={8} style={s.glassBtn}>
+                  <Ionicons name={isDark ? 'sunny' : 'moon'} size={19} color="#fff" />
+                </Pressable>
+                <Pressable onPress={() => router.push('/(tabs)/profile')} hitSlop={8} style={s.avatar}>
+                  <Text style={s.avatarText}>{initial}</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <Text style={s.greetingHint}>
+              {greeting()}{displayName ? `, ${displayName}` : ''}
             </Text>
-          </Pressable>
-        )}
+            <Text style={s.heroHeadline}>Ready to move{'\n'}abroad?</Text>
+          </View>
 
-        {/* Quick access grid */}
-        <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Quick access</Text>
-        <View style={s.grid}>
-          {quickAccess.map((item) => (
-            <PressableScale
-              key={item.key}
-              style={[s.quickCard, elevation.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={item.onPress}
-            >
-              {/* Subtle accent-tinted chip (soft tone) — quieter and cleaner than
-                  a solid tile, and theme-aware so it reads in light and dark. */}
-              <IconBadge
-                icon={item.icon}
-                color={item.tile}
-                tone="soft"
-                size={44}
-                style={{ marginBottom: spacing.md }}
-              />
-              <Text style={[s.quickTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-                {item.title}
-              </Text>
-              <Text style={[s.quickSub, { color: colors.textSecondary }]} numberOfLines={1}>
-                {item.subtitle}
-              </Text>
+          {/* Floating search bar straddling the hero base */}
+          <PressableScale style={s.search} onPress={() => router.push('/(tabs)/rankings')}>
+            <Ionicons name="search" size={19} color={colors.textTertiary} />
+            <Text style={[s.searchText, { color: colors.textTertiary }]}>Search visas, schools, costs…</Text>
+          </PressableScale>
+        </View>
+
+        <View style={s.body}>
+          {/* ───────── Momentum / journey card ───────── */}
+          {user?.destination_country_code ? (
+            <LinearGradient colors={CRIMSON_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.momentum}>
+              <View style={s.momentumRow}>
+                <ProgressRing size={68} stroke={6} progress={progress} track="rgba(255,255,255,0.2)" fill="#fff">
+                  <Text style={s.ringPct}>{Math.round(progress * 100)}%</Text>
+                </ProgressRing>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.momentumKicker}>IN PROGRESS</Text>
+                  <Text style={s.momentumTitle}>Your journey</Text>
+                  <Text style={s.momentumSub}>
+                    {journeyLoading ? 'Loading steps…'
+                      : totalSteps === 0 ? `No steps yet · ${countryName(destCode)}`
+                      : `${doneSteps} of ${totalSteps} steps · ${countryName(destCode)}`}
+                  </Text>
+                </View>
+                <PressableScale style={s.momentumGo} haptic onPress={() => router.push('/(tabs)/journey')}>
+                  <Ionicons name="arrow-forward" size={18} color={colors.primary} />
+                </PressableScale>
+              </View>
+
+              {journeyError ? (
+                <PressableScale style={s.nextBanner} onPress={() => refetchJourney()}>
+                  <Ionicons name="refresh" size={16} color="#fff" />
+                  <Text style={s.nextText}>Couldn't load your steps — <Text style={s.nextStrong}>tap to retry</Text></Text>
+                </PressableScale>
+              ) : nextStep ? (
+                <PressableScale style={s.nextBanner} onPress={() => router.push('/(tabs)/journey')}>
+                  <Ionicons name="star" size={15} color="#FFD36B" />
+                  <Text style={s.nextText} numberOfLines={1}>Next step — <Text style={s.nextStrong}>{nextStep.title}</Text></Text>
+                </PressableScale>
+              ) : totalSteps > 0 ? (
+                <View style={s.nextBanner}>
+                  <Ionicons name="checkmark-circle" size={16} color="#FFD36B" />
+                  <Text style={s.nextText}><Text style={s.nextStrong}>All steps complete.</Text> You're ready.</Text>
+                </View>
+              ) : null}
+            </LinearGradient>
+          ) : (
+            <PressableScale style={s.setupCard} onPress={() => router.push('/(tabs)/profile')}>
+              <View style={s.setupIcon}>
+                <Ionicons name="airplane" size={22} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.setupTitle, { color: colors.textPrimary }]}>Set your destination</Text>
+                <Text style={[s.setupBody, { color: colors.textSecondary }]}>Choose where you're going to unlock your journey.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
             </PressableScale>
-          ))}
+          )}
+
+          {/* ───────── Quick-access gradient tiles ───────── */}
+          <View style={s.grid}>
+            {quickAccess.map((item) => (
+              <PressableScale key={item.key} style={s.tileWrap} onPress={item.onPress}>
+                <LinearGradient colors={CRIMSON_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.tile}>
+                  <View style={s.tileIcon}>
+                    <Ionicons name={item.icon} size={22} color="#fff" />
+                  </View>
+                  <Text style={s.tileTitle}>{item.title}</Text>
+                  <Text style={s.tileSub} numberOfLines={1}>{item.subtitle}</Text>
+                </LinearGradient>
+              </PressableScale>
+            ))}
+          </View>
+
+          {/* ───────── Fun facts ───────── */}
+          <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Fun facts</Text>
+          <View style={{ marginBottom: spacing.xl }}>
+            <SwipeableFacts countryCode={user?.destination_country_code} />
+          </View>
         </View>
 
-        {/* Swipeable fun facts */}
-        <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Fun facts</Text>
-        <View style={s.factsWrap}>
-          <SwipeableFacts countryCode={user?.destination_country_code} />
-        </View>
-
-        {/* Popular destinations shelf */}
+        {/* ───────── Destinations shelf ───────── */}
         {(destLoading || popular.length > 0) && (
           <>
-            <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Popular destinations</Text>
+            <View style={s.shelfHead}>
+              <Text style={[s.shelfTitle, { color: colors.textPrimary }]}>Explore destinations</Text>
+              <Pressable onPress={() => router.push('/(tabs)/explore')} hitSlop={8}>
+                <Text style={[s.seeAll, { color: colors.primary }]}>See all</Text>
+              </Pressable>
+            </View>
             {destLoading ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={s.shelf}
-              >
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <SkeletonBlock key={i} width={180} height={130} radius={radius.card} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.shelf}>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <SkeletonBlock key={i} width={264} height={188} radius={radius.xl} />
                 ))}
               </ScrollView>
             ) : (
-            <FadeInView>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={s.shelf}
-              // Snap each 180px card (+ md gap) into place for clean paging.
-              snapToInterval={180 + spacing.md}
-              snapToAlignment="start"
-              decelerationRate="fast"
-            >
-              {popular.map((country) => (
-                <PressableScale
-                  key={country.code}
-                  style={[s.destCard, elevation.card]}
-                  onPress={() => router.push({ pathname: '/country/[code]', params: { code: country.code } })}
+              <FadeInView>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={s.shelf}
+                  snapToInterval={264 + spacing.md}
+                  snapToAlignment="start"
+                  decelerationRate="fast"
                 >
-                  <RotatingImage
-                    queries={CAMPUS_QUERIES[country.code] ?? [`${country.name} city`]}
-                    countryCode={country.code}
-                    style={s.destImage}
-                  >
-                    <ImageScrim intensity="medium" />
-                    <View style={s.destOverlay}>
-                      <Text style={s.destName} numberOfLines={1}>{country.name}</Text>
-                      {country.student_visa_name && (
-                        <Text style={s.destVisa} numberOfLines={1}>{country.student_visa_name}</Text>
-                      )}
-                    </View>
-                  </RotatingImage>
-                </PressableScale>
-              ))}
-            </ScrollView>
-            </FadeInView>
+                  {popular.map((country) => (
+                    <PressableScale
+                      key={country.code}
+                      style={s.destCard}
+                      onPress={() => router.push({ pathname: '/country/[code]', params: { code: country.code } })}
+                    >
+                      <RotatingImage
+                        queries={CAMPUS_QUERIES[country.code] ?? [`${country.name} city`]}
+                        countryCode={country.code}
+                        style={s.destImage}
+                      >
+                        <ImageScrim intensity="strong" />
+                        <View style={s.destOverlay}>
+                          {country.student_visa_name && (
+                            <View style={s.destPill}>
+                              <Text style={s.destPillText} numberOfLines={1}>{country.student_visa_name}</Text>
+                            </View>
+                          )}
+                          <Text style={s.destName} numberOfLines={1}>{country.name}</Text>
+                        </View>
+                      </RotatingImage>
+                    </PressableScale>
+                  ))}
+                </ScrollView>
+              </FadeInView>
             )}
           </>
         )}
 
         <View style={{ height: spacing.xl }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -294,85 +335,110 @@ function styles(
   radius: ReturnType<typeof useTheme>['radius'],
 ) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.bg },
-    scroll: { paddingBottom: spacing.xxl },
+    root: { flex: 1, backgroundColor: colors.bg },
 
-    header: {
-      paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.lg,
+    // Hero
+    hero: { height: 300, backgroundColor: colors.primary, marginBottom: 30 },
+    heroContent: { paddingHorizontal: spacing.lg, paddingTop: 14 },
+    heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    brandMark: {
+      width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.2)',
     },
-    headerTopRow: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      marginBottom: spacing.md,
+    brandName: { fontSize: 19, fontWeight: '800', color: '#fff', letterSpacing: -0.4 },
+    heroActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    glassBtn: {
+      width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.2)',
     },
-    greetingHint: { fontSize: 14, fontWeight: '600' },
-    heroHeadline: { fontSize: 27, fontWeight: '800', lineHeight: 33, marginBottom: 6 },
-    heroSubtitle: { fontSize: 14, lineHeight: 20 },
     avatar: {
-      width: 44, height: 44, borderRadius: 22,
-      justifyContent: 'center', alignItems: 'center',
+      width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.92)',
     },
-    avatarText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+    avatarText: { color: '#8E1133', fontSize: 17, fontWeight: '800' },
+    greetingHint: { marginTop: 30, fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.82)' },
+    heroHeadline: { marginTop: 6, fontSize: 34, fontWeight: '800', color: '#fff', letterSpacing: -0.8, lineHeight: 37 },
 
-    hero: {
-      marginHorizontal: spacing.lg, marginBottom: spacing.xl,
-      borderRadius: radius.card, padding: spacing.xl,
-      shadowColor: colors.primary, shadowOpacity: 0.3, shadowRadius: 16,
-      shadowOffset: { width: 0, height: 6 }, elevation: 6,
+    search: {
+      position: 'absolute', left: spacing.lg, right: spacing.lg, bottom: -26, height: 56,
+      flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 16,
+      backgroundColor: colors.surface, borderRadius: radius.card,
+      borderWidth: 1, borderColor: colors.border,
+      shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 6,
     },
-    heroCorridor: { color: '#fff', fontSize: 20, fontWeight: '800', marginBottom: 10 },
-    heroSteps: { color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 10 },
-    heroTrack: {
-      height: 6, backgroundColor: 'rgba(255,255,255,0.25)',
-      borderRadius: 3, marginBottom: spacing.lg, overflow: 'hidden',
-    },
-    heroFill: { height: 6, backgroundColor: '#fff', borderRadius: 3 },
-    heroBtn: {
-      flexDirection: 'row', alignItems: 'center', gap: 6,
-      alignSelf: 'flex-start', backgroundColor: '#fff',
-      paddingVertical: 10, paddingHorizontal: spacing.lg,
-      borderRadius: radius.button,
-    },
-    heroBtnText: { fontSize: 14, fontWeight: '700' },
+    searchText: { fontSize: 14.5, fontWeight: '500' },
 
-    heroEmpty: {
-      marginHorizontal: spacing.lg, marginBottom: spacing.xl,
-      borderRadius: radius.card, padding: spacing.xl,
-      backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-      alignItems: 'center', gap: 6,
+    body: { paddingHorizontal: spacing.lg, paddingTop: 4 },
+
+    // Momentum card
+    momentum: {
+      borderRadius: radius.xl, padding: 20, marginBottom: spacing.lg,
+      shadowColor: '#A4133C', shadowOpacity: 0.4, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 8,
     },
-    heroEmptyTitle: { fontSize: 17, fontWeight: '700', marginTop: spacing.sm },
-    heroEmptyBody: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+    momentumRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    ringPct: { fontSize: 16, fontWeight: '800', color: '#fff' },
+    momentumKicker: { fontSize: 11, fontWeight: '800', letterSpacing: 1, color: 'rgba(255,255,255,0.72)' },
+    momentumTitle: { fontSize: 18, fontWeight: '800', color: '#fff', marginTop: 3 },
+    momentumSub: { fontSize: 12.5, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+    momentumGo: {
+      width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff',
+      alignItems: 'center', justifyContent: 'center',
+      shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4,
+    },
+    nextBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 16,
+      backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+      borderRadius: 13, paddingVertical: 11, paddingHorizontal: 13,
+    },
+    nextText: { flex: 1, fontSize: 12.5, color: '#fff', fontWeight: '600' },
+    nextStrong: { fontWeight: '800' },
+
+    // Setup CTA (no destination)
+    setupCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: spacing.lg,
+      backgroundColor: colors.surface, borderRadius: radius.xl, padding: 18,
+      borderWidth: 1, borderColor: colors.border,
+    },
+    setupIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+    setupTitle: { fontSize: 16, fontWeight: '800' },
+    setupBody: { fontSize: 13, marginTop: 2, lineHeight: 18 },
+
+    // Quick-access grid
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl },
+    tileWrap: { width: '47.5%', flexGrow: 1, borderRadius: radius.lg },
+    tile: {
+      borderRadius: radius.lg, padding: 18,
+      shadowColor: '#A4133C', shadowOpacity: 0.32, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 6,
+    },
+    tileIcon: {
+      width: 46, height: 46, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.2)',
+      alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+    },
+    tileTitle: { fontSize: 15, fontWeight: '800', color: '#fff' },
+    tileSub: { fontSize: 12.5, color: 'rgba(255,255,255,0.72)', marginTop: 3 },
 
     sectionLabel: {
-      fontSize: 13, fontWeight: '700', letterSpacing: 0.5,
-      textTransform: 'uppercase', paddingHorizontal: spacing.lg,
-      marginBottom: spacing.md, marginTop: spacing.xs,
+      fontSize: 13, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase',
+      marginBottom: spacing.md,
     },
 
-    grid: {
-      flexDirection: 'row', flexWrap: 'wrap',
-      paddingHorizontal: spacing.lg, gap: spacing.md,
-      marginBottom: spacing.xl,
+    // Destinations
+    shelfHead: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: spacing.lg, marginBottom: spacing.md,
     },
-    quickCard: {
-      width: '47.5%', flexGrow: 1,
-      borderRadius: radius.card, borderWidth: 1, padding: spacing.lg,
-    },
-    quickTitle: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
-    quickSub: { fontSize: 12 },
-
-    factsWrap: { paddingHorizontal: spacing.lg, marginBottom: spacing.xl },
-
+    shelfTitle: { fontSize: 19, fontWeight: '800', letterSpacing: -0.4 },
+    seeAll: { fontSize: 13, fontWeight: '700' },
     shelf: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm },
-    destCard: {
-      width: 180, height: 130, borderRadius: radius.card, overflow: 'hidden',
-    },
+    destCard: { width: 264, height: 188, borderRadius: radius.xl, overflow: 'hidden' },
     destImage: { width: '100%', height: '100%' },
-    destOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      justifyContent: 'flex-end', padding: spacing.md,
+    destOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', padding: 18 },
+    destPill: {
+      alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.22)',
+      borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 8,
     },
-    destName: { color: '#fff', fontSize: 15, fontWeight: '700' },
-    destVisa: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 2 },
+    destPillText: { fontSize: 11.5, fontWeight: '700', color: '#fff' },
+    destName: { color: '#fff', fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
   });
 }

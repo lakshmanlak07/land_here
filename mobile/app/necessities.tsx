@@ -1,16 +1,23 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, Linking, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
-import { Disclaimer } from '../components/Disclaimer';
-import { Card } from '../components/Card';
+import { PressableScale } from '../components/PressableScale';
 import {
   getNecessities, NECESSITIES_BY_COUNTRY,
   type NecessityItem, type NecessitySection,
 } from '../constants/necessities';
 
-const COUNTRY_NAMES: Record<string, string> = { US: 'the United States' };
+const COUNTRY_NAMES: Record<string, string> = {
+  US: 'the United States',
+  GB: 'the United Kingdom',
+  CA: 'Canada',
+  AU: 'Australia',
+  DE: 'Germany',
+};
 
 const DISCLAIMER_TEXT =
   'This is general guidance compiled from public sources, not legal or ' +
@@ -18,8 +25,6 @@ const DISCLAIMER_TEXT =
   'over time — always confirm details with your university’s international ' +
   'office and the official sources linked here.';
 
-// Countries surfaced in the picker. `ready` countries have authored content;
-// the rest are shown as "coming soon" placeholders (no fabricated content).
 const NEC_COUNTRIES: { code: string; name: string }[] = [
   { code: 'US', name: 'United States' },
   { code: 'GB', name: 'United Kingdom' },
@@ -29,71 +34,80 @@ const NEC_COUNTRIES: { code: string; name: string }[] = [
   { code: 'IE', name: 'Ireland' },
 ];
 
+/** Crimson gradient hero shared by both views. */
+function Hero({
+  title, sub, onBack, children,
+}: {
+  title: string; sub?: string; onBack: () => void; children?: React.ReactNode;
+}) {
+  const { colors, spacing, isDark, toggleTheme } = useTheme();
+  const insets = useSafeAreaInsets();
+  return (
+    <LinearGradient
+      colors={(isDark ? ['#A4133C', '#5E0C26', colors.bg] : ['#A4133C', '#981236', colors.bg]) as [string, string, string]}
+      locations={[0, 0.6, 1]}
+      style={{ paddingHorizontal: spacing.lg, paddingTop: insets.top + 12, paddingBottom: 26 }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Pressable onPress={onBack} hitSlop={10} style={h.glassBtn}>
+          <Ionicons name="chevron-back" size={18} color="#fff" />
+        </Pressable>
+        <Pressable onPress={toggleTheme} hitSlop={10} style={h.glassBtn}>
+          <Ionicons name={isDark ? 'sunny' : 'moon'} size={18} color="#fff" />
+        </Pressable>
+      </View>
+      <Text style={h.title}>{title}</Text>
+      {sub && <Text style={h.sub}>{sub}</Text>}
+      {children}
+    </LinearGradient>
+  );
+}
+
+const h = StyleSheet.create({
+  glassBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.2)' },
+  title: { fontSize: 28, fontWeight: '800', color: '#fff', letterSpacing: -0.5, marginTop: 14 },
+  sub: { fontSize: 13, color: 'rgba(255,255,255,0.92)', marginTop: 3 },
+});
+
 export default function NecessitiesScreen() {
   const { code } = useLocalSearchParams<{ code?: string }>();
   return code ? <NecessitiesDetail code={code} /> : <NecessitiesList />;
 }
 
-// ── Country picker ───────────────────────────────────────────────────
 function NecessitiesList() {
-  const { colors, spacing } = useTheme();
+  const { colors, spacing, radius } = useTheme();
   const router = useRouter();
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      <View style={[s.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: spacing.md }}>
-          <Text style={[s.back, { color: colors.primary }]}>← Back</Text>
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.headerTitle, { color: colors.textPrimary }]}>Necessities</Text>
-          <Text style={[s.headerSub, { color: colors.textSecondary }]}>Choose your destination</Text>
-        </View>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }}
-        showsVerticalScrollIndicator={false}
-      >
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <Hero title="Necessities" sub="Choose your destination" onBack={() => router.back()} />
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }} showsVerticalScrollIndicator={false}>
         {NEC_COUNTRIES.map((country) => {
           const ready = !!NECESSITIES_BY_COUNTRY[country.code];
           return (
-            <Card
+            <PressableScale
               key={country.code}
-              onPress={
-                ready
-                  ? () => router.push({ pathname: '/necessities', params: { code: country.code } })
-                  : undefined
-              }
-              style={[s.row, !ready && { opacity: 0.6 }]}
+              onPress={ready ? () => router.push({ pathname: '/necessities', params: { code: country.code } }) : undefined}
+              style={[s.pickRow, { backgroundColor: colors.surface, borderColor: colors.border }, !ready && { opacity: 0.6 }]}
             >
               <View style={[s.codeTile, { backgroundColor: ready ? colors.primary : colors.surfaceAlt }]}>
-                <Text style={[s.codeText, { color: ready ? '#fff' : colors.textTertiary }]}>
-                  {country.code}
-                </Text>
+                <Text style={[s.codeText, { color: ready ? '#fff' : colors.textTertiary }]}>{country.code}</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.rowName, { color: colors.textPrimary }]}>{country.name}</Text>
-                <Text style={[s.rowSub, { color: colors.textSecondary }]}>
-                  {ready ? 'Mandatories & necessities' : 'Coming soon'}
-                </Text>
+                <Text style={[s.rowSub, { color: colors.textSecondary }]}>{ready ? 'Mandatories & necessities' : 'Coming soon'}</Text>
               </View>
-              {ready ? (
-                <Text style={[s.chevron, { color: colors.textTertiary }]}>›</Text>
-              ) : (
-                <View style={[s.soonBadge, { backgroundColor: colors.surfaceAlt }]}>
-                  <Text style={[s.soonText, { color: colors.textTertiary }]}>Soon</Text>
-                </View>
-              )}
-            </Card>
+              {ready
+                ? <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                : <View style={[s.soonBadge, { backgroundColor: colors.surfaceAlt }]}><Text style={[s.soonText, { color: colors.textTertiary }]}>Soon</Text></View>}
+            </PressableScale>
           );
         })}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-// ── Per-country content ──────────────────────────────────────────────
 function NecessitiesDetail({ code }: { code: string }) {
   const { colors, spacing } = useTheme();
   const router = useRouter();
@@ -105,162 +119,103 @@ function NecessitiesDetail({ code }: { code: string }) {
   const hasContent = sections.length > 0;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      <View style={[s.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={{ marginRight: spacing.md }}>
-          <Text style={[s.back, { color: colors.primary }]}>← Back</Text>
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.headerTitle, { color: colors.textPrimary }]}>Necessities</Text>
-          <Text style={[s.headerSub, { color: colors.textSecondary }]}>
-            {hasContent ? `After you arrive in ${where}` : countryName}
-          </Text>
-        </View>
-      </View>
-
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <Hero
+        title="First week"
+        sub={hasContent ? `After you arrive in ${where}` : countryName}
+        onBack={() => router.back()}
+      />
       {hasContent ? (
-        <ScrollView
-          contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }}
-          showsVerticalScrollIndicator={false}
-        >
-          {sections.map((section) => (
-            <Section key={section.key} section={section} />
-          ))}
-
-          <Disclaimer text={DISCLAIMER_TEXT} style={{ marginTop: spacing.sm }} />
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }} showsVerticalScrollIndicator={false}>
+          {sections.map((section) => <Section key={section.key} section={section} />)}
+          <View style={[s.disclaimer, { backgroundColor: colors.surfaceAlt }]}>
+            <Text style={[s.disclaimerText, { color: colors.textSecondary }]}>
+              <Text style={{ fontWeight: '700' }}>ⓘ </Text>{DISCLAIMER_TEXT}
+            </Text>
+          </View>
         </ScrollView>
       ) : (
-        // No content for this country yet — show an explicit empty state rather
-        // than another country's setup steps.
         <View style={s.centered}>
-          <Text style={s.emptyIcon}>🧭</Text>
+          <Ionicons name="compass-outline" size={44} color={colors.textTertiary} style={{ marginBottom: 12 }} />
           <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Not available yet</Text>
           <Text style={[s.emptyBody, { color: colors.textSecondary }]}>
             We haven't published the necessities for {countryName} yet. Check back soon.
           </Text>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 function Section({ section }: { section: NecessitySection }) {
   const { colors, spacing } = useTheme();
-  // Mandatories carry more urgency — give them the primary accent.
   const accent = section.ordered ? colors.primary : colors.primarySoft;
-
   return (
     <View style={{ marginBottom: spacing.xl }}>
       <View style={[s.sectionHead, { borderLeftColor: accent }]}>
         <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>{section.title}</Text>
         <Text style={[s.sectionTagline, { color: colors.textSecondary }]}>{section.tagline}</Text>
       </View>
-
       {section.items.map((item, idx) => (
-        <ItemCard
-          key={item.id}
-          item={item}
-          accent={accent}
-          order={section.ordered ? idx + 1 : null}
-        />
+        <ItemCard key={item.id} item={item} accent={accent} order={section.ordered ? idx + 1 : null} />
       ))}
     </View>
   );
 }
 
-function ItemCard({
-  item, accent, order,
-}: {
-  item: NecessityItem;
-  accent: string;
-  order: number | null;
-}) {
-  const { colors } = useTheme();
+function ItemCard({ item, accent, order }: { item: NecessityItem; accent: string; order: number | null }) {
+  const { colors, radius } = useTheme();
   return (
-    <Card accent={accent} style={s.card}>
+    <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: accent, borderLeftWidth: 4 }]}>
       <View style={[s.badge, { backgroundColor: accent }]}>
         <Text style={s.badgeText}>{order ?? '•'}</Text>
       </View>
-
       <View style={{ flex: 1 }}>
-        <Text style={[s.title, { color: colors.textPrimary }]}>{item.title}</Text>
-
+        <Text style={[s.itemTitle, { color: colors.textPrimary }]}>{item.title}</Text>
         {item.note && (
           <View style={[s.note, { backgroundColor: colors.surfaceAlt }]}>
             <Text style={[s.noteText, { color: colors.textSecondary }]}>{item.note}</Text>
           </View>
         )}
-
         <Text style={[s.explanation, { color: colors.textSecondary }]}>{item.explanation}</Text>
-
         {item.source && (
-          <Pressable
-            style={[s.sourceBtn, { borderColor: colors.border }]}
-            onPress={() => Linking.openURL(item.source!.url)}
-          >
-            <Text style={[s.sourceBtnText, { color: accent }]}>{item.source.name}  ↗</Text>
+          <Pressable style={[s.sourceBtn, { borderColor: colors.border }]} onPress={() => Linking.openURL(item.source!.url)}>
+            <Ionicons name="open-outline" size={13} color={accent} />
+            <Text style={[s.sourceBtnText, { color: accent }]}>{item.source.name}</Text>
           </Pressable>
         )}
       </View>
-    </Card>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14,
-    borderBottomWidth: 1,
-  },
-  back: { fontSize: 15, fontWeight: '600' },
-  headerTitle: { fontSize: 22, fontWeight: '700' },
-  headerSub: { fontSize: 13, marginTop: 2 },
-
-  // Empty state shown when a country has no necessities content yet.
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
   emptyTitle: { fontSize: 17, fontWeight: '700', marginBottom: 8 },
   emptyBody: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
 
-  // Country picker rows (Card supplies surface/border/radius/padding/shadow)
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 },
-  codeTile: {
-    width: 46, height: 46, borderRadius: 12,
-    justifyContent: 'center', alignItems: 'center',
-  },
+  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12, padding: 15, borderRadius: 16, borderWidth: 1 },
+  codeTile: { width: 46, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   codeText: { fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
   rowName: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
   rowSub: { fontSize: 13 },
-  chevron: { fontSize: 26, fontWeight: '300' },
   soonBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
   soonText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   sectionHead: { borderLeftWidth: 4, paddingLeft: 12, marginBottom: 14 },
-  sectionTitle: { fontSize: 18, fontWeight: '700' },
+  sectionTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
   sectionTagline: { fontSize: 13, lineHeight: 19, marginTop: 4 },
 
-  // Item cards (Card supplies surface/border/radius/padding/shadow + accent)
-  card: { flexDirection: 'row', gap: 14, marginBottom: 12 },
-  badge: {
-    width: 28, height: 28, borderRadius: 14,
-    justifyContent: 'center', alignItems: 'center',
-    flexShrink: 0, marginTop: 2,
-  },
+  card: { flexDirection: 'row', gap: 14, marginBottom: 12, padding: 16, borderRadius: 18, borderWidth: 1 },
+  badge: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', flexShrink: 0, marginTop: 2 },
   badgeText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-
-  title: { fontSize: 15, fontWeight: '700', marginBottom: 8, lineHeight: 21 },
-
-  note: {
-    paddingHorizontal: 10, paddingVertical: 7,
-    borderRadius: 8, marginBottom: 10,
-  },
+  itemTitle: { fontSize: 15, fontWeight: '800', marginBottom: 8, lineHeight: 20, letterSpacing: -0.2 },
+  note: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, marginBottom: 10 },
   noteText: { fontSize: 12, lineHeight: 17, fontStyle: 'italic' },
-
   explanation: { fontSize: 14, lineHeight: 22, marginBottom: 12 },
+  sourceBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  sourceBtnText: { fontSize: 13, fontWeight: '700' },
 
-  sourceBtn: {
-    alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 8, borderWidth: 1,
-  },
-  sourceBtnText: { fontSize: 13, fontWeight: '600' },
+  disclaimer: { padding: 14, borderRadius: 16, marginTop: 4 },
+  disclaimerText: { fontSize: 12, lineHeight: 18 },
 });

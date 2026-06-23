@@ -40,6 +40,14 @@ export interface UserOut {
   origin_country_code: string | null;
   destination_country_code: string | null;
   created_at: string;
+  stage: string | null;
+  wants_to_work: boolean | null;
+  wants_scholarships: boolean | null;
+  concerns: string[] | null;
+  first_month_priority: string | null;
+  first_timer: boolean | null;
+  confidence: number | null;
+  primary_goal: string | null;
 }
 
 export interface TokenOut {
