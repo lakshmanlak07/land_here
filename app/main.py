@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.core.config import settings
 from app.routes import account, auth, countries, info, guides, universities
 
 logger = logging.getLogger("landhere")
@@ -31,15 +32,25 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 # The API authenticates with Bearer tokens in the Authorization header (see
 # app/core/deps.py), NOT cookies — so it does not need credentialed CORS.
+# Allowed origins come from the CORS_ALLOW_ORIGINS env var (comma-separated); the
+# default "*" keeps local Expo/LAN dev working, and production should set it to the
+# explicit web/prod domain(s) — see PRE_LAUNCH_SECURITY.md (#2).
 # With allow_credentials=False a wildcard origin is safe: browsers will share
-# responses but cannot attach a victim's cookies/credentials to the request,
-# and the native mobile client isn't subject to CORS at all. Locking
-# allow_origins to the real web/prod domain(s) is a production step — see
-# PRE_LAUNCH_SECURITY.md (#2). Do NOT combine "*" with allow_credentials=True.
+# responses but cannot attach a victim's cookies/credentials to the request, and the
+# native mobile client isn't subject to CORS at all.
+_cors_origins = settings.cors_allow_origins
+# Credentialed CORS is intentionally OFF. The "*" + credentials combination is
+# rejected by browsers and unsafe, so we assert it can never be introduced by accident
+# if credentials are ever enabled here in future.
+_allow_credentials = False
+assert not (_allow_credentials and "*" in _cors_origins), (
+    "Refusing to combine wildcard CORS origins with allow_credentials=True; "
+    "set CORS_ALLOW_ORIGINS to explicit origins before enabling credentials."
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=_cors_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -103,6 +103,11 @@ export default function HomeScreen() {
       onPress: () => router.push('/scholarships'),
     },
     {
+      key: 'work-hours', title: 'Work hours', subtitle: 'Earn while you study',
+      icon: 'briefcase-outline', tile: colors.visa_process,
+      onPress: () => router.push('/work-hours'),
+    },
+    {
       key: 'visa', title: 'Visa steps', subtitle: 'Your journey guide',
       icon: 'document-text-outline', tile: colors.before_departure,
       onPress: () => router.push('/(tabs)/journey'),

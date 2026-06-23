@@ -35,16 +35,20 @@ This list complements `SECURITY_PLAN.md`. None of it is a guarantee of being
   ```
 
 ## 2. CORS — lock origins to the real web/prod domain(s)
-**Done in dev:** `allow_credentials` is now `False` in `app/main.py`. Because the
-app authenticates with **Bearer tokens (Authorization header), not cookies**, the
-remaining `allow_origins=["*"]` is safe — a wildcard origin only matters for
-credentialed (cookie) requests, and the native mobile client isn't subject to CORS
-at all. The wildcard is kept intentionally so local Expo testing against the LAN IP
-keeps working.
+**Done:** `allow_credentials` is `False` in `app/main.py`, and allowed origins now
+come from the **`CORS_ALLOW_ORIGINS`** env var (comma-separated), parsed by
+`settings.cors_allow_origins`. The default is `"*"`, which keeps local Expo testing
+against the LAN IP working. Because the app authenticates with **Bearer tokens
+(Authorization header), not cookies**, a wildcard origin with `allow_credentials=False`
+is safe — a wildcard only matters for credentialed (cookie) requests, and the native
+mobile client isn't subject to CORS at all. `main.py` also asserts that `"*"` can never
+be combined with credentials.
 
 **Still TODO before launch:**
-- Lock `allow_origins` to the explicit web/prod origin(s) you actually serve (only
-  relevant once there's a browser-based client; the mobile app does not need it).
+- **Set `CORS_ALLOW_ORIGINS`** in the production environment to the explicit web/prod
+  origin(s) you actually serve (e.g. `https://app.example.com,https://admin.example.com`),
+  instead of leaving the `"*"` default. Only relevant once there's a browser-based
+  client; the mobile app does not need it.
 - Never reintroduce `allow_credentials=True` alongside `"*"` — browsers reject that
   combination, and it would be unsafe. If a cookie-based flow is ever added, set an
   explicit origin allowlist *and* `allow_credentials=True` together, never wildcard.

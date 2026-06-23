@@ -58,6 +58,18 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
           'The EU’s official scholarship for joint master’s degrees taught across several European universities.',
         url: 'https://erasmus-plus.ec.europa.eu/opportunities/individuals/students/erasmus-mundus-joint-masters-scholarships',
       },
+      {
+        name: 'Aga Khan Foundation — International Scholarship Programme',
+        description:
+          'The Aga Khan Foundation’s official postgraduate scholarship programme for students from selected developing countries.',
+        url: 'https://www.akdn.org/our-agencies/aga-khan-foundation/international-scholarship-programme',
+      },
+      {
+        name: 'Joint Japan/World Bank Graduate Scholarship Program',
+        description:
+          'The World Bank’s official graduate scholarship program for students from developing countries.',
+        url: 'https://www.worldbank.org/en/programs/scholarships',
+      },
     ],
   },
   {
@@ -81,6 +93,24 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'Stanford University’s official graduate fellowship program open to students worldwide.',
         url: 'https://knight-hennessy.stanford.edu/',
+      },
+      {
+        name: 'Hubert H. Humphrey Fellowship Program',
+        description:
+          'A U.S. State Department exchange program bringing experienced professionals to U.S. universities for non-degree study.',
+        url: 'https://www.humphreyfellowship.org/',
+      },
+      {
+        name: 'AAUW International Fellowships',
+        description:
+          'A nonprofit fellowship program supporting women from outside the U.S. in graduate and postgraduate study.',
+        url: 'https://www.aauw.org/resources/programs/fellowships-grants/international-fellowships/',
+      },
+      {
+        name: 'P.E.O. International Peace Scholarship',
+        description:
+          'A nonprofit scholarship for international women pursuing graduate study in the U.S. or Canada.',
+        url: 'https://www.peointernational.org/about-peo-international-peace-scholarship-ips',
       },
     ],
   },
@@ -118,6 +148,24 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
           'The Rhodes Trust’s official postgraduate scholarship for study at the University of Oxford.',
         url: 'https://www.rhodeshouse.ox.ac.uk/scholarships/the-rhodes-scholarship/',
       },
+      {
+        name: 'GREAT Scholarships',
+        description:
+          'The British Council’s official scholarships with UK universities for students from selected countries.',
+        url: 'https://study-uk.britishcouncil.org/scholarships/great-scholarships',
+      },
+      {
+        name: 'Marshall Scholarships',
+        description:
+          'The UK government’s official scholarship funding U.S. citizens for graduate study in the UK.',
+        url: 'https://www.marshallscholarship.org/',
+      },
+      {
+        name: 'Clarendon Fund Scholarships',
+        description:
+          'The University of Oxford’s official graduate scholarship fund, open to students worldwide.',
+        url: 'https://www.ox.ac.uk/clarendon',
+      },
     ],
   },
   {
@@ -129,6 +177,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'Germany’s official academic exchange service and its scholarship search.',
         url: 'https://www.daad.de/en/study-and-research-in-germany/scholarships/',
+      },
+      {
+        name: 'Deutschlandstipendium',
+        description:
+          'Germany’s official national merit scholarship, awarded through participating German universities.',
+        url: 'https://www.deutschlandstipendium.de/',
       },
     ],
   },
@@ -178,6 +232,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
           'Australia’s official study portal and its guide to finding scholarships.',
         url: 'https://www.studyaustralia.gov.au/en/plan-your-studies/scholarships-in-australia',
       },
+      {
+        name: 'Destination Australia',
+        description:
+          'The Australian government’s official program funding study at regional Australian campuses.',
+        url: 'https://www.education.gov.au/destination-australia',
+      },
     ],
   },
   {
@@ -195,6 +255,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'The official Dutch (Nuffic) scholarship for studying in the Netherlands.',
         url: 'https://www.studyinnl.org/finances/nl-scholarship',
+      },
+      {
+        name: 'Orange Tulip Scholarship',
+        description:
+          'The official Nuffic (Neso) scholarship programme for students from selected countries studying in the Netherlands.',
+        url: 'https://www.studyinnl.org/finances/orange-tulip-scholarship',
       },
     ],
   },
@@ -220,6 +286,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
           'The Japanese government’s official scholarship for international students.',
         url: 'https://www.studyinjapan.go.jp/en/planning/about-scholarship/',
       },
+      {
+        name: 'JASSO Scholarships for International Students',
+        description:
+          'Japan’s official student-services organisation and its scholarships for international students in Japan.',
+        url: 'https://www.jasso.go.jp/en/study_j/scholarships/index.html',
+      },
     ],
   },
   {
@@ -231,6 +303,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'The Swiss government’s official scholarships for international researchers and postgraduate students.',
         url: 'https://www.sbfi.admin.ch/sbfi/en/home/education/scholarships-and-grants/swiss-government-excellence-scholarships.html',
+      },
+      {
+        name: 'ETH Zurich Excellence Scholarship (ESOP)',
+        description:
+          'ETH Zurich’s official merit scholarship programme for master’s students, open to applicants worldwide.',
+        url: 'https://ethz.ch/en/studies/financial/scholarships/excellencescholarship.html',
       },
     ],
   },
@@ -267,6 +345,18 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'The Korean government’s official Study in Korea portal and its GKS scholarship.',
         url: 'https://www.studyinkorea.go.kr/',
+      },
+    ],
+  },
+  {
+    code: 'SE',
+    title: 'Sweden',
+    sources: [
+      {
+        name: 'Swedish Institute Scholarships for Global Professionals',
+        description:
+          'The Swedish Institute’s official government scholarship for master’s study in Sweden.',
+        url: 'https://si.se/en/apply/scholarships/',
       },
     ],
   },

@@ -120,3 +120,45 @@ export function getWorkRule(countryCode?: string | null): WorkRule | null {
   if (!countryCode) return null;
   return WORK_RULES_BY_COUNTRY[countryCode.toUpperCase()] ?? null;
 }
+
+/**
+ * Concise display layer for the standalone "Work hours" guide screen.
+ *
+ * Each entry is a glanceable summary of the canonical rule in
+ * `WORK_RULES_BY_COUNTRY` (same verified source) — short stat labels for the
+ * term/break tiles, a flag-derived accent for the country tile, and the source
+ * host for the "verify" pill. The full source URL/name is read from the
+ * canonical rule via `getWorkRule(code)`; nothing here invents new content.
+ */
+export interface WorkHoursEntry {
+  /** Key into `WORK_RULES_BY_COUNTRY` (the canonical rule + source). */
+  code: string;
+  /** Short text shown in the coloured country tile (e.g. "UK"). */
+  badge: string;
+  /** Display name. */
+  name: string;
+  /** Short visa label shown under the name, e.g. "F-1 visa". */
+  visa: string;
+  /** Glanceable term-time allowance for the stat tile, e.g. "20 hrs/wk". */
+  term: string;
+  /** Glanceable break allowance for the stat tile, e.g. "Full-time". */
+  breaks: string;
+  /** Official-source host shown on the verify pill, e.g. "dhs.gov". */
+  sourceHost: string;
+  /** Flag-derived accent hue for the country tile. */
+  accent: string;
+}
+
+/** Curated, ordered list of countries shown on the Work hours screen. */
+export const WORK_HOURS_COUNTRIES: WorkHoursEntry[] = [
+  { code: 'US', badge: 'US', name: 'United States', visa: 'F-1 visa', term: '20 hrs/wk', breaks: 'Full-time', sourceHost: 'dhs.gov', accent: '#3B5BA5' },
+  { code: 'GB', badge: 'UK', name: 'United Kingdom', visa: 'Student visa · degree level', term: '20 hrs/wk', breaks: 'Full-time', sourceHost: 'gov.uk', accent: '#8A1538' },
+  { code: 'CA', badge: 'CA', name: 'Canada', visa: 'Study permit · off-campus', term: '24 hrs/wk', breaks: 'Full-time', sourceHost: 'canada.ca', accent: '#C0392B' },
+  { code: 'AU', badge: 'AU', name: 'Australia', visa: 'Student visa (500)', term: '48 hrs/fortnight', breaks: 'Unlimited', sourceHost: 'homeaffairs.gov.au', accent: '#1E6F8A' },
+  { code: 'IE', badge: 'IE', name: 'Ireland', visa: 'Stamp 2', term: '20 hrs/wk', breaks: '40 hrs/wk', sourceHost: 'irishimmigration.ie', accent: '#1E8A5A' },
+];
+
+/** Footer caption for the Work hours screen. */
+export const WORK_HOURS_FOOTER =
+  'Immigration rules change often. Always confirm current limits on the ' +
+  'official source before you work.';
