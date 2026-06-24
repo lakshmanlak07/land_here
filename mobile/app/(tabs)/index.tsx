@@ -175,7 +175,7 @@ export default function HomeScreen() {
     refetchDest();
   }
 
-  const s = styles(colors, spacing, radius);
+  const s = useMemo(() => styles(colors, spacing, radius), [colors, spacing, radius]);
 
   return (
     <View style={s.root}>

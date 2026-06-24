@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, Pressable, Linking, ActivityIndicator, StyleSheet, RefreshControl, ScrollView,
 } from 'react-native';
@@ -84,7 +84,7 @@ export default function JourneyScreen() {
   const warnInk = colors.warning;
   const warnBg = isDark ? 'rgba(224,163,58,0.14)' : '#FBF0DC';
   const warnBorder = isDark ? 'rgba(224,163,58,0.5)' : '#E0B564';
-  const s = styles(colors, spacing, radius);
+  const s = useMemo(() => styles(colors, spacing, radius), [colors, spacing, radius]);
 
   const Header = ({ children }: { children?: React.ReactNode }) => (
     <LinearGradient

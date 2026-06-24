@@ -28,7 +28,8 @@ export async function getCityImage(query: string): Promise<ImageResult | null> {
     const photo = data.results?.[0];
     if (!photo?.urls?.regular) { cache.set(query, null); return null; }
     const result: ImageResult = {
-      url: photo.urls.regular,
+      // Right-size from raw (~720px) so 264px cards / hero don't decode 1080px.
+      url: photo.urls.raw ? `${photo.urls.raw}&w=720&q=70&fm=jpg&fit=crop` : photo.urls.regular,
       // Always attribute Unsplash alongside the photographer (Unsplash credit
       // guidelines); fall back to just "Unsplash" when no name is returned.
       credit: photo.user?.name ? `${photo.user.name} · Unsplash` : 'Unsplash',

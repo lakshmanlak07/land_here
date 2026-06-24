@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, TextInput, FlatList, Pressable,
   StyleSheet, ActivityIndicator,
@@ -36,6 +36,9 @@ const TILE_GRADS: [string, string][] = [
 ];
 // Gold / silver / bronze for the top-three rank badges.
 const MEDALS = ['#C99A2E', '#9AA6B0', '#B5763E'];
+// Hoisted so each row's LinearGradient gets the same object identity every render.
+const GRAD_START = { x: 0, y: 0 } as const;
+const GRAD_END = { x: 1, y: 1 } as const;
 
 function hashCode(s: string): number {
   let h = 0;
@@ -62,6 +65,72 @@ function toPage(raw: UniversityListItem[], page: number): UniversityListPage {
   const items = raw ?? [];
   return { items, has_more: items.length === PAGE_SIZE, page };
 }
+
+type RankingRowProps = {
+  item: UniversityListItem;
+  index: number;
+  colors: ReturnType<typeof useTheme>['colors'];
+  s: ReturnType<typeof styles>;
+  onPress: (id: string) => void;
+};
+
+// Memoized so a parent re-render (search typing, count update, theme toggle with
+// unchanged mode) doesn't re-render every visible row. Props are referentially
+// stable: `colors` is a module constant per mode, `s` is memoized, `onPress` is
+// useCallback'd. JSX is unchanged from the former inline renderItem.
+const RankingRow = React.memo(function RankingRow({ item, index, colors, s, onPress }: RankingRowProps) {
+  const grad = TILE_GRADS[hashCode(item.id) % TILE_GRADS.length];
+  const score = item.landhere_score;
+  return (
+    <PressableScale
+      style={[s.row, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      onPress={() => onPress(item.id)}
+    >
+      <View style={{ position: 'relative' }}>
+        <LinearGradient colors={grad} start={GRAD_START} end={GRAD_END} style={s.tile}>
+          <Text style={s.tileText}>{initials(item.name)}</Text>
+        </LinearGradient>
+        <View style={[
+          s.rankBadge,
+          {
+            backgroundColor: index < 3 ? MEDALS[index] : colors.surface,
+            borderColor: colors.surface,
+          },
+        ]}>
+          <Text style={[s.rankText, { color: index < 3 ? '#fff' : colors.textSecondary }]}>{index + 1}</Text>
+        </View>
+      </View>
+
+      <View style={{ flex: 1, minWidth: 0, marginLeft: 14 }}>
+        <Text style={[s.uniName, { color: colors.textPrimary }]} numberOfLines={2}>{item.name}</Text>
+        {item.state && (
+          <View style={s.metaRow}>
+            <Ionicons name="location-outline" size={12} color={colors.textTertiary} />
+            <Text style={[s.uniMeta, { color: colors.textSecondary }]} numberOfLines={1}>{item.state}</Text>
+          </View>
+        )}
+        <View style={s.tagRow}>
+          {item.tuition_out_of_state != null && (
+            <>
+              <Text style={[s.tuition, { color: colors.textPrimary }]}>{formatCurrencyCompact(item.tuition_out_of_state)}</Text>
+              <Text style={[s.tuitionUnit, { color: colors.textTertiary }]}>intl / yr</Text>
+            </>
+          )}
+          {score != null && (
+            <View style={[s.tag, { backgroundColor: colors.primarySubtle }]}>
+              <Text style={[s.tagText, { color: colors.primary }]}>{band(score)}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={s.scoreWrap}>
+        <Text style={[s.score, { color: colors.primary }]}>{formatScore(score)}</Text>
+        <Text style={[s.scoreLabel, { color: colors.textTertiary }]}>SCORE</Text>
+      </View>
+    </PressableScale>
+  );
+});
 
 export default function RankingsScreen() {
   const { colors, spacing, radius, isDark, toggleTheme } = useTheme();
@@ -98,7 +167,17 @@ export default function RankingsScreen() {
   });
 
   const rows = data?.pages.flatMap((p) => p.items) ?? [];
-  const s = styles(colors, spacing, radius);
+  const s = useMemo(() => styles(colors, spacing, radius), [colors, spacing, radius]);
+  const handleRowPress = useCallback(
+    (id: string) => router.push({ pathname: '/university/[id]', params: { id } }),
+    [router],
+  );
+  const renderRow = useCallback(
+    ({ item, index }: { item: UniversityListItem; index: number }) => (
+      <RankingRow item={item} index={index} colors={colors} s={s} onPress={handleRowPress} />
+    ),
+    [colors, s, handleRowPress],
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -223,59 +302,7 @@ export default function RankingsScreen() {
             ListFooterComponent={
               isFetchingNextPage ? <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.lg }} /> : null
             }
-            renderItem={({ item, index }) => {
-              const grad = TILE_GRADS[hashCode(item.id) % TILE_GRADS.length];
-              const score = item.landhere_score;
-              return (
-                <PressableScale
-                  style={[s.row, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                  onPress={() => router.push({ pathname: '/university/[id]', params: { id: item.id } })}
-                >
-                  <View style={{ position: 'relative' }}>
-                    <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.tile}>
-                      <Text style={s.tileText}>{initials(item.name)}</Text>
-                    </LinearGradient>
-                    <View style={[
-                      s.rankBadge,
-                      {
-                        backgroundColor: index < 3 ? MEDALS[index] : colors.surface,
-                        borderColor: colors.surface,
-                      },
-                    ]}>
-                      <Text style={[s.rankText, { color: index < 3 ? '#fff' : colors.textSecondary }]}>{index + 1}</Text>
-                    </View>
-                  </View>
-
-                  <View style={{ flex: 1, minWidth: 0, marginLeft: 14 }}>
-                    <Text style={[s.uniName, { color: colors.textPrimary }]} numberOfLines={2}>{item.name}</Text>
-                    {item.state && (
-                      <View style={s.metaRow}>
-                        <Ionicons name="location-outline" size={12} color={colors.textTertiary} />
-                        <Text style={[s.uniMeta, { color: colors.textSecondary }]} numberOfLines={1}>{item.state}</Text>
-                      </View>
-                    )}
-                    <View style={s.tagRow}>
-                      {item.tuition_out_of_state != null && (
-                        <>
-                          <Text style={[s.tuition, { color: colors.textPrimary }]}>{formatCurrencyCompact(item.tuition_out_of_state)}</Text>
-                          <Text style={[s.tuitionUnit, { color: colors.textTertiary }]}>intl / yr</Text>
-                        </>
-                      )}
-                      {score != null && (
-                        <View style={[s.tag, { backgroundColor: colors.primarySubtle }]}>
-                          <Text style={[s.tagText, { color: colors.primary }]}>{band(score)}</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={s.scoreWrap}>
-                    <Text style={[s.score, { color: colors.primary }]}>{formatScore(score)}</Text>
-                    <Text style={[s.scoreLabel, { color: colors.textTertiary }]}>SCORE</Text>
-                  </View>
-                </PressableScale>
-              );
-            }}
+            renderItem={renderRow}
           />
         </FadeInView>
       )}
