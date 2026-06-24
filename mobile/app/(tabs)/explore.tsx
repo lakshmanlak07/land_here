@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, TextInput, FlatList, Pressable,
   StyleSheet, RefreshControl,
@@ -44,6 +44,55 @@ const DESCRIPTORS: Record<string, string> = {
   AE: 'Global city campuses with world-class facilities',
 };
 
+type ExploreCardProps = {
+  item: CountryOut;
+  colors: ReturnType<typeof useTheme>['colors'];
+  radius: ReturnType<typeof useTheme>['radius'];
+  elevation: ReturnType<typeof useTheme>['elevation'];
+  onPress: (code: string) => void;
+};
+
+// Memoized so typing in the search box (which re-renders the screen) doesn't
+// re-render every visible card. Props are referentially stable: colors/radius/
+// elevation are per-mode constants, onPress is useCallback'd, and each `item`
+// keeps its identity across filters. Mirrors RankingRow in rankings.tsx.
+const ExploreCard = React.memo(function ExploreCard({ item, colors, radius, elevation, onPress }: ExploreCardProps) {
+  return (
+    <PressableScale
+      style={[s.card, elevation.card, { flex: 1, backgroundColor: colors.surface, borderRadius: radius.card }]}
+      onPress={() => onPress(item.code)}
+    >
+      <CityImage
+        query={`${item.name} city`}
+        countryCode={item.code}
+        style={s.cardImage}
+        showCodeFallback
+      />
+      <View style={s.cardBody}>
+        <Text style={[s.cardName, { color: colors.textPrimary }]} numberOfLines={1}>
+          {item.name}
+        </Text>
+
+        {item.student_visa_name && (
+          <Text style={[s.cardVisa, { color: colors.textSecondary }]} numberOfLines={1}>
+            {item.student_visa_name}
+          </Text>
+        )}
+
+        {item.currency_code && (
+          <Pill label={item.currency_code} tone="accent" style={s.currencyPill} />
+        )}
+
+        {DESCRIPTORS[item.code] && (
+          <Text style={[s.cardDesc, { color: colors.textTertiary }]} numberOfLines={2}>
+            {DESCRIPTORS[item.code]}
+          </Text>
+        )}
+      </View>
+    </PressableScale>
+  );
+});
+
 export default function ExploreScreen() {
   const { colors, spacing, radius, elevation } = useTheme();
   const router = useRouter();
@@ -57,6 +106,17 @@ export default function ExploreScreen() {
   const filtered = useMemo(
     () => (data ?? []).filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
     [data, search],
+  );
+
+  const handleCardPress = useCallback(
+    (code: string) => router.push({ pathname: '/country/[code]', params: { code } }),
+    [router],
+  );
+  const renderCard = useCallback(
+    ({ item }: { item: CountryOut }) => (
+      <ExploreCard item={item} colors={colors} radius={radius} elevation={elevation} onPress={handleCardPress} />
+    ),
+    [colors, radius, elevation, handleCardPress],
   );
 
   return (
@@ -138,40 +198,7 @@ export default function ExploreScreen() {
         initialNumToRender={6}
         maxToRenderPerBatch={8}
         windowSize={7}
-        renderItem={({ item }) => (
-          <PressableScale
-            style={[s.card, elevation.card, { flex: 1, backgroundColor: colors.surface, borderRadius: radius.card }]}
-            onPress={() => router.push({ pathname: '/country/[code]', params: { code: item.code } })}
-          >
-            <CityImage
-              query={`${item.name} city`}
-              countryCode={item.code}
-              style={s.cardImage}
-              showCodeFallback
-            />
-            <View style={s.cardBody}>
-              <Text style={[s.cardName, { color: colors.textPrimary }]} numberOfLines={1}>
-                {item.name}
-              </Text>
-
-              {item.student_visa_name && (
-                <Text style={[s.cardVisa, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {item.student_visa_name}
-                </Text>
-              )}
-
-              {item.currency_code && (
-                <Pill label={item.currency_code} tone="accent" style={s.currencyPill} />
-              )}
-
-              {DESCRIPTORS[item.code] && (
-                <Text style={[s.cardDesc, { color: colors.textTertiary }]} numberOfLines={2}>
-                  {DESCRIPTORS[item.code]}
-                </Text>
-              )}
-            </View>
-          </PressableScale>
-        )}
+        renderItem={renderCard}
       />
         </FadeInView>
       )}

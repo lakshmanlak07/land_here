@@ -46,8 +46,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
-    set({ token: null, user: null });
+    // Also clear the device-local onboarding flag so a fresh signup on this
+    // device starts un-onboarded and sees the questions — otherwise a leftover
+    // `onboarded: true` would route the next account straight past onboarding.
+    set({ token: null, user: null, onboarded: false });
     SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+    SecureStore.deleteItemAsync(ONBOARDED_KEY).catch(() => {});
   },
 
   hydrate: async () => {

@@ -142,7 +142,7 @@ export default function HomeScreen() {
     icon: IoniconName; onPress: () => void;
   }[] = [
     { key: 'necessities', title: 'Necessities', subtitle: 'What to pack & do', icon: 'document-text-outline', onPress: () => router.push('/necessities') },
-    { key: 'money', title: 'Money Setup', subtitle: 'Bank & currency tools', icon: 'card-outline', onPress: () => router.push('/money') },
+    { key: 'money', title: 'Money Setup', subtitle: 'Currency & living costs', icon: 'card-outline', onPress: () => router.push('/money') },
     { key: 'rankings', title: 'Rankings', subtitle: '500 schools, scored', icon: 'trophy-outline', onPress: () => router.push('/(tabs)/rankings') },
     { key: 'scholarships', title: 'Scholarships', subtitle: 'Official sources', icon: 'ribbon-outline', onPress: () => router.push('/scholarships') },
     { key: 'work-hours', title: 'Work hours', subtitle: 'Earn while you study', icon: 'briefcase-outline', onPress: () => router.push('/work-hours') },

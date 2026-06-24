@@ -22,5 +22,9 @@ export default function Index() {
   if (token) {
     return <Redirect href={onboarded ? '/(tabs)' : '/(auth)/onboarding'} />;
   }
-  return <Redirect href="/(auth)/login" />;
+  // No token: a fresh device starts the onboarding QUESTIONS first (account
+  // creation comes at the end of that flow, with a "log in" link for returners).
+  // A device that already onboarded but lost its token (e.g. session expired)
+  // goes to login instead of repeating the questions.
+  return <Redirect href={onboarded ? '/(auth)/login' : '/(auth)/onboarding'} />;
 }

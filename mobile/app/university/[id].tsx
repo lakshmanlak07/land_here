@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View, Text, Pressable, StyleSheet, Linking, Share, ScrollView,
 } from 'react-native';
@@ -88,7 +88,9 @@ export default function UniversityDetailScreen() {
     : CAMPUS_QUERIES['US'];
 
   const hasIntl = data?.intl_student_pct != null;
-  const s = styles(colors, spacing, radius);
+  const s = useMemo(() => styles(colors, spacing, radius), [colors, spacing, radius]);
+  // Memoize the three external lookup links so they aren't rebuilt every render.
+  const links = useMemo(() => (data ? lookupLinks(data.name) : []), [data]);
 
   // Normalise completion_rate (fraction 0–1 OR percent 0–100) to a 0–100 bar.
   const gradPct = data?.completion_rate != null
@@ -269,7 +271,7 @@ export default function UniversityDetailScreen() {
                   <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
                 </Pressable>
               )}
-              {lookupLinks(data.name).map((l, i, arr) => (
+              {links.map((l, i, arr) => (
                 <Pressable
                   key={l.key}
                   style={[s.linkRow, (i < arr.length - 1 || data.official_url) ? { borderTopWidth: 1, borderTopColor: colors.border } : null]}

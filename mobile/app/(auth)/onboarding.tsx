@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, ActivityIndicator, TextInput, Pressable,
   Modal, FlatList, KeyboardAvoidingView, Platform, Keyboard,
@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import api, { getErrorMessage } from '../../lib/api';
 import { useAuthStore } from '../../lib/store';
 import { useTheme } from '../../context/ThemeContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PressableScale } from '../../components/PressableScale';
 import { FALLBACK_COUNTRIES } from '../../constants/countries';
 import type { TokenOut, UserOut, CountryOut } from '../../lib/types';
@@ -19,6 +20,8 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CRIMSON_GRAD = ['#B5163F', '#8E1133', '#6B0F2C'] as const;
+// Key for the on-device buffer of answers given before an account exists.
+const ANSWERS_BUFFER_KEY = 'onboarding_answers';
 
 // ── Question config ──────────────────────────────────────────────────────────
 // One screen per entry. `field` is the answer bucket; `multi` switches between
@@ -207,11 +210,14 @@ export default function OnboardingScreen() {
   const setAuth = useAuthStore((s) => s.setAuth);
   const patchUser = useAuthStore((s) => s.patchUser);
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
+  const token = useAuthStore((s) => s.token);
 
-  // Brand-new signups land on the account step; an already-authed but not-yet-
-  // onboarded user (e.g. resumed mid-flow) skips straight to the questions.
+  // Onboarding runs questions → reveal → account. Everyone starts on the
+  // questions; anonymous users create their account at the END (we attach the
+  // buffered answers then). An already-authed user resuming saves directly and
+  // never sees the account step.
   const [hadTokenAtMount] = useState(() => !!useAuthStore.getState().token);
-  const [phase, setPhase] = useState<Phase>(hadTokenAtMount ? 'question' : 'account');
+  const [phase, setPhase] = useState<Phase>('question');
   const [qIndex, setQIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -231,6 +237,23 @@ export default function OnboardingScreen() {
     stage: null, concerns: [], work: null, scholarships: null,
     firstMonth: null, firstTimer: null, primaryGoal: null,
   });
+
+  // Buffer answers on-device while there's no account yet, so they survive an
+  // app restart mid-onboarding and can be attached right after signup. An
+  // already-logged-in user saves directly and never touches the buffer.
+  const [bufferLoaded, setBufferLoaded] = useState(false);
+  useEffect(() => {
+    if (hadTokenAtMount) { setBufferLoaded(true); return; }
+    AsyncStorage.getItem(ANSWERS_BUFFER_KEY)
+      .then((raw) => { if (raw) { try { setAnswers(JSON.parse(raw)); } catch {} } })
+      .finally(() => setBufferLoaded(true));
+  }, [hadTokenAtMount]);
+  useEffect(() => {
+    // Persist only after the initial load, so we never clobber a saved buffer
+    // with the empty initial state on mount.
+    if (hadTokenAtMount || !bufferLoaded) return;
+    AsyncStorage.setItem(ANSWERS_BUFFER_KEY, JSON.stringify(answers)).catch(() => {});
+  }, [answers, bufferLoaded, hadTokenAtMount]);
 
   const { data: origins } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'origins'],
@@ -308,12 +331,29 @@ export default function OnboardingScreen() {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
       });
       setAuth(tokenData.access_token, userData);
-      setSubmitting(false);
-      setPhase('question');
     } catch (e) {
       setError(getErrorMessage(e, 'Registration failed. Please try again.'));
       setSubmitting(false);
+      return;
     }
+
+    // Account now exists and the token is set. Attach the answers buffered
+    // during the questions, then enter the app. A flush failure must not trap
+    // the user on a form whose account was already created (re-submitting would
+    // 400 on the duplicate email) — the buffer is left in place and the user
+    // still gets in.
+    try {
+      const payload = buildPayload();
+      if (Object.keys(payload).length > 0) {
+        const { data } = await api.patch<UserOut>('/auth/me', payload);
+        patchUser(data);
+      }
+      await AsyncStorage.removeItem(ANSWERS_BUFFER_KEY);
+    } catch {
+      // Leave the buffer in place; answers aren't lost, just not synced yet.
+    }
+    completeOnboarding();
+    router.replace('/(tabs)');
   }
 
   // ── Finish (persist answers) ────────────────────────────────────────────
@@ -341,7 +381,6 @@ export default function OnboardingScreen() {
   }
   function backFromQuestion() {
     if (qIndex > 0) setQIndex((i) => i - 1);
-    else if (!hadTokenAtMount) setPhase('account');
   }
 
   const s = styles(colors, radius);
@@ -357,6 +396,14 @@ export default function OnboardingScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 24, paddingTop: insets.top + 18 }}
           >
+            <Pressable
+              onPress={() => setPhase('reveal')}
+              hitSlop={8}
+              style={[s.backChip, { backgroundColor: colors.surfaceAlt, marginBottom: 14 }]}
+            >
+              <Ionicons name="arrow-back" size={18} color={colors.textPrimary} />
+            </Pressable>
+
             <View style={s.brandRow}>
               <View style={[s.brandMark, { backgroundColor: colors.primary }]}>
                 <Ionicons name="location" size={18} color="#fff" />
@@ -364,8 +411,8 @@ export default function OnboardingScreen() {
               <Text style={[s.brandName, { color: colors.textPrimary }]}>LandHere</Text>
             </View>
 
-            <Text style={[s.title, { color: colors.textPrimary, marginTop: 22 }]}>Let's get you set up.</Text>
-            <Text style={[s.subtitle, { color: colors.textSecondary }]}>Create your account, then a few quick questions to shape your plan.</Text>
+            <Text style={[s.title, { color: colors.textPrimary, marginTop: 22 }]}>Create your account</Text>
+            <Text style={[s.subtitle, { color: colors.textSecondary }]}>One last step — save your answers and unlock your personalized plan.</Text>
 
             {error && (
               <View style={[s.errorBox, { backgroundColor: colors.primarySubtle, marginTop: 16 }]}>
@@ -538,13 +585,13 @@ export default function OnboardingScreen() {
         <View style={{ paddingBottom: insets.bottom + 12, paddingTop: 12 }}>
           <PressableScale
             style={[s.cta, { backgroundColor: colors.primary }, submitting && { opacity: 0.6 }]}
-            onPress={finish}
+            onPress={token ? finish : () => setPhase('account')}
             disabled={submitting}
             haptic
           >
             {submitting ? <ActivityIndicator color="#fff" /> : (
               <>
-                <Text style={s.ctaText}>See my plan</Text>
+                <Text style={s.ctaText}>{token ? 'See my plan' : 'Create your account'}</Text>
                 <Ionicons name="arrow-forward" size={16} color="#fff" />
               </>
             )}
@@ -558,7 +605,7 @@ export default function OnboardingScreen() {
   return (
     <View style={[s.root, { backgroundColor: colors.bg, paddingTop: insets.top + 6 }]}>
       <View style={s.topBar}>
-        {(qIndex > 0 || !hadTokenAtMount) ? (
+        {qIndex > 0 ? (
           <PressableScale style={[s.backChip, { backgroundColor: colors.surfaceAlt }]} onPress={backFromQuestion} disabled={submitting} hitSlop={6}>
             <Ionicons name="arrow-back" size={18} color={colors.textPrimary} />
           </PressableScale>
@@ -626,6 +673,13 @@ export default function OnboardingScreen() {
           <Text style={s.ctaText}>{isLastQuestion ? 'Review my plan' : 'Continue'}</Text>
           <Ionicons name="arrow-forward" size={16} color="#fff" />
         </PressableScale>
+        {qIndex === 0 && !token && (
+          <Pressable style={[s.footer, { marginTop: 14 }]} onPress={() => router.replace('/(auth)/login')}>
+            <Text style={[s.footerText, { color: colors.textSecondary }]}>
+              Already have an account? <Text style={{ fontWeight: '800', color: colors.primary }}>Log in</Text>
+            </Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );

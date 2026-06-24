@@ -1,4 +1,7 @@
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -15,6 +18,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _register_limit = rate_limiter("auth_register", limit=15, window_seconds=60)
 _login_limit = rate_limiter("auth_login", limit=30, window_seconds=60)
 
+# A valid bcrypt hash of a random throwaway value, computed once at import. Login
+# verifies against this when the email doesn't exist so the request does the same
+# bcrypt work whether or not the account is real — closing the timing side channel
+# that would otherwise let an attacker enumerate registered emails. It never
+# matches any real password and is not a secret.
+_DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
+
 
 @router.post(
     "/register",
@@ -23,6 +33,8 @@ _login_limit = rate_limiter("auth_login", limit=30, window_seconds=60)
     dependencies=[Depends(_register_limit)],
 )
 def register(body: UserRegister, db: Session = Depends(get_db)):
+    # body.email is already normalized (trimmed + lower-cased) by the schema, so
+    # this pre-check and the unique constraint both compare the canonical form.
     if db.query(User).filter(User.email == body.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     user = User(
@@ -33,7 +45,14 @@ def register(body: UserRegister, db: Session = Depends(get_db)):
         destination_country_code=body.destination_country_code,
     )
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two concurrent signups can both pass the pre-check above; the DB unique
+        # constraint on users.email is the real guard. Convert the loser's
+        # constraint violation into the same clean 400 instead of a 500.
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Email already registered")
     db.refresh(user)
     return TokenOut(access_token=create_access_token(user.id))
 
@@ -45,7 +64,12 @@ def register(body: UserRegister, db: Session = Depends(get_db)):
 )
 def login(body: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == body.email).first()
-    if not user or not verify_password(body.password, user.hashed_password):
+    # Always run exactly one password verification — against the real hash when
+    # the account exists, otherwise a dummy hash — so a non-existent email and a
+    # wrong password are indistinguishable in time (no user enumeration).
+    hashed = user.hashed_password if user else _DUMMY_PASSWORD_HASH
+    password_ok = verify_password(body.password, hashed)
+    if not user or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     return TokenOut(access_token=create_access_token(user.id))
 

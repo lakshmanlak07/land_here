@@ -11,13 +11,18 @@ export default function AuthLayout() {
 
   useEffect(() => {
     if (!hydrated || !token) return;
-    // Authed users don't belong on login/register. Route them by onboarding
-    // state: completed → the app; not yet → the onboarding flow. We compare the
-    // current route so we never redirect onboarding back onto itself (loop).
+    // While the user is actively on the onboarding screen, that screen owns
+    // navigation — it calls router.replace('/(tabs)') itself when finished. The
+    // layout must NOT redirect here: a token appearing mid-signup (setAuth on
+    // the account step) would otherwise yank a brand-new user straight to the
+    // tabs and skip the questions, even on a device that onboarded before.
     const onOnboarding = segments[segments.length - 1] === 'onboarding';
+    if (onOnboarding) return;
+    // Anywhere else in (auth) (login/register), an authed user shouldn't linger:
+    // completed onboarding → the app; not yet → into the onboarding flow.
     if (onboarded) {
       router.replace('/(tabs)');
-    } else if (!onOnboarding) {
+    } else {
       router.replace('/(auth)/onboarding');
     }
   }, [token, hydrated, onboarded, segments]);

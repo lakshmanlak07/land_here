@@ -8,12 +8,12 @@ https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-studen
 
 | # | Claim | Official source | Checked |
 |---|-------|-----------------|---------|
-| 1 | Term-time: up to **16 hours/week** during term. | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against source |
-| 2 | Term-time work is allowed **only for students at MOM-approved institutions** (a specific listed set). | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against source |
-| 3 | Vacation: **no hour limit** for eligible full-time matriculated/registered students aged 14+. | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against source |
-| 4 | No on- vs off-campus distinction; rules apply wherever the student works. | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against source |
-| 5 | Only Student’s Pass holders at MOM-approved institutions are **exempt from needing a separate work pass**. | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against source |
-| 6 | **Exchange students may not work at all.** | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against source |
+| 1 | Term-time: up to **16 hours/week** during term. | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against this official source on ____-__-__ |
+| 2 | Term-time work is allowed **only for students at MOM-approved institutions** (a specific listed set). | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against this official source on ____-__-__ |
+| 3 | Vacation: **no hour limit** for eligible full-time matriculated/registered students aged 14+. | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against this official source on ____-__-__ |
+| 4 | No on- vs off-campus distinction; rules apply wherever the student works. | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against this official source on ____-__-__ |
+| 5 | Only Student’s Pass holders at MOM-approved institutions are **exempt from needing a separate work pass**. | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against this official source on ____-__-__ |
+| 6 | **Exchange students may not work at all.** | MOM — https://www.mom.gov.sg/passes-and-permits/work-pass-exemption-for-foreign-students | [ ] verified against this official source on ____-__-__ |
 
 **MISSING SOURCE:** none — all claims attributed to the MOM source above. If any claim cannot be confirmed there on review, blank the number in the draft and flag MISSING SOURCE; do not invent a figure.
 

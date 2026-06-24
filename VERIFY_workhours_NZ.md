@@ -8,12 +8,12 @@ https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-
 
 | # | Claim | Official source | Checked |
 |---|-------|-----------------|---------|
-| 1 | Term-time: up to **25 hours/week** during the semester for eligible full-time tertiary students. | Immigration NZ — https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/ | [ ] verified against source |
-| 2 | The in-study limit **rose from 20 to 25 hrs/week on 3 November 2025**. | Immigration NZ (upcoming changes) — https://www.immigration.govt.nz/about-us/news-centre/upcoming-changes-to-student-visa-work-rights/ | [ ] verified against source |
-| 3 | Breaks: **full-time** work allowed during scheduled study breaks if visa conditions permit. | Immigration NZ — https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/ | [ ] verified against source |
-| 4 | **PhD and Research Masters** students at NZ tertiary institutions have **no weekly hour limit**. | Immigration NZ — https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/ | [ ] verified against source |
-| 5 | No on- vs off-campus distinction; the same 25 hrs/week limit applies to all work. | Immigration NZ — https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/ | [ ] verified against source |
-| 6 | Exact conditions depend on course/provider and are stated on the individual visa. | Immigration NZ — https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/ | [ ] verified against source |
+| 1 | Term-time: up to **25 hours/week** during the semester for eligible full-time tertiary students. | Immigration NZ — https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/ | [ ] verified against this official source on ____-__-__ |
+| 2 | The in-study limit **rose from 20 to 25 hrs/week on 3 November 2025**. | Immigration NZ (upcoming changes) — https://www.immigration.govt.nz/about-us/news-centre/upcoming-changes-to-student-visa-work-rights/ | [ ] verified against this official source on ____-__-__ |
+| 3 | Breaks: **full-time** work allowed during scheduled study breaks if visa conditions permit. | Immigration NZ — https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/ | [ ] verified against this official source on ____-__-__ |
+| 4 | **PhD and Research Masters** students at NZ tertiary institutions have **no weekly hour limit**. | Immigration NZ — https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/ | [ ] verified against this official source on ____-__-__ |
+| 5 | No on- vs off-campus distinction; the same 25 hrs/week limit applies to all work. | Immigration NZ — https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/ | [ ] verified against this official source on ____-__-__ |
+| 6 | Exact conditions depend on course/provider and are stated on the individual visa. | Immigration NZ — https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/ | [ ] verified against this official source on ____-__-__ |
 
 **MISSING SOURCE:** none — all claims attributed to Immigration NZ sources above. If any claim cannot be confirmed on review, blank the number in the draft and flag MISSING SOURCE; do not invent a figure.
 

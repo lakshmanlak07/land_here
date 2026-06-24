@@ -29,6 +29,36 @@ from app.core.config import settings
 _hits: dict[str, list[float]] = defaultdict(list)
 _lock = threading.Lock()
 
+# Without eviction, every distinct (bucket, client-IP) key would live forever —
+# the map grows without bound as new IPs appear (a slow memory-exhaustion DoS).
+# We sweep fully-expired keys periodically: at most once per interval, plus an
+# opportunistic sweep once the map gets large so a burst of distinct IPs within
+# a single window can't balloon memory before the next timed sweep.
+_SWEEP_INTERVAL_SECONDS = 60.0
+_SWEEP_WHEN_KEYS_EXCEED = 10_000
+_last_sweep = 0.0
+
+
+def _maybe_sweep(now: float, window_seconds: int) -> None:
+    """Drop keys with no timestamps inside the active window. Caller holds _lock.
+
+    Conservative by design: a key is removed only when its most recent hit has
+    aged out, so an active client is never evicted mid-window. Worst case under
+    differing bucket windows is an early counter reset (more lenient) — which
+    matches this limiter's fail-open intent and never blocks a legitimate user.
+    """
+    global _last_sweep
+    if (
+        now - _last_sweep < _SWEEP_INTERVAL_SECONDS
+        and len(_hits) < _SWEEP_WHEN_KEYS_EXCEED
+    ):
+        return
+    cutoff = now - window_seconds
+    stale = [k for k, ts in _hits.items() if not ts or ts[-1] <= cutoff]
+    for k in stale:
+        del _hits[k]
+    _last_sweep = now
+
 
 def _client_ip(request: Request) -> str:
     """Best-effort real client IP for per-IP rate limiting.
@@ -68,6 +98,7 @@ def rate_limiter(bucket: str, *, limit: int, window_seconds: int):
             now = time.monotonic()
             cutoff = now - window_seconds
             with _lock:
+                _maybe_sweep(now, window_seconds)
                 timestamps = _hits[key]
                 # Drop entries outside the current window.
                 timestamps[:] = [t for t in timestamps if t > cutoff]
