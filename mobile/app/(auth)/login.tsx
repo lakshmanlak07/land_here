@@ -47,9 +47,11 @@ export default function LoginScreen() {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
       });
       setAuth(tokenData.access_token, userData);
-      // Into the onboarding gate; (auth)/_layout forwards already-onboarded
-      // users straight to the tabs, so returning logins don't see the flow.
-      router.replace('/(auth)/onboarding');
+      // Route by this device's onboarding flag: a returning, already-onboarded
+      // user goes straight to the tabs (no onboarding flash); anyone else (fresh
+      // install / new device) enters the flow. The (auth)/_layout redirect stays
+      // as the backstop for any path that lands here still un-onboarded.
+      router.replace(useAuthStore.getState().onboarded ? '/(tabs)' : '/(auth)/onboarding');
     } catch (e) {
       setError(getErrorMessage(e, 'Login failed. Check your credentials.'));
     } finally {
@@ -86,7 +88,7 @@ export default function LoginScreen() {
               <View style={[s.segTab, s.segActive, { backgroundColor: colors.surface }]}>
                 <Text style={[s.segText, { color: colors.primary }]}>Log in</Text>
               </View>
-              <Pressable style={s.segTab} onPress={() => router.replace('/(auth)/register')}>
+              <Pressable style={s.segTab} onPress={() => router.replace('/(auth)/onboarding')}>
                 <Text style={[s.segText, { color: colors.textSecondary }]}>Sign up</Text>
               </Pressable>
             </View>
@@ -144,7 +146,7 @@ export default function LoginScreen() {
               )}
             </PressableScale>
 
-            <Pressable style={s.footer} onPress={() => router.replace('/(auth)/register')}>
+            <Pressable style={s.footer} onPress={() => router.replace('/(auth)/onboarding')}>
               <Text style={[s.footerText, { color: colors.textSecondary }]}>
                 Don't have an account? <Text style={{ fontWeight: '800', color: colors.primary }}>Sign up</Text>
               </Text>
