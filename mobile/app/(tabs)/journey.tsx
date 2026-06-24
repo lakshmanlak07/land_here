@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, Pressable, Linking, ActivityIndicator, StyleSheet, RefreshControl, ScrollView,
 } from 'react-native';
@@ -21,6 +21,17 @@ const COUNTRY_NAMES: Record<string, string> = {
 };
 const cname = (code: string | null | undefined) => (code ? COUNTRY_NAMES[code] ?? code : '');
 
+// User's self-reported onboarding stage → the journey phase it corresponds to.
+// Only used to pick the initial "NOW" anchor for users who haven't checked off
+// any steps yet (see below); never overrides real progress.
+const STAGE_TO_PHASE: Record<string, string> = {
+  deciding: 'before_applying',
+  accepted: 'after_acceptance',
+  visa_process: 'visa_process',
+  about_to_fly: 'before_departure',
+  landed: 'after_arrival',
+};
+
 export default function JourneyScreen() {
   const { colors, spacing, radius, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -38,6 +49,35 @@ export default function JourneyScreen() {
     },
     enabled: !!user?.destination_country_code,
   });
+
+  // Flatten phases into one continuous, globally-numbered timeline. Computed
+  // before the early returns below so the auto-scroll hook can sit with the
+  // other hooks; `data` is undefined until loaded, hence the guards.
+  const flat: InfoStep[] = data?.phases.flatMap((p) => p.steps) ?? [];
+  const totalSteps = flat.length;
+  const doneSteps = flat.filter((st) => isCompleted(st.id)).length;
+  const progress = totalSteps > 0 ? doneSteps / totalSteps : 0;
+
+  // "NOW" anchor. Normally the first unchecked step — progress always wins. But
+  // a brand-new user with nothing checked off is anchored to the first step of
+  // their onboarding stage's phase instead, and we auto-scroll there once. Null/
+  // unknown stage, an empty phase, or any saved progress → unchanged behavior.
+  const hasProgress = doneSteps > 0;
+  const stagePhase = user?.stage ? STAGE_TO_PHASE[user.stage] : undefined;
+  const stageAnchorId =
+    !hasProgress && stagePhase ? flat.find((st) => st.phase === stagePhase)?.id : undefined;
+  const currentId = stageAnchorId ?? flat.find((st) => !isCompleted(st.id))?.id;
+
+  // One-shot auto-scroll to the stage anchor, fired once its row has measured.
+  const scrollRef = useRef<ScrollView>(null);
+  const didAutoScroll = useRef(false);
+  const [timelineY, setTimelineY] = useState(0);
+  const [anchorY, setAnchorY] = useState<number | null>(null);
+  useEffect(() => {
+    if (didAutoScroll.current || !stageAnchorId || anchorY == null) return;
+    didAutoScroll.current = true;
+    scrollRef.current?.scrollTo({ y: Math.max(0, timelineY + anchorY - 12), animated: true });
+  }, [stageAnchorId, anchorY, timelineY]);
 
   const okInk = isDark ? '#46C88A' : '#1E8A5A';
   const okBg = isDark ? 'rgba(70,200,138,0.16)' : '#E4F3EB';
@@ -107,16 +147,10 @@ export default function JourneyScreen() {
     );
   }
 
-  // Flatten phases into one continuous, globally-numbered timeline.
-  const flat: InfoStep[] = data.phases.flatMap((p) => p.steps);
-  const totalSteps = flat.length;
-  const doneSteps = flat.filter((st) => isCompleted(st.id)).length;
-  const progress = totalSteps > 0 ? doneSteps / totalSteps : 0;
-  const currentId = flat.find((st) => !isCompleted(st.id))?.id;
-
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: spacing.xxl }}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
@@ -152,13 +186,17 @@ export default function JourneyScreen() {
         </View>
 
         {/* Timeline */}
-        <View style={s.timeline}>
+        <View style={s.timeline} onLayout={(e) => setTimelineY(e.nativeEvent.layout.y)}>
           {flat.map((step, i) => {
             const done = isCompleted(step.id);
             const current = step.id === currentId;
             const isLast = i === flat.length - 1;
             return (
-              <View key={step.id} style={s.tlRow}>
+              <View
+                key={step.id}
+                style={s.tlRow}
+                onLayout={step.id === stageAnchorId ? (e) => setAnchorY(e.nativeEvent.layout.y) : undefined}
+              >
                 {/* Rail */}
                 <View style={s.rail}>
                   <Pressable

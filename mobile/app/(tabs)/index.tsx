@@ -36,6 +36,16 @@ const COUNTRY_NAMES: Record<string, string> = {
   KR: 'South Korea', CN: 'China', IT: 'Italy', AE: 'UAE',
 };
 
+// User's self-reported onboarding stage → the journey phase it corresponds to.
+// Drives the "Next step" banner anchor for users who haven't checked anything off.
+const STAGE_TO_PHASE: Record<string, string> = {
+  deciding: 'before_applying',
+  accepted: 'after_acceptance',
+  visa_process: 'visa_process',
+  about_to_fly: 'before_departure',
+  landed: 'after_arrival',
+};
+
 function greeting(): string {
   const h = new Date().getHours();
   if (h < 12) return 'Good morning';
@@ -107,15 +117,20 @@ export default function HomeScreen() {
   const doneSteps = allStepIds.filter((id) => !!completedIds[id]).length;
   const progress = totalSteps > 0 ? doneSteps / totalSteps : 0;
 
-  // First not-yet-completed step — drives the "Next step" banner.
+  // Drives the "Next step" banner. Normally the first not-yet-completed step;
+  // but a brand-new user with nothing checked off is anchored to the first step
+  // of their onboarding stage's phase. Any progress, or a null/unknown stage, or
+  // an empty phase → unchanged first-incomplete behavior.
   const nextStep = useMemo<InfoStep | null>(() => {
-    for (const p of journey?.phases ?? []) {
-      for (const st of p.steps) {
-        if (!completedIds[st.id]) return st;
-      }
+    const flat = journey?.phases.flatMap((p) => p.steps) ?? [];
+    const hasProgress = flat.some((st) => completedIds[st.id]);
+    const stagePhase = user?.stage ? STAGE_TO_PHASE[user.stage] : undefined;
+    if (!hasProgress && stagePhase) {
+      const firstOfPhase = flat.find((st) => st.phase === stagePhase);
+      if (firstOfPhase) return firstOfPhase;
     }
-    return null;
-  }, [journey, completedIds]);
+    return flat.find((st) => !completedIds[st.id]) ?? null;
+  }, [journey, completedIds, user?.stage]);
 
   const destCode = user?.destination_country_code ?? '';
   const originCode = user?.origin_country_code ?? '';
@@ -132,6 +147,25 @@ export default function HomeScreen() {
     { key: 'scholarships', title: 'Scholarships', subtitle: 'Official sources', icon: 'ribbon-outline', onPress: () => router.push('/scholarships') },
     { key: 'work-hours', title: 'Work hours', subtitle: 'Earn while you study', icon: 'briefcase-outline', onPress: () => router.push('/work-hours') },
     { key: 'visa', title: 'Visa steps', subtitle: 'Your journey guide', icon: 'compass-outline', onPress: () => router.push('/(tabs)/journey') },
+  ];
+
+  // Lead the grid with tiles matching the user's onboarding answers. A stable
+  // partition: matched tiles keep their relative order, unmatched ones follow
+  // unchanged behind them. All-null answers → identical order to before.
+  const concerns = user?.concerns ?? [];
+  const isMatched = (key: string): boolean => {
+    switch (key) {
+      case 'visa': return concerns.includes('visa');
+      case 'money': return concerns.includes('money');
+      case 'necessities': return concerns.includes('housing') || concerns.includes('settling_in');
+      case 'work-hours': return user?.wants_to_work === true;
+      case 'scholarships': return user?.wants_scholarships === true;
+      default: return false;
+    }
+  };
+  const orderedQuickAccess = [
+    ...quickAccess.filter((t) => isMatched(t.key)),
+    ...quickAccess.filter((t) => !isMatched(t.key)),
   ];
 
   const popular = (destinations ?? []).slice(0, 6);
@@ -249,7 +283,7 @@ export default function HomeScreen() {
 
           {/* ───────── Quick-access gradient tiles ───────── */}
           <View style={s.grid}>
-            {quickAccess.map((item) => (
+            {orderedQuickAccess.map((item) => (
               <PressableScale key={item.key} style={s.tileWrap} onPress={item.onPress}>
                 <LinearGradient colors={CRIMSON_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.tile}>
                   <View style={s.tileIcon}>
