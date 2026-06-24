@@ -72,7 +72,10 @@ export default function ScholarshipsScreen() {
         <View style={s.list}>
           {items.map((item) => (
             <PressableScale
-              key={item.url}
+              // Some official sources (e.g. Fulbright) are deliberately listed
+              // under more than one region, so the URL alone isn't unique in the
+              // "All" view. Qualify the key with the region group, which is.
+              key={`${item.region}-${item.url}`}
               style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={() => Linking.openURL(item.url)}
             >

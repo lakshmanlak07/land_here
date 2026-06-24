@@ -70,6 +70,18 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
           'The World Bank’s official graduate scholarship program for students from developing countries.',
         url: 'https://www.worldbank.org/en/programs/scholarships',
       },
+      {
+        name: 'Mastercard Foundation Scholars Program',
+        description:
+          'The Mastercard Foundation’s official scholarship program portal.',
+        url: 'https://mastercardfdn.org/en/what-we-do/our-programs/mastercard-foundation-scholars-program/',
+      },
+      {
+        name: 'Rotary Peace Fellowships',
+        description:
+          'Rotary International’s official fellowship program based at its peace centers.',
+        url: 'https://www.rotary.org/en/our-programs/peace-fellowships',
+      },
     ],
   },
   {
@@ -111,6 +123,18 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'A nonprofit scholarship for international women pursuing graduate study in the U.S. or Canada.',
         url: 'https://www.peointernational.org/about-peo-international-peace-scholarship-ips',
+      },
+      {
+        name: 'Margaret McNamara Education Grants',
+        description:
+          'The MMEG nonprofit’s official education-grants program.',
+        url: 'https://www.mmeg.org/',
+      },
+      {
+        name: 'East-West Center Student Programs',
+        description:
+          'The East-West Center’s official student-programs and scholarships portal.',
+        url: 'https://www.eastwestcenter.org/education/student-programs',
       },
     ],
   },
@@ -184,6 +208,18 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
           'Germany’s official national merit scholarship, awarded through participating German universities.',
         url: 'https://www.deutschlandstipendium.de/',
       },
+      {
+        name: 'Konrad-Adenauer-Stiftung Scholarships',
+        description:
+          'The Konrad Adenauer Foundation’s official scholarship program.',
+        url: 'https://www.kas.de/en/scholarships',
+      },
+      {
+        name: 'Heinrich Böll Foundation Scholarships',
+        description:
+          'The Heinrich Böll Foundation’s official scholarship program.',
+        url: 'https://www.boell.de/en/scholarships',
+      },
     ],
   },
   {
@@ -195,6 +231,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'France’s official agency for international students and its funding tools.',
         url: 'https://www.campusfrance.org/en/financer-ses-etudes-en-France',
+      },
+      {
+        name: 'Eiffel Excellence Scholarship Programme',
+        description:
+          'France’s official Campus France page for the Eiffel Excellence Scholarship.',
+        url: 'https://www.campusfrance.org/en/eiffel-scholarship-program-of-excellence',
       },
     ],
   },
@@ -213,6 +255,18 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'Canada’s official scholarship for world-class doctoral students.',
         url: 'https://vanier.gc.ca/en/home-accueil.html',
+      },
+      {
+        name: 'Banting Postdoctoral Fellowships',
+        description:
+          'The Government of Canada’s official postdoctoral fellowship program.',
+        url: 'https://banting.fellowships-bourses.gc.ca/',
+      },
+      {
+        name: 'Pierre Elliott Trudeau Foundation Doctoral Scholarships',
+        description:
+          'The Trudeau Foundation’s official doctoral scholarship program.',
+        url: 'https://www.trudeaufoundation.ca/',
       },
     ],
   },
@@ -237,6 +291,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'The Australian government’s official program funding study at regional Australian campuses.',
         url: 'https://www.education.gov.au/destination-australia',
+      },
+      {
+        name: 'Research Training Program (RTP)',
+        description:
+          'The Australian government’s official program supporting higher-degree research study.',
+        url: 'https://www.education.gov.au/research-block-grants/research-training-program',
       },
     ],
   },
@@ -292,6 +352,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
           'Japan’s official student-services organisation and its scholarships for international students in Japan.',
         url: 'https://www.jasso.go.jp/en/study_j/scholarships/index.html',
       },
+      {
+        name: 'ADB–Japan Scholarship Program',
+        description:
+          'The Asian Development Bank’s official Japan-funded scholarship program.',
+        url: 'https://www.adb.org/work-with-us/careers/japan-scholarship-program',
+      },
     ],
   },
   {
@@ -310,6 +376,12 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
           'ETH Zurich’s official merit scholarship programme for master’s students, open to applicants worldwide.',
         url: 'https://ethz.ch/en/studies/financial/scholarships/excellencescholarship.html',
       },
+      {
+        name: 'EPFL Excellence Fellowships',
+        description:
+          'EPFL’s official excellence fellowship program for master’s study.',
+        url: 'https://www.epfl.ch/education/master/master-excellence-fellowships/',
+      },
     ],
   },
   {
@@ -321,6 +393,18 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'Tsinghua University’s official master’s scholarship program in global affairs, based in Beijing.',
         url: 'https://www.schwarzmanscholars.org/',
+      },
+      {
+        name: 'Chinese Government Scholarship (Campus China)',
+        description:
+          'China’s official China Scholarship Council study portal.',
+        url: 'https://www.campuschina.org/',
+      },
+      {
+        name: 'Yenching Academy of Peking University',
+        description:
+          'Peking University’s official Yenching Academy master’s program.',
+        url: 'https://yenchingacademy.pku.edu.cn/',
       },
     ],
   },
@@ -357,6 +441,120 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
         description:
           'The Swedish Institute’s official government scholarship for master’s study in Sweden.',
         url: 'https://si.se/en/apply/scholarships/',
+      },
+    ],
+  },
+  {
+    code: 'SG',
+    title: 'Singapore',
+    sources: [
+      {
+        name: 'Singapore International Graduate Award (SINGA)',
+        description:
+          'Singapore’s official A*STAR graduate award portal.',
+        url: 'https://www.a-star.edu.sg/Scholarships/for-graduate-studies/singapore-international-graduate-award-singa',
+      },
+    ],
+  },
+  {
+    code: 'BE',
+    title: 'Belgium',
+    sources: [
+      {
+        name: 'VLIR-UOS Scholarships',
+        description:
+          'The official Flemish (VLIR-UOS) scholarship program for study in Belgium.',
+        url: 'https://www.vliruos.be/en',
+      },
+      {
+        name: 'Master Mind Scholarships (Flanders)',
+        description:
+          'The official Study in Flanders portal for the Master Mind Scholarships.',
+        url: 'https://www.studyinflanders.be/scholarships/master-mind-scholarships',
+      },
+    ],
+  },
+  {
+    code: 'AT',
+    title: 'Austria',
+    sources: [
+      {
+        name: 'OeAD Scholarship Database (grants.at)',
+        description:
+          'Austria’s official OeAD scholarship and grants database.',
+        url: 'https://grants.at/en/',
+      },
+    ],
+  },
+  {
+    code: 'IT',
+    title: 'Italy',
+    sources: [
+      {
+        name: 'Italian Government Scholarships (Study in Italy)',
+        description:
+          'Italy’s official Ministry of Foreign Affairs Study in Italy scholarships portal.',
+        url: 'https://studyinitaly.esteri.it/',
+      },
+    ],
+  },
+  {
+    code: 'HU',
+    title: 'Hungary',
+    sources: [
+      {
+        name: 'Stipendium Hungaricum',
+        description:
+          'Hungary’s official government scholarship program portal.',
+        url: 'https://stipendiumhungaricum.hu/',
+      },
+    ],
+  },
+  {
+    code: 'TR',
+    title: 'Turkey',
+    sources: [
+      {
+        name: 'Türkiye Scholarships',
+        description:
+          'Turkey’s official government scholarship program.',
+        url: 'https://www.turkiyeburslari.gov.tr/en',
+      },
+    ],
+  },
+  {
+    code: 'TW',
+    title: 'Taiwan',
+    sources: [
+      {
+        name: 'Taiwan Scholarship (Study in Taiwan)',
+        description:
+          'Taiwan’s official Study in Taiwan portal and scholarship information.',
+        url: 'https://www.studyintaiwan.org/',
+      },
+    ],
+  },
+  {
+    code: 'IN',
+    title: 'India',
+    sources: [
+      {
+        name: 'ICCR Scholarships',
+        description:
+          'The Indian government’s official ICCR scholarship application portal.',
+        url: 'https://a2ascholarships.iccr.gov.in/',
+      },
+    ],
+  },
+  {
+    code: 'ES',
+    title: 'Spain',
+    sources: [
+      {
+        name: 'Fundación Carolina Scholarships',
+        description:
+          'The Fundación Carolina’s official scholarship program for study in Spain.',
+        url: 'https://www.fundacioncarolina.es/',
       },
     ],
   },
