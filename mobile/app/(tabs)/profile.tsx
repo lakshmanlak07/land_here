@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, Pressable, StyleSheet, Switch, ScrollView,
+  View, Text, StyleSheet, Switch, ScrollView,
   Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +11,10 @@ import { useAuthStore } from '../../lib/store';
 import { useProgressStore } from '../../lib/progressStore';
 import { useTheme } from '../../context/ThemeContext';
 import { IconBadge } from '../../components/IconBadge';
+import { PressableScale } from '../../components/PressableScale';
+import { FadeInView } from '../../components/FadeInView';
 import { withAlpha } from '../../lib/color';
+import { duration } from '../../lib/motion';
 import api, { getErrorMessage } from '../../lib/api';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -83,35 +86,37 @@ export default function ProfileScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxl }} showsVerticalScrollIndicator={false}>
         {/* ───────── Crimson identity hero ───────── */}
-        <LinearGradient
-          colors={(isDark ? ['#A4133C', '#5E0C26', colors.bg] : ['#A4133C', '#981236', colors.bg]) as [string, string, string]}
-          locations={[0, 0.6, 1]}
-          style={[s.hero, { paddingTop: insets.top + 18 }]}
-        >
-          <View style={s.heroRow}>
-            <View style={s.avatar}>
-              <Text style={s.avatarText}>{initials}</Text>
+        <FadeInView>
+          <LinearGradient
+            colors={(isDark ? ['#A4133C', '#5E0C26', colors.bg] : ['#A4133C', '#981236', colors.bg]) as [string, string, string]}
+            locations={[0, 0.6, 1]}
+            style={[s.hero, { paddingTop: insets.top + 18 }]}
+          >
+            <View style={s.heroRow}>
+              <View style={s.avatar}>
+                <Text style={s.avatarText}>{initials}</Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.name} numberOfLines={1}>{user?.full_name ?? 'Student'}</Text>
+                <Text style={s.email} numberOfLines={1}>{user?.email}</Text>
+              </View>
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={s.name} numberOfLines={1}>{user?.full_name ?? 'Student'}</Text>
-              <Text style={s.email} numberOfLines={1}>{user?.email}</Text>
+            <View style={s.statRow}>
+              <View style={s.statTile}>
+                <Text style={s.statLabel}>Destination</Text>
+                <Text style={s.statValue}>{destination ?? 'Not set'}</Text>
+              </View>
+              <View style={s.statTile}>
+                <Text style={s.statLabel}>Origin</Text>
+                <Text style={s.statValue}>{origin ?? 'Not set'}</Text>
+              </View>
             </View>
-          </View>
-          <View style={s.statRow}>
-            <View style={s.statTile}>
-              <Text style={s.statLabel}>Destination</Text>
-              <Text style={s.statValue}>{destination ?? 'Not set'}</Text>
-            </View>
-            <View style={s.statTile}>
-              <Text style={s.statLabel}>Origin</Text>
-              <Text style={s.statValue}>{origin ?? 'Not set'}</Text>
-            </View>
-          </View>
-        </LinearGradient>
+          </LinearGradient>
+        </FadeInView>
 
         <View style={{ padding: spacing.lg, gap: 22 }}>
           {/* Account */}
-          <View>
+          <FadeInView delay={duration.fast}>
             <Text style={[s.sectionLabel, { color: colors.textTertiary }]}>ACCOUNT</Text>
             <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <InfoRow icon="person-outline" accent={colors.primary} label="Full name" value={user?.full_name} />
@@ -119,10 +124,10 @@ export default function ProfileScreen() {
               <InfoRow icon="location-outline" accent={colors.before_departure} label="Origin" value={origin} />
               <InfoRow icon="airplane-outline" accent={colors.visa_process} label="Destination" value={destination} last />
             </View>
-          </View>
+          </FadeInView>
 
           {/* Preferences */}
-          <View>
+          <FadeInView delay={duration.fast * 2}>
             <Text style={[s.sectionLabel, { color: colors.textTertiary }]}>PREFERENCES</Text>
             <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <View style={[s.row, { borderBottomWidth: 0 }]}>
@@ -131,17 +136,17 @@ export default function ProfileScreen() {
                 <Switch value={isDark} onValueChange={toggleTheme} trackColor={{ false: colors.border, true: colors.primary }} thumbColor="#fff" />
               </View>
             </View>
-          </View>
+          </FadeInView>
 
           {/* Danger zone */}
-          <View>
+          <FadeInView delay={duration.fast * 3}>
             <Text style={[s.sectionLabel, { color: colors.danger }]}>DANGER ZONE</Text>
             <View style={[s.card, { backgroundColor: colors.surface, borderColor: withAlpha(colors.danger, 0.3) }]}>
-              <Pressable style={[s.row, { borderBottomColor: colors.border }]} onPress={handleLogout}>
+              <PressableScale style={[s.row, { borderBottomColor: colors.border }]} onPress={handleLogout}>
                 <IconBadge icon="log-out-outline" color={colors.textSecondary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
                 <Text style={[s.rowLabel, { color: colors.textPrimary, fontWeight: '700' }]}>Sign out</Text>
-              </Pressable>
-              <Pressable style={[s.row, { borderBottomWidth: 0, alignItems: 'flex-start' }]} onPress={openDeleteConfirm} accessibilityRole="button">
+              </PressableScale>
+              <PressableScale style={[s.row, { borderBottomWidth: 0, alignItems: 'flex-start' }]} onPress={openDeleteConfirm} accessibilityRole="button">
                 <IconBadge icon="trash-outline" color={colors.danger} tone="soft" size={34} style={{ marginRight: spacing.md }} />
                 <View style={{ flex: 1 }}>
                   <Text style={[s.rowLabel, { color: colors.danger, fontWeight: '700' }]}>Delete account</Text>
@@ -149,9 +154,9 @@ export default function ProfileScreen() {
                     Permanently erases your journey and data. This can't be undone.
                   </Text>
                 </View>
-              </Pressable>
+              </PressableScale>
             </View>
-          </View>
+          </FadeInView>
 
           <Text style={[s.version, { color: colors.textTertiary }]}>LandHere · v1.0.0</Text>
         </View>
@@ -184,16 +189,16 @@ export default function ProfileScreen() {
             />
             {error && <Text style={[s.modalError, { color: colors.danger }]}>{error}</Text>}
             <View style={s.modalActions}>
-              <Pressable style={[s.modalBtn, { borderColor: colors.border, borderWidth: 1.5 }]} onPress={closeDeleteConfirm} disabled={deleting}>
+              <PressableScale style={[s.modalBtn, { borderColor: colors.border, borderWidth: 1.5 }]} onPress={closeDeleteConfirm} disabled={deleting}>
                 <Text style={[s.modalBtnText, { color: colors.textSecondary }]}>Cancel</Text>
-              </Pressable>
-              <Pressable
+              </PressableScale>
+              <PressableScale
                 style={[s.modalBtn, { backgroundColor: colors.danger }, (!password || deleting) && { opacity: 0.5 }]}
                 onPress={handleDeleteAccount}
                 disabled={!password || deleting}
               >
                 {deleting ? <ActivityIndicator color="#fff" size="small" /> : <Text style={[s.modalBtnText, { color: '#fff' }]}>Delete</Text>}
-              </Pressable>
+              </PressableScale>
             </View>
           </View>
         </KeyboardAvoidingView>
