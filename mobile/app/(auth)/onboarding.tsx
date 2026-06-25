@@ -1,41 +1,62 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, ActivityIndicator, TextInput, Pressable,
-  Modal, FlatList, KeyboardAvoidingView, Platform, Keyboard,
+  View, Text, ScrollView, StyleSheet, TextInput, Pressable,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { getErrorMessage } from '../../lib/api';
 import { useAuthStore } from '../../lib/store';
 import { useTheme } from '../../context/ThemeContext';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PressableScale } from '../../components/PressableScale';
 import { FALLBACK_COUNTRIES } from '../../constants/countries';
-import type { TokenOut, UserOut, CountryOut } from '../../lib/types';
+import type { TokenOut, UserOut, CountryOut, UniversityListItem } from '../../lib/types';
+
+import { OnboardingChrome } from '../../components/onboarding/OnboardingChrome';
+import { OptionCard, FlagTile, IconTile, CodeTile } from '../../components/onboarding/OptionCard';
+import { ScreenTransition } from '../../components/onboarding/ScreenTransition';
+import { ConfidenceSlider } from '../../components/onboarding/ConfidenceSlider';
+import { BuildingScreen } from '../../components/onboarding/BuildingScreen';
+import { Confetti } from '../../components/onboarding/Confetti';
+import { WelcomeScreen } from '../../components/onboarding/WelcomeScreen';
+import { PlanReveal } from '../../components/onboarding/PlanReveal';
+import { CtaButton } from '../../components/onboarding/CtaButton';
+import { uniInitials } from '../../components/onboarding/flags';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CRIMSON_GRAD = ['#B5163F', '#8E1133', '#6B0F2C'] as const;
-// Key for the on-device buffer of answers given before an account exists.
 const ANSWERS_BUFFER_KEY = 'onboarding_answers';
+const BUILDING_MS = 2300;
 
-// ── Question config ──────────────────────────────────────────────────────────
-// One screen per entry. `field` is the answer bucket; `multi` switches between
-// single-select (radio) and multi-select (checkbox). work/scholarships/firstTimer
-// render friendly choices but persist a boolean (see buildPayload).
-type Field = 'stage' | 'concerns' | 'work' | 'scholarships' | 'firstMonth' | 'firstTimer' | 'primaryGoal';
+// ── Ordered flow. `welcome`, `building` and `plan` are not questions and don't
+// count toward progress; everything else does. `account` is a terminal phase
+// (anonymous users only) rendered outside this list. ──────────────────────────
+type StepId =
+  | 'welcome' | 'dest' | 'origin' | 'uni' | 'stage' | 'concerns'
+  | 'work' | 'scholarships' | 'firstMonth' | 'firstTimer' | 'primaryGoal'
+  | 'confidence' | 'building' | 'plan';
+
+const STEP_IDS: StepId[] = [
+  'welcome', 'dest', 'origin', 'uni', 'stage', 'concerns',
+  'work', 'scholarships', 'firstMonth', 'firstTimer', 'primaryGoal',
+  'confidence', 'building', 'plan',
+];
+const QUESTION_IDS: StepId[] = STEP_IDS.filter((id) => id !== 'welcome' && id !== 'building' && id !== 'plan');
+
+// ── Generic list-question config (the design's tokens + the app's existing,
+// backend-backed questions). dest/origin/uni/confidence are rendered specially. ─
+type GenericField = 'stage' | 'concerns' | 'work' | 'scholarships' | 'firstMonth' | 'firstTimer' | 'primaryGoal';
 interface Option { value: string; title: string; sub?: string; icon?: IoniconName }
-interface Step { field: Field; multi: boolean; title: string; subtitle: string; options: Option[] }
+interface GenericConfig { field: GenericField; multi: boolean; title: string; subtitle: string; options: Option[] }
 
-const QUESTIONS: Step[] = [
-  {
+const GENERIC: Record<GenericField, GenericConfig> = {
+  stage: {
     field: 'stage', multi: false,
-    title: 'Where are you in the journey?',
-    subtitle: "We'll start your plan right from here.",
+    title: 'Where are you in the journey?', subtitle: "We'll start your plan right from here.",
     options: [
       { value: 'deciding', title: 'Still deciding', sub: 'Weighing my offers' },
       { value: 'accepted', title: 'Accepted', sub: 'Got my offer letter' },
@@ -44,10 +65,9 @@ const QUESTIONS: Step[] = [
       { value: 'landed', title: 'Already landed', sub: "I'm here!" },
     ],
   },
-  {
+  concerns: {
     field: 'concerns', multi: true,
-    title: "What's on your mind?",
-    subtitle: 'Pick anything that feels heavy right now — as many as you like.',
+    title: "What's on your mind?", subtitle: 'Pick anything that feels heavy right now — as many as you like.',
     options: [
       { value: 'visa', title: 'Visa & paperwork', icon: 'document-text-outline' },
       { value: 'money', title: 'Money & budget', icon: 'cash-outline' },
@@ -55,30 +75,27 @@ const QUESTIONS: Step[] = [
       { value: 'settling_in', title: 'Settling in', icon: 'heart-outline' },
     ],
   },
-  {
+  work: {
     field: 'work', multi: false,
-    title: 'Planning to work while you study?',
-    subtitle: 'Totally optional — just changes which steps we surface.',
+    title: 'Planning to work while you study?', subtitle: 'Totally optional — just changes which steps we surface.',
     options: [
       { value: 'yes', title: 'Yes, I want to', icon: 'briefcase-outline' },
       { value: 'maybe', title: 'Maybe later', icon: 'briefcase-outline' },
       { value: 'no', title: 'No, focusing on studies', icon: 'briefcase-outline' },
     ],
   },
-  {
+  scholarships: {
     field: 'scholarships', multi: false,
-    title: 'Looking for scholarships?',
-    subtitle: 'We only ever link to official, verified sources.',
+    title: 'Looking for scholarships?', subtitle: 'We only ever link to official, verified sources.',
     options: [
       { value: 'yes', title: 'Yes, actively looking', icon: 'ribbon-outline' },
       { value: 'open', title: "I'm open to it", icon: 'ribbon-outline' },
       { value: 'sorted', title: 'Already sorted', icon: 'ribbon-outline' },
     ],
   },
-  {
+  firstMonth: {
     field: 'firstMonth', multi: false,
-    title: 'First month — where do we start?',
-    subtitle: "We'll put this at the top of your plan.",
+    title: 'First month — where do we start?', subtitle: "We'll put this at the top of your plan.",
     options: [
       { value: 'documents', title: 'Documents & registration', sub: 'Permits, ID, enrolment', icon: 'document-text-outline' },
       { value: 'housing', title: 'Housing', sub: 'Somewhere to live', icon: 'home-outline' },
@@ -86,19 +103,17 @@ const QUESTIONS: Step[] = [
       { value: 'people', title: 'Meeting people', sub: 'Friends & community', icon: 'people-outline' },
     ],
   },
-  {
+  firstTimer: {
     field: 'firstTimer', multi: false,
-    title: 'Is this your first time living abroad?',
-    subtitle: 'No wrong answer — it just sets how much we explain.',
+    title: 'Is this your first time living abroad?', subtitle: 'No wrong answer — it just sets how much we explain.',
     options: [
       { value: 'yes', title: 'Yes, first time', sub: "We'll walk you through everything", icon: 'compass-outline' },
       { value: 'no', title: "I've done this before", sub: "We'll keep it brief", icon: 'globe-outline' },
     ],
   },
-  {
+  primaryGoal: {
     field: 'primaryGoal', multi: false,
-    title: 'What matters most to you right now?',
-    subtitle: "We'll lead your plan with it.",
+    title: 'What matters most to you right now?', subtitle: "We'll lead your plan with it.",
     options: [
       { value: 'deadlines', title: 'Never miss a deadline', sub: 'Visa dates & steps, on time', icon: 'time-outline' },
       { value: 'saving', title: 'Keep costs down', sub: 'Budget & official funding', icon: 'cash-outline' },
@@ -106,18 +121,22 @@ const QUESTIONS: Step[] = [
       { value: 'smooth_landing', title: 'A smooth landing', sub: 'Settle in without stress', icon: 'airplane-outline' },
     ],
   },
-];
+};
 
-// Which feature the plan reveal leads with, keyed by primary_goal. Null/unknown
-// falls back to the deadlines lead (the journey timeline) — i.e. no change.
-const LEAD: Record<string, { icon: IoniconName; title: string; sub: string }> = {
-  deadlines: { icon: 'compass-outline', title: 'Your visa timeline', sub: 'Every step, mapped to your dates' },
-  saving: { icon: 'cash-outline', title: 'Money & scholarships', sub: 'Budget smart, find official funding' },
-  prepared: { icon: 'document-text-outline', title: 'Your first-week checklist', sub: 'Know exactly what to do on arrival' },
-  smooth_landing: { icon: 'heart-outline', title: 'A smooth landing', sub: 'Settle in without the stress' },
+// The reveal's "leads with" line, keyed by primary_goal (preserves the existing
+// personalization input). Falls back to the timeline lead.
+const LEAD: Record<string, string> = {
+  deadlines: 'Your visa timeline, mapped to your dates',
+  saving: 'Money & scholarships, the official way',
+  prepared: 'Your first-week checklist',
+  smooth_landing: 'A smooth landing, step by step',
 };
 
 interface Answers {
+  destCode: string | null;
+  originCode: string | null;
+  uniId: string | null;
+  uniName: string | null;
   stage: string | null;
   concerns: string[];
   work: string | null;
@@ -125,86 +144,26 @@ interface Answers {
   firstMonth: string | null;
   firstTimer: string | null;
   primaryGoal: string | null;
+  confidence: number;
 }
 
-type Phase = 'account' | 'question' | 'reveal';
+const EMPTY_ANSWERS: Answers = {
+  destCode: null, originCode: null, uniId: null, uniName: null,
+  stage: null, concerns: [], work: null, scholarships: null,
+  firstMonth: null, firstTimer: null, primaryGoal: null, confidence: 6,
+};
 
-// ── Country picker (ported from register; account creation now lives here) ─────
-function CountryPicker({
-  label, value, countries, onSelect, invalid,
-}: {
-  label: string;
-  value: string;
-  countries: CountryOut[] | undefined;
-  onSelect: (code: string, name: string) => void;
-  invalid?: boolean;
-}) {
-  const { colors } = useTheme();
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const filtered = (countries ?? []).filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
-
-  function close() {
-    Keyboard.dismiss();
-    setOpen(false);
-    setSearch('');
-  }
-
-  return (
-    <>
-      <Pressable
-        style={[ap.picker, { backgroundColor: colors.surfaceAlt, borderColor: invalid ? colors.danger : colors.border }]}
-        onPress={() => setOpen(true)}
-      >
-        <Text style={[ap.pickerValue, { color: value ? colors.textPrimary : colors.textTertiary }]}>{value || label}</Text>
-        <Ionicons name="chevron-down" size={18} color={colors.textTertiary} />
-      </Pressable>
-
-      <Modal visible={open} animationType="slide" transparent onRequestClose={close}>
-        <Pressable style={ap.modalOverlay} onPress={close}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%' }}>
-            <Pressable style={[ap.modalSheet, { backgroundColor: colors.surface }]} onPress={() => {}}>
-              <View style={ap.grabber}><View style={[ap.grabberBar, { backgroundColor: colors.border }]} /></View>
-              <View style={[ap.modalHeader, { borderBottomColor: colors.border }]}>
-                <Text style={[ap.modalTitle, { color: colors.textPrimary }]}>{label}</Text>
-                <Pressable onPress={close} hitSlop={8}>
-                  <Ionicons name="close" size={22} color={colors.textSecondary} />
-                </Pressable>
-              </View>
-              <TextInput
-                style={[ap.modalSearch, { backgroundColor: colors.surfaceAlt, borderColor: colors.border, color: colors.textPrimary }]}
-                placeholder="Search countries…"
-                placeholderTextColor={colors.textTertiary}
-                value={search}
-                onChangeText={setSearch}
-              />
-              <FlatList
-                data={filtered}
-                keyExtractor={(item) => item.code}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                ListEmptyComponent={<Text style={[ap.emptyText, { color: colors.textTertiary }]}>No countries match "{search}".</Text>}
-                renderItem={({ item }) => (
-                  <Pressable
-                    style={ap.countryRow}
-                    onPress={() => { Keyboard.dismiss(); onSelect(item.code, item.name); setOpen(false); setSearch(''); }}
-                  >
-                    <Text style={[ap.countryName, { color: colors.textPrimary }]}>{item.name}</Text>
-                    <Text style={[ap.countryCode, { color: colors.textTertiary }]}>{item.code}</Text>
-                  </Pressable>
-                )}
-                ItemSeparatorComponent={() => <View style={[ap.separator, { backgroundColor: colors.border }]} />}
-              />
-            </Pressable>
-          </KeyboardAvoidingView>
-        </Pressable>
-      </Modal>
-    </>
-  );
+function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return v;
 }
 
 export default function OnboardingScreen() {
-  const { colors, radius, elevation, isDark } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -212,49 +171,54 @@ export default function OnboardingScreen() {
   const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
   const token = useAuthStore((s) => s.token);
 
-  // Onboarding runs questions → reveal → account. Everyone starts on the
-  // questions; anonymous users create their account at the END (we attach the
-  // buffered answers then). An already-authed user resuming saves directly and
-  // never sees the account step.
   const [hadTokenAtMount] = useState(() => !!useAuthStore.getState().token);
-  const [phase, setPhase] = useState<Phase>('question');
-  const [qIndex, setQIndex] = useState(0);
+  const [step, setStep] = useState(0);
+  const [dir, setDir] = useState(1);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [answers, setAnswers] = useState<Answers>(EMPTY_ANSWERS);
 
   // Account-step form state.
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [fullName, setFullName] = useState('');
-  const [originCode, setOriginCode] = useState('');
-  const [originName, setOriginName] = useState('');
-  const [destinationCode, setDestinationCode] = useState('');
-  const [destinationName, setDestinationName] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; origin?: string; destination?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
 
-  const [answers, setAnswers] = useState<Answers>({
-    stage: null, concerns: [], work: null, scholarships: null,
-    firstMonth: null, firstTimer: null, primaryGoal: null,
-  });
+  const stepId = STEP_IDS[step];
 
-  // Buffer answers on-device while there's no account yet, so they survive an
-  // app restart mid-onboarding and can be attached right after signup. An
-  // already-logged-in user saves directly and never touches the buffer.
+  // ── Answer buffering (anonymous only) + profile prefill (authed) ──────────
   const [bufferLoaded, setBufferLoaded] = useState(false);
   useEffect(() => {
-    if (hadTokenAtMount) { setBufferLoaded(true); return; }
+    if (hadTokenAtMount) {
+      const u = useAuthStore.getState().user;
+      if (u) {
+        setAnswers((p) => ({
+          ...p,
+          destCode: u.destination_country_code ?? p.destCode,
+          originCode: u.origin_country_code ?? p.originCode,
+          stage: u.stage ?? p.stage,
+          concerns: u.concerns ?? p.concerns,
+          confidence: u.confidence ?? p.confidence,
+          primaryGoal: u.primary_goal ?? p.primaryGoal,
+          firstMonth: u.first_month_priority ?? p.firstMonth,
+        }));
+      }
+      setBufferLoaded(true);
+      return;
+    }
     AsyncStorage.getItem(ANSWERS_BUFFER_KEY)
-      .then((raw) => { if (raw) { try { setAnswers(JSON.parse(raw)); } catch {} } })
+      .then((raw) => { if (raw) { try { setAnswers((p) => ({ ...p, ...JSON.parse(raw) })); } catch {} } })
       .finally(() => setBufferLoaded(true));
   }, [hadTokenAtMount]);
   useEffect(() => {
-    // Persist only after the initial load, so we never clobber a saved buffer
-    // with the empty initial state on mount.
     if (hadTokenAtMount || !bufferLoaded) return;
     AsyncStorage.setItem(ANSWERS_BUFFER_KEY, JSON.stringify(answers)).catch(() => {});
   }, [answers, bufferLoaded, hadTokenAtMount]);
 
+  // ── Country lists (real data) ─────────────────────────────────────────────
   const { data: origins } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'origins'],
     queryFn: async () => (await api.get('/countries/origins')).data,
@@ -267,29 +231,48 @@ export default function OnboardingScreen() {
   });
   const originList = origins && origins.length > 0 ? origins : FALLBACK_COUNTRIES;
   const destinationList = destinations && destinations.length > 0 ? destinations : FALLBACK_COUNTRIES;
+  const nameFor = (list: CountryOut[], code: string | null) => (code ? list.find((c) => c.code === code)?.name ?? null : null);
 
-  const step = QUESTIONS[qIndex];
-  const total = QUESTIONS.length;
-  const isLastQuestion = qIndex === total - 1;
-  const pct = ((qIndex + 1) / total) * 100;
+  // ── University search (real /universities?search=, not persisted) ──────────
+  const [uniQuery, setUniQuery] = useState('');
+  const debouncedUni = useDebounced(uniQuery, 250);
+  const { data: uniResults } = useQuery<UniversityListItem[]>({
+    queryKey: ['uni-search', debouncedUni],
+    queryFn: async () => (await api.get('/universities', { params: { search: debouncedUni || undefined, limit: 8 } })).data,
+    enabled: stepId === 'uni',
+    placeholderData: (prev) => prev,
+  });
 
-  // ── Answer selection ────────────────────────────────────────────────────
-  function isSelected(field: Field, multi: boolean, value: string) {
-    if (multi) return answers.concerns.includes(value);
-    return answers[field as Exclude<Field, 'concerns'>] === value;
+  // ── Navigation ────────────────────────────────────────────────────────────
+  function go(d: number) {
+    setDir(d);
+    setStep((cur) => Math.max(0, Math.min(STEP_IDS.length - 1, cur + d)));
   }
-  function select(field: Field, multi: boolean, value: string) {
-    setAnswers((prev) => {
-      if (multi) {
-        const has = prev.concerns.includes(value);
-        return { ...prev, concerns: has ? prev.concerns.filter((v) => v !== value) : [...prev.concerns, value] };
-      }
-      const f = field as Exclude<Field, 'concerns'>;
-      return { ...prev, [f]: prev[f] === value ? null : value };
-    });
+  // The building screen auto-advances to the plan reveal; cleared on unmount/back.
+  useEffect(() => {
+    if (stepId !== 'building') return;
+    const t = setTimeout(() => { setDir(1); setStep((s) => Math.min(STEP_IDS.length - 1, s + 1)); }, BUILDING_MS);
+    return () => clearTimeout(t);
+  }, [stepId]);
+
+  function setA(patch: Partial<Answers>) { setAnswers((p) => ({ ...p, ...patch })); }
+  function toggleConcern(value: string) {
+    setAnswers((p) => ({
+      ...p,
+      concerns: p.concerns.includes(value) ? p.concerns.filter((v) => v !== value) : [...p.concerns, value],
+    }));
+  }
+  function selectGeneric(cfg: GenericConfig, value: string) {
+    if (cfg.field === 'concerns') { toggleConcern(value); return; }
+    const field = cfg.field as Exclude<GenericField, 'concerns'>;
+    setAnswers((p) => ({ ...p, [field]: p[field] === value ? null : value }));
+  }
+  function isGenericSelected(cfg: GenericConfig, value: string) {
+    if (cfg.field === 'concerns') return answers.concerns.includes(value);
+    return answers[cfg.field as Exclude<GenericField, 'concerns'>] === value;
   }
 
-  // Only answered fields are sent; skipped ones stay null (PATCH exclude_unset).
+  // ── Persistence ───────────────────────────────────────────────────────────
   function buildPayload(): Partial<UserOut> {
     const p: Partial<UserOut> = {};
     if (answers.stage) p.stage = answers.stage;
@@ -299,18 +282,34 @@ export default function OnboardingScreen() {
     if (answers.firstMonth) p.first_month_priority = answers.firstMonth;
     if (answers.firstTimer) p.first_timer = answers.firstTimer === 'yes';
     if (answers.primaryGoal) p.primary_goal = answers.primaryGoal;
+    if (answers.confidence != null) p.confidence = answers.confidence;
     return p;
   }
 
-  // ── Account step ──────────────────────────────────────────────────────────
+  async function finish() {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const payload = buildPayload();
+      if (Object.keys(payload).length > 0) {
+        const { data } = await api.patch<UserOut>('/auth/me', payload);
+        patchUser(data);
+      }
+      completeOnboarding();
+      router.replace('/(tabs)');
+    } catch (e) {
+      setError(getErrorMessage(e, 'Could not save your answers. Please try again.'));
+      setSubmitting(false);
+    }
+  }
+
   function validateAccount() {
     const fe: typeof fieldErrors = {};
     if (!email.trim()) fe.email = 'Email is required.';
     else if (!EMAIL_RE.test(email.trim())) fe.email = 'Enter a valid email address.';
     if (!password) fe.password = 'Password is required.';
     else if (password.length < 8) fe.password = 'Password must be at least 8 characters.';
-    if (!originCode) fe.origin = 'Select your origin country.';
-    if (!destinationCode) fe.destination = 'Select your destination country.';
     setFieldErrors(fe);
     return Object.keys(fe).length === 0;
   }
@@ -318,14 +317,18 @@ export default function OnboardingScreen() {
   async function submitAccount() {
     setError(null);
     if (!validateAccount()) return;
+    if (!answers.originCode || !answers.destCode) {
+      setError('Please choose your origin and destination countries.');
+      return;
+    }
     setSubmitting(true);
     try {
       const { data: tokenData } = await api.post<TokenOut>('/auth/register', {
         email: email.trim(),
         password,
         full_name: fullName.trim() || null,
-        origin_country_code: originCode,
-        destination_country_code: destinationCode,
+        origin_country_code: answers.originCode,
+        destination_country_code: answers.destCode,
       });
       const { data: userData } = await api.get<UserOut>('/auth/me', {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
@@ -336,12 +339,7 @@ export default function OnboardingScreen() {
       setSubmitting(false);
       return;
     }
-
-    // Account now exists and the token is set. Attach the answers buffered
-    // during the questions, then enter the app. A flush failure must not trap
-    // the user on a form whose account was already created (re-submitting would
-    // 400 on the duplicate email) — the buffer is left in place and the user
-    // still gets in.
+    // Account exists + token set: attach buffered answers, then enter the app.
     try {
       const payload = buildPayload();
       if (Object.keys(payload).length > 0) {
@@ -356,38 +354,17 @@ export default function OnboardingScreen() {
     router.replace('/(tabs)');
   }
 
-  // ── Finish (persist answers) ────────────────────────────────────────────
-  async function finish() {
-    if (submitting) return;
-    setSubmitting(true);
-    setError(null);
-    const payload = buildPayload();
-    try {
-      if (Object.keys(payload).length > 0) {
-        const { data } = await api.patch<UserOut>('/auth/me', payload);
-        patchUser(data);
-      }
-      completeOnboarding();
-      router.replace('/(tabs)');
-    } catch (e) {
-      setError(getErrorMessage(e, 'Could not save your answers. Please try again.'));
-      setSubmitting(false);
-    }
+  function onPlanPrimary() {
+    if (token) finish();
+    else setAccountOpen(true);
   }
 
-  function nextQuestion() {
-    if (isLastQuestion) setPhase('reveal');
-    else setQIndex((i) => i + 1);
-  }
-  function backFromQuestion() {
-    if (qIndex > 0) setQIndex((i) => i - 1);
-  }
+  const s = styles(colors);
 
-  const s = styles(colors, radius);
-  const inputBorder = (bad?: string) => (bad ? colors.danger : colors.border);
-
-  // ── Render: account step ──────────────────────────────────────────────────
-  if (phase === 'account') {
+  // ── Account step (anonymous only) ─────────────────────────────────────────
+  if (accountOpen) {
+    const inputBorder = (bad?: string) => (bad ? colors.danger : colors.border);
+    const corridor = [nameFor(originList, answers.originCode), nameFor(destinationList, answers.destCode)].filter(Boolean).join(' → ');
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -396,13 +373,9 @@ export default function OnboardingScreen() {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 24, paddingTop: insets.top + 18 }}
           >
-            <Pressable
-              onPress={() => setPhase('reveal')}
-              hitSlop={8}
-              style={[s.backChip, { backgroundColor: colors.surfaceAlt, marginBottom: 14 }]}
-            >
-              <Ionicons name="arrow-back" size={18} color={colors.textPrimary} />
-            </Pressable>
+            <PressableScale onPress={() => setAccountOpen(false)} hitSlop={8} style={[s.backChip, { backgroundColor: colors.surfaceAlt, marginBottom: 14 }]}>
+              <Ionicons name="chevron-back" size={18} color={colors.textPrimary} />
+            </PressableScale>
 
             <View style={s.brandRow}>
               <View style={[s.brandMark, { backgroundColor: colors.primary }]}>
@@ -413,6 +386,7 @@ export default function OnboardingScreen() {
 
             <Text style={[s.title, { color: colors.textPrimary, marginTop: 22 }]}>Create your account</Text>
             <Text style={[s.subtitle, { color: colors.textSecondary }]}>One last step — save your answers and unlock your personalized plan.</Text>
+            {corridor ? <Text style={[s.corridorNote, { color: colors.textTertiary }]}>{corridor}</Text> : null}
 
             {error && (
               <View style={[s.errorBox, { backgroundColor: colors.primarySubtle, marginTop: 16 }]}>
@@ -425,38 +399,27 @@ export default function OnboardingScreen() {
                 <Text style={[s.label, { color: colors.textSecondary }]}>Full name <Text style={{ color: colors.textTertiary, fontWeight: '500' }}>(optional)</Text></Text>
                 <TextInput
                   style={[s.input, { backgroundColor: colors.surfaceAlt, borderColor: colors.border, color: colors.textPrimary }]}
-                  placeholder="Lakshman R"
-                  placeholderTextColor={colors.textTertiary}
-                  value={fullName}
-                  onChangeText={setFullName}
-                  autoComplete="name"
+                  placeholder="Lakshman R" placeholderTextColor={colors.textTertiary}
+                  value={fullName} onChangeText={setFullName} autoComplete="name"
                 />
               </View>
-
               <View>
                 <Text style={[s.label, { color: colors.textSecondary }]}>Email</Text>
                 <TextInput
                   style={[s.input, { backgroundColor: colors.surfaceAlt, borderColor: inputBorder(fieldErrors.email), color: colors.textPrimary }]}
-                  placeholder="you@email.com"
-                  placeholderTextColor={colors.textTertiary}
-                  value={email}
-                  onChangeText={(t) => { setEmail(t); if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: undefined })); }}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
+                  placeholder="you@email.com" placeholderTextColor={colors.textTertiary}
+                  value={email} onChangeText={(t) => { setEmail(t); if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: undefined })); }}
+                  keyboardType="email-address" autoCapitalize="none" autoComplete="email"
                 />
                 {fieldErrors.email && <Text style={[s.fieldError, { color: colors.danger }]}>{fieldErrors.email}</Text>}
               </View>
-
               <View>
                 <Text style={[s.label, { color: colors.textSecondary }]}>Password</Text>
                 <View>
                   <TextInput
                     style={[s.input, { backgroundColor: colors.surfaceAlt, borderColor: inputBorder(fieldErrors.password), color: colors.textPrimary, paddingRight: 46 }]}
-                    placeholder="At least 8 characters"
-                    placeholderTextColor={colors.textTertiary}
-                    value={password}
-                    onChangeText={(t) => { setPassword(t); if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined })); }}
+                    placeholder="At least 8 characters" placeholderTextColor={colors.textTertiary}
+                    value={password} onChangeText={(t) => { setPassword(t); if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined })); }}
                     secureTextEntry={!showPw}
                   />
                   <Pressable style={s.eye} hitSlop={6} onPress={() => setShowPw((v) => !v)}>
@@ -465,45 +428,13 @@ export default function OnboardingScreen() {
                 </View>
                 {fieldErrors.password && <Text style={[s.fieldError, { color: colors.danger }]}>{fieldErrors.password}</Text>}
               </View>
-
-              <Text style={[s.corridorLabel, { color: colors.textSecondary }]}>YOUR CORRIDOR</Text>
-              <View>
-                <CountryPicker
-                  label="Origin country"
-                  value={originName}
-                  countries={originList}
-                  onSelect={(code, name) => { setOriginCode(code); setOriginName(name); setFieldErrors((p) => ({ ...p, origin: undefined })); }}
-                  invalid={!!fieldErrors.origin}
-                />
-                {fieldErrors.origin && <Text style={[s.fieldError, { color: colors.danger }]}>{fieldErrors.origin}</Text>}
-              </View>
-              <View>
-                <CountryPicker
-                  label="Destination country"
-                  value={destinationName}
-                  countries={destinationList}
-                  onSelect={(code, name) => { setDestinationCode(code); setDestinationName(name); setFieldErrors((p) => ({ ...p, destination: undefined })); }}
-                  invalid={!!fieldErrors.destination}
-                />
-                {fieldErrors.destination && <Text style={[s.fieldError, { color: colors.danger }]}>{fieldErrors.destination}</Text>}
-              </View>
             </View>
 
-            <PressableScale
-              style={[s.cta, { backgroundColor: colors.primary, marginTop: 22 }, submitting && { opacity: 0.6 }]}
-              onPress={submitAccount}
-              disabled={submitting}
-              haptic
-            >
-              {submitting ? <ActivityIndicator color="#fff" /> : (
-                <>
-                  <Text style={s.ctaText}>Create account</Text>
-                  <Ionicons name="arrow-forward" size={16} color="#fff" />
-                </>
-              )}
-            </PressableScale>
+            <View style={{ marginTop: 22 }}>
+              <CtaButton label="Create account" onPress={submitAccount} loading={submitting} />
+            </View>
 
-            <Pressable style={s.footer} onPress={() => router.replace('/(auth)/login')}>
+            <Pressable style={s.footerLink} onPress={() => router.replace('/(auth)/login')}>
               <Text style={[s.footerText, { color: colors.textSecondary }]}>
                 Already have an account? <Text style={{ fontWeight: '800', color: colors.primary }}>Log in</Text>
               </Text>
@@ -514,261 +445,216 @@ export default function OnboardingScreen() {
     );
   }
 
-  // ── Render: plan reveal ─────────────────────────────────────────────────
-  if (phase === 'reveal') {
-    const lead = LEAD[answers.primaryGoal ?? ''] ?? LEAD.deadlines;
-    const reassurance = answers.firstTimer === 'yes'
-      ? "First time abroad? Breathe — we'll walk you through every step in plain language."
-      : "Here's your plan, kept clear and to the point.";
-    const corridor = originName && destinationName ? `${originName} → ${destinationName}` : null;
+  // ── Flow ──────────────────────────────────────────────────────────────────
+  return (
+    <View style={[s.root, { backgroundColor: colors.bg, paddingTop: insets.top + 6, paddingBottom: insets.bottom + 12 }]}>
+      <ScreenTransition transitionKey={step} dir={dir}>
+        {renderStep()}
+      </ScreenTransition>
+      {stepId === 'plan' ? <Confetti /> : null}
+    </View>
+  );
 
-    return (
-      <View style={[s.root, { backgroundColor: colors.bg, paddingTop: insets.top + 6 }]}>
-        <View style={s.topBar}>
-          <PressableScale
-            style={[s.backChip, { backgroundColor: colors.surfaceAlt }]}
-            onPress={() => { setQIndex(total - 1); setPhase('question'); }}
-            disabled={submitting}
-            hitSlop={6}
-          >
-            <Ionicons name="arrow-back" size={18} color={colors.textPrimary} />
-          </PressableScale>
-          <View style={[s.progressTrack, { backgroundColor: colors.surfaceAlt }]}>
-            <View style={[s.progressFill, { width: '100%', backgroundColor: colors.primary }]} />
-          </View>
-          <View style={{ width: 36 }} />
-        </View>
+  function renderStep() {
+    const qIndex = QUESTION_IDS.indexOf(stepId);
+    const qTotal = QUESTION_IDS.length;
+    const chrome = <OnboardingChrome qIndex={qIndex} qTotal={qTotal} onBack={() => go(-1)} disabled={submitting} />;
 
-        <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
-          <LinearGradient colors={CRIMSON_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.revealHero}>
-            <View style={s.revealBadge}>
-              <Ionicons name="sparkles" size={13} color="#fff" />
-              <Text style={s.revealBadgeText}>YOUR PLAN IS READY</Text>
+    switch (stepId) {
+      case 'welcome':
+        return <WelcomeScreen onStart={() => go(1)} onLogin={() => router.replace('/(auth)/login')} />;
+
+      case 'dest':
+        return (
+          <QuestionScaffold chrome={chrome} cta={{ label: 'Continue', disabled: !answers.destCode, onPress: () => go(1) }}>
+            <QuestionHeader title="Where are you headed?" sub="Pick the country you're studying in." />
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {destinationList.map((c) => (
+                <OptionCard
+                  key={c.code} title={c.name} sub={c.student_visa_name}
+                  selected={answers.destCode === c.code} lead={<FlagTile code={c.code} />}
+                  onPress={() => setA({ destCode: c.code })}
+                />
+              ))}
+            </ScrollView>
+          </QuestionScaffold>
+        );
+
+      case 'origin':
+        return (
+          <QuestionScaffold chrome={chrome} cta={{ label: 'Continue', disabled: !answers.originCode, onPress: () => go(1) }}>
+            <QuestionHeader title="Where are you coming from?" sub="Sets your visa corridor and default currency." />
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {originList.map((c) => (
+                <OptionCard
+                  key={c.code} title={c.name}
+                  selected={answers.originCode === c.code} lead={<FlagTile code={c.code} />}
+                  onPress={() => setA({ originCode: c.code })}
+                />
+              ))}
+            </ScrollView>
+          </QuestionScaffold>
+        );
+
+      case 'uni':
+        return (
+          <QuestionScaffold chrome={chrome} cta={{ label: 'Continue', onPress: () => go(1) }}>
+            <QuestionHeader title="Which university?" sub="Search and tap to select." />
+            <View style={[s.search, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+              <Ionicons name="search" size={18} color={colors.textTertiary} />
+              <TextInput
+                style={[s.searchInput, { color: colors.textPrimary }]}
+                placeholder="Search universities…" placeholderTextColor={colors.textTertiary}
+                value={uniQuery} onChangeText={setUniQuery} autoCorrect={false}
+              />
             </View>
-            <Text style={s.revealTitle}>You're all set.</Text>
-            {corridor && <Text style={s.revealCorridor}>{corridor}</Text>}
-            <Text style={s.revealReassure}>{reassurance}</Text>
-          </LinearGradient>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {(uniResults ?? []).map((u) => {
+                const on = answers.uniId === u.id;
+                return (
+                  <PressableScale
+                    key={u.id}
+                    onPress={() => setA({ uniId: on ? null : u.id, uniName: on ? null : u.name })}
+                    style={[s.uniRow, on ? { backgroundColor: colors.primarySubtle, borderColor: colors.primary } : { borderColor: 'transparent' }]}
+                  >
+                    <CodeTile text={uniInitials(u.name)} on={on} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={[s.uniName, { color: colors.textPrimary }]} numberOfLines={1}>{u.name}</Text>
+                      {u.state ? <Text style={[s.uniLoc, { color: colors.textSecondary }]} numberOfLines={1}>{u.state}</Text> : null}
+                    </View>
+                  </PressableScale>
+                );
+              })}
+            </ScrollView>
+          </QuestionScaffold>
+        );
 
-          <Text style={[s.leadLabel, { color: colors.textTertiary }]}>YOUR PLAN LEADS WITH</Text>
-          <View style={[s.leadCard, { backgroundColor: colors.primarySubtle, borderColor: colors.primary }]}>
-            <View style={[s.leadIcon, { backgroundColor: colors.primary }]}>
-              <Ionicons name={lead.icon} size={22} color="#fff" />
+      case 'confidence':
+        return (
+          <QuestionScaffold chrome={chrome} cta={{ label: 'Build my plan', variant: 'gradient', onPress: () => go(1) }}>
+            <QuestionHeader title="How ready do you feel?" sub="Be honest — this just sets the right pace. No judgment." />
+            <View style={{ flex: 1, justifyContent: 'center' }}>
+              <ConfidenceSlider value={answers.confidence} onChange={(v) => setA({ confidence: v })} />
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[s.leadTitle, { color: colors.primary }]}>{lead.title}</Text>
-              <Text style={[s.leadSub, { color: colors.textSecondary }]}>{lead.sub}</Text>
-            </View>
-          </View>
+          </QuestionScaffold>
+        );
 
-          <Text style={[s.leadLabel, { color: colors.textTertiary, marginTop: 18 }]}>ALSO INSIDE</Text>
-          {[
-            { icon: 'compass-outline' as IoniconName, label: 'Your visa steps, mapped to your dates' },
-            { icon: 'document-text-outline' as IoniconName, label: 'A first-week checklist for your city' },
-            { icon: 'ribbon-outline' as IoniconName, label: 'Official scholarship & money tools' },
-          ].map((row) => (
-            <View key={row.label} style={[s.insideRow, { borderBottomColor: colors.border }]}>
-              <View style={[s.insideIcon, { backgroundColor: colors.surfaceAlt }]}>
-                <Ionicons name={row.icon} size={16} color={colors.primary} />
-              </View>
-              <Text style={[s.insideText, { color: colors.textPrimary }]}>{row.label}</Text>
-            </View>
-          ))}
+      case 'building':
+        return <BuildingScreen />;
 
-          {error && (
-            <View style={[s.errorBox, { backgroundColor: colors.primarySubtle, marginTop: 14 }]}>
-              <Text style={[s.errorText, { color: colors.primary }]}>{error}</Text>
-            </View>
-          )}
-        </ScrollView>
+      case 'plan': {
+        const destName = nameFor(destinationList, answers.destCode);
+        const lead = LEAD[answers.primaryGoal ?? ''] ?? LEAD.deadlines;
+        const insideRows = [
+          lead,
+          `First-week checklist for ${destName ?? 'your city'}`,
+          'Budget & official scholarship tools',
+          'Verified official sources for every step',
+        ];
+        return (
+          <PlanReveal
+            originCode={answers.originCode} originName={nameFor(originList, answers.originCode)}
+            destCode={answers.destCode} destName={destName}
+            uniName={answers.uniName}
+            insideRows={insideRows}
+            primaryLabel={token ? 'See my plan' : 'Create your account'}
+            primaryLoading={submitting}
+            onPrimary={onPlanPrimary}
+            error={error}
+          />
+        );
+      }
 
-        <View style={{ paddingBottom: insets.bottom + 12, paddingTop: 12 }}>
-          <PressableScale
-            style={[s.cta, { backgroundColor: colors.primary }, submitting && { opacity: 0.6 }]}
-            onPress={token ? finish : () => setPhase('account')}
-            disabled={submitting}
-            haptic
-          >
-            {submitting ? <ActivityIndicator color="#fff" /> : (
-              <>
-                <Text style={s.ctaText}>{token ? 'See my plan' : 'Create your account'}</Text>
-                <Ionicons name="arrow-forward" size={16} color="#fff" />
-              </>
-            )}
-          </PressableScale>
-        </View>
-      </View>
-    );
+      default: {
+        // Generic list question (stage / concerns / work / scholarships / …).
+        const cfg = GENERIC[stepId as GenericField];
+        return (
+          <QuestionScaffold chrome={chrome} cta={{ label: 'Continue', onPress: () => go(1) }}>
+            <QuestionHeader title={cfg.title} sub={cfg.subtitle} />
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {cfg.options.map((o) => {
+                const sel = isGenericSelected(cfg, o.value);
+                return (
+                  <OptionCard
+                    key={o.value} title={o.title} sub={o.sub} selected={sel} multi={cfg.multi}
+                    lead={o.icon ? <IconTile icon={o.icon} on={sel} /> : undefined}
+                    onPress={() => selectGeneric(cfg, o.value)}
+                  />
+                );
+              })}
+            </ScrollView>
+          </QuestionScaffold>
+        );
+      }
+    }
   }
 
-  // ── Render: a question ────────────────────────────────────────────────────
+}
+
+// Module-level so re-renders (e.g. typing in the university search) reconcile
+// instead of remounting the subtree — which would drop TextInput focus and
+// restart entrance animations.
+function QuestionHeader({ title, sub }: { title: string; sub?: string }) {
+  const { colors } = useTheme();
+  const s = styles(colors);
   return (
-    <View style={[s.root, { backgroundColor: colors.bg, paddingTop: insets.top + 6 }]}>
-      <View style={s.topBar}>
-        {qIndex > 0 ? (
-          <PressableScale style={[s.backChip, { backgroundColor: colors.surfaceAlt }]} onPress={backFromQuestion} disabled={submitting} hitSlop={6}>
-            <Ionicons name="arrow-back" size={18} color={colors.textPrimary} />
-          </PressableScale>
-        ) : (
-          <View style={s.backChip} />
-        )}
-        <View style={[s.progressTrack, { backgroundColor: colors.surfaceAlt }]}>
-          <View style={[s.progressFill, { width: `${pct}%`, backgroundColor: colors.primary }]} />
-        </View>
-        <PressableScale style={s.skip} onPress={() => setPhase('reveal')} disabled={submitting} hitSlop={6}>
-          <Text style={[s.skipText, { color: colors.textSecondary }]}>Skip</Text>
-        </PressableScale>
-      </View>
+    <View style={{ marginBottom: 22 }}>
+      <Text style={[s.qTitle, { color: colors.textPrimary }]}>{title}</Text>
+      {sub ? <Text style={[s.qSub, { color: colors.textSecondary }]}>{sub}</Text> : null}
+    </View>
+  );
+}
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
-        <Text style={[s.title, { color: colors.textPrimary, marginTop: 14 }]}>{step.title}</Text>
-        <Text style={[s.subtitle, { color: colors.textSecondary }]}>{step.subtitle}</Text>
-
-        <View style={{ marginTop: 22 }}>
-          {step.options.map((o) => {
-            const sel = isSelected(step.field, step.multi, o.value);
-            return (
-              <PressableScale
-                key={o.value}
-                onPress={() => select(step.field, step.multi, o.value)}
-                disabled={submitting}
-                style={[
-                  s.card,
-                  sel
-                    ? { backgroundColor: colors.primarySubtle, borderColor: colors.primary }
-                    : { backgroundColor: colors.surface, borderColor: colors.border, ...elevation.card },
-                ]}
-              >
-                {o.icon && (
-                  <View style={[s.iconTile, { backgroundColor: sel ? colors.primary : colors.primarySubtle }]}>
-                    <Ionicons name={o.icon} size={20} color={sel ? '#fff' : colors.primary} />
-                  </View>
-                )}
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[s.cardTitle, { color: sel ? colors.primary : colors.textPrimary }]}>{o.title}</Text>
-                  {o.sub && <Text style={[s.cardSub, { color: colors.textSecondary }]}>{o.sub}</Text>}
-                </View>
-                {step.multi ? (
-                  <View style={[s.checkbox, { borderColor: sel ? colors.primary : colors.textTertiary, backgroundColor: sel ? colors.primary : 'transparent' }]}>
-                    {sel && <Ionicons name="checkmark" size={14} color="#fff" />}
-                  </View>
-                ) : (
-                  <View style={[s.radio, { borderColor: sel ? colors.primary : colors.textTertiary, backgroundColor: sel ? colors.primary : 'transparent' }]}>
-                    {sel && <Ionicons name="checkmark" size={13} color="#fff" />}
-                  </View>
-                )}
-              </PressableScale>
-            );
-          })}
-        </View>
-      </ScrollView>
-
-      <View style={{ paddingBottom: insets.bottom + 12, paddingTop: 12 }}>
-        <PressableScale
-          style={[s.cta, { backgroundColor: colors.primary }, submitting && { opacity: 0.6 }]}
-          onPress={nextQuestion}
-          disabled={submitting}
-          haptic
-        >
-          <Text style={s.ctaText}>{isLastQuestion ? 'Review my plan' : 'Continue'}</Text>
-          <Ionicons name="arrow-forward" size={16} color="#fff" />
-        </PressableScale>
-        {qIndex === 0 && !token && (
-          <Pressable style={[s.footer, { marginTop: 14 }]} onPress={() => router.replace('/(auth)/login')}>
-            <Text style={[s.footerText, { color: colors.textSecondary }]}>
-              Already have an account? <Text style={{ fontWeight: '800', color: colors.primary }}>Log in</Text>
-            </Text>
-          </Pressable>
-        )}
+function QuestionScaffold({
+  chrome, cta, children,
+}: {
+  chrome: React.ReactNode;
+  cta: { label: string; onPress: () => void; disabled?: boolean; variant?: 'solid' | 'gradient' };
+  children: React.ReactNode;
+}) {
+  const { colors } = useTheme();
+  const s = styles(colors);
+  return (
+    <View style={s.screen}>
+      {chrome}
+      <View style={{ flex: 1, minHeight: 0 }}>{children}</View>
+      <View style={s.footer}>
+        <CtaButton label={cta.label} onPress={cta.onPress} disabled={cta.disabled} variant={cta.variant ?? 'solid'} />
       </View>
     </View>
   );
 }
 
-function styles(colors: ReturnType<typeof useTheme>['colors'], radius: ReturnType<typeof useTheme>['radius']) {
+function styles(colors: ReturnType<typeof useTheme>['colors']) {
   return StyleSheet.create({
     root: { flex: 1, paddingHorizontal: 24 },
+    screen: { flex: 1, minHeight: 0 },
+    footer: { paddingVertical: 14 },
 
+    qTitle: { fontSize: 25, fontWeight: '600', letterSpacing: -0.6, lineHeight: 30 },
+    qSub: { fontSize: 14, lineHeight: 22, marginTop: 8 },
+
+    search: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 50, borderRadius: 13, borderWidth: 1, paddingHorizontal: 14, marginBottom: 14 },
+    searchInput: { flex: 1, fontSize: 15, fontWeight: '500', paddingVertical: 0 },
+    uniRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 13, marginBottom: 6, borderWidth: 1.5 },
+    uniName: { fontSize: 15, fontWeight: '600' },
+    uniLoc: { fontSize: 12, marginTop: 2 },
+
+    // Account step
+    backChip: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
     brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
     brandMark: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     brandName: { fontSize: 19, fontWeight: '800', letterSpacing: -0.4 },
-
-    topBar: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
-    backChip: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-    progressTrack: { flex: 1, height: 4, borderRadius: 99, overflow: 'hidden' },
-    progressFill: { height: '100%', borderRadius: 99 },
-    skip: { minWidth: 36, alignItems: 'flex-end' },
-    skipText: { fontSize: 14, fontWeight: '600' },
-
     title: { fontSize: 24, fontWeight: '600', letterSpacing: -0.6, lineHeight: 29 },
     subtitle: { fontSize: 14, lineHeight: 22, marginTop: 8 },
-
-    // Account form
+    corridorNote: { fontSize: 13, fontWeight: '700', marginTop: 10 },
     label: { fontSize: 12.5, fontWeight: '700', marginBottom: 7 },
     input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 15, fontSize: 15, fontWeight: '600' },
     eye: { position: 'absolute', right: 8, top: 0, bottom: 0, width: 34, alignItems: 'center', justifyContent: 'center' },
     fieldError: { fontSize: 13, marginTop: 6 },
-    corridorLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, marginTop: 6, marginBottom: -4 },
-    footer: { marginTop: 24, alignItems: 'center' },
-    footerText: { fontSize: 13.5 },
-
-    // Option cards
-    card: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      paddingVertical: 14, paddingHorizontal: 15, borderRadius: radius.card,
-      borderWidth: 1.5, marginBottom: 10,
-    },
-    iconTile: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    cardTitle: { fontSize: 15, fontWeight: '600', letterSpacing: -0.1 },
-    cardSub: { fontSize: 13, lineHeight: 18, marginTop: 3 },
-    radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-    checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-
-    // Reveal
-    revealHero: { borderRadius: radius.xl, padding: 22, marginTop: 14, marginBottom: 18 },
-    revealBadge: {
-      flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
-      backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 99, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 12,
-    },
-    revealBadgeText: { fontSize: 11, fontWeight: '800', color: '#fff', letterSpacing: 0.6 },
-    revealTitle: { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.6 },
-    revealCorridor: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.92)', marginTop: 6 },
-    revealReassure: { fontSize: 13.5, color: 'rgba(255,255,255,0.88)', lineHeight: 20, marginTop: 10 },
-
-    leadLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 },
-    leadCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15, borderRadius: radius.card, borderWidth: 1.5 },
-    leadIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    leadTitle: { fontSize: 16, fontWeight: '700', letterSpacing: -0.2 },
-    leadSub: { fontSize: 13, lineHeight: 18, marginTop: 3 },
-    insideRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12, borderBottomWidth: 1 },
-    insideIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-    insideText: { flex: 1, fontSize: 14, fontWeight: '500' },
-
-    errorBox: { padding: 12, borderRadius: radius.button },
+    errorBox: { padding: 12, borderRadius: 12 },
     errorText: { fontSize: 14, fontWeight: '600' },
-
-    cta: {
-      height: 54, borderRadius: radius.button, flexDirection: 'row',
-      alignItems: 'center', justifyContent: 'center', gap: 8,
-      shadowColor: '#A4133C', shadowOpacity: 0.35, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 6,
-    },
-    ctaText: { fontSize: 16, fontWeight: '600', color: '#fff', letterSpacing: -0.2 },
+    footerLink: { marginTop: 24, alignItems: 'center' },
+    footerText: { fontSize: 13.5 },
   });
 }
-
-const ap = StyleSheet.create({
-  picker: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 15, flexDirection: 'row', alignItems: 'center' },
-  pickerValue: { flex: 1, fontSize: 15, fontWeight: '600' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '75%', paddingBottom: 24 },
-  grabber: { alignItems: 'center', paddingTop: 10 },
-  grabberBar: { width: 38, height: 5, borderRadius: 99 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1 },
-  modalTitle: { fontSize: 17, fontWeight: '800' },
-  modalSearch: { marginHorizontal: 16, marginTop: 12, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, marginBottom: 8 },
-  emptyText: { textAlign: 'center', marginTop: 24, fontSize: 14 },
-  countryRow: { paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  countryName: { fontSize: 15 },
-  countryCode: { fontSize: 13, fontWeight: '600' },
-  separator: { height: 1, marginHorizontal: 20 },
-});
