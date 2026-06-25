@@ -2,14 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { getFunFacts } from '../constants/funFacts';
+import { duration, interval, useReducedMotion } from '../lib/motion';
 
 interface Props {
   countryCode?: string | null;
 }
-
-const ROTATE_INTERVAL_MS = 8000;
-const FADE_OUT_MS = 450;
-const FADE_IN_MS = 550;
 
 export function RotatingFacts({ countryCode }: Props) {
   const { colors, spacing, radius, typography } = useTheme();
@@ -17,6 +14,8 @@ export function RotatingFacts({ countryCode }: Props) {
 
   const [index, setIndex] = useState(() => Math.floor(Math.random() * facts.length));
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  // When Reduce Motion is on, hold a single fact — no crossfade, no auto-rotate.
+  const reduced = useReducedMotion();
 
   // Reset to a random position when the country changes.
   useEffect(() => {
@@ -26,25 +25,26 @@ export function RotatingFacts({ countryCode }: Props) {
 
   // Auto-rotate: fade out → advance index → fade in.
   useEffect(() => {
+    if (reduced) return; // respect Reduce Motion: no auto-rotate / crossfade
     const advance = () => {
       Animated.timing(fadeAnim, {
         toValue: 0,
-        duration: FADE_OUT_MS,
+        duration: duration.slow,
         useNativeDriver: true,
       }).start(({ finished }) => {
         if (!finished) return;
         setIndex((i) => (i + 1) % facts.length);
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: FADE_IN_MS,
+          duration: duration.slow,
           useNativeDriver: true,
         }).start();
       });
     };
 
-    const timer = setInterval(advance, ROTATE_INTERVAL_MS);
+    const timer = setInterval(advance, interval.rotate);
     return () => clearInterval(timer);
-  }, [facts.length, fadeAnim]);
+  }, [facts.length, fadeAnim, reduced]);
 
   return (
     <View

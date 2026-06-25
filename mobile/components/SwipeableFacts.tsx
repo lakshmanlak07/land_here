@@ -5,13 +5,11 @@ import {
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { getFunFacts } from '../constants/funFacts';
+import { interval, useReducedMotion } from '../lib/motion';
 
 interface Props {
   countryCode?: string | null;
 }
-
-// Auto-advance cadence. Pauses while the user is actively swiping, then resumes.
-const AUTO_MS = 7000;
 
 /**
  * A horizontally swipeable "Did you know?" carousel. Pulls facts from
@@ -27,6 +25,8 @@ export function SwipeableFacts({ countryCode }: Props) {
   const listRef = useRef<FlatList<string>>(null);
   // True while the user is dragging — suppresses the auto-rotate tick.
   const interacting = useRef(false);
+  // When Reduce Motion is on, the carousel stays put unless the user swipes it.
+  const reduced = useReducedMotion();
 
   // Reset to the first card whenever the fact set (country) changes.
   useEffect(() => {
@@ -36,7 +36,7 @@ export function SwipeableFacts({ countryCode }: Props) {
 
   // Auto-rotate. Skips ticks while the user is mid-swipe so it never fights them.
   useEffect(() => {
-    if (width === 0 || facts.length < 2) return;
+    if (reduced || width === 0 || facts.length < 2) return;
     const id = setInterval(() => {
       if (interacting.current) return;
       setIndex((prev) => {
@@ -44,9 +44,9 @@ export function SwipeableFacts({ countryCode }: Props) {
         listRef.current?.scrollToOffset({ offset: next * width, animated: true });
         return next;
       });
-    }, AUTO_MS);
+    }, interval.rotate);
     return () => clearInterval(id);
-  }, [width, facts.length]);
+  }, [width, facts.length, reduced]);
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
 

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ViewStyle, PixelRatio } from 'react-native';
 import { Image } from 'expo-image';
 import { getCityImage, countryColor, type ImageResult } from '../lib/images';
+import { duration, interval, useReducedMotion } from '../lib/motion';
 
 interface Props {
   queries: string[];
@@ -10,8 +11,6 @@ interface Props {
   children?: React.ReactNode;
 }
 
-const ROTATE_INTERVAL_MS = 8000;
-const CROSSFADE_MS = 800;
 const BLURHASH = 'LGF5?xYk^6#M@-5c,1J5@[or[Q6.';
 
 export function RotatingImage({ queries, countryCode, style, children }: Props) {
@@ -21,6 +20,8 @@ export function RotatingImage({ queries, countryCode, style, children }: Props) 
   // gates fetching until we know how big to ask for.
   const [boxW, setBoxW] = useState(0);
   const fallbackColor = countryColor(countryCode ?? '');
+  // When Reduce Motion is on: show one image, no JIT prefetch, no crossfade.
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     if (boxW === 0) return; // wait for layout so the request is sized correctly
@@ -46,23 +47,25 @@ export function RotatingImage({ queries, countryCode, style, children }: Props) 
 
     fetchOne(); // first image, eagerly
 
+    if (reduced) return () => { cancelled = true; }; // no rotation → only need the first
+
     const fetchTimer = setInterval(() => {
       if (queue.length === 0) { clearInterval(fetchTimer); return; }
       fetchOne();
-    }, ROTATE_INTERVAL_MS);
+    }, interval.rotate);
 
     return () => { cancelled = true; clearInterval(fetchTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queries.join('\x00'), boxW]);
+  }, [queries.join('\x00'), boxW, reduced]);
 
   // Advance the visible image across whatever has loaded so far — same 8s feel.
   useEffect(() => {
-    if (loaded.length < 2) return;
+    if (reduced || loaded.length < 2) return;
     const timer = setInterval(() => {
       setImgIndex((i) => (i + 1) % loaded.length);
-    }, ROTATE_INTERVAL_MS);
+    }, interval.rotate);
     return () => clearInterval(timer);
-  }, [loaded.length]);
+  }, [loaded.length, reduced]);
 
   const current = loaded[imgIndex];
   return (
@@ -77,7 +80,7 @@ export function RotatingImage({ queries, countryCode, style, children }: Props) 
         <Image
           source={{ uri: current.url }}
           contentFit="cover"
-          transition={CROSSFADE_MS}
+          transition={reduced ? 0 : duration.slow}
           placeholder={{ blurhash: BLURHASH }}
           style={StyleSheet.absoluteFillObject}
         />

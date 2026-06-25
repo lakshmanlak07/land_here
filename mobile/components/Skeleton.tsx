@@ -4,24 +4,31 @@ import {
   type DimensionValue, type ViewStyle,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { interval, useReducedMotion } from '../lib/motion';
 
 /**
  * Shared pulse animation. Each skeleton primitive runs its own looping opacity
  * tween — subtle enough to read as "loading" in both light and dark mode
- * without pulling in a gradient dependency.
+ * without pulling in a gradient dependency. With Reduce Motion on, the loop is
+ * skipped and the block sits at a steady opacity.
  */
 function usePulse() {
   const value = useRef(new Animated.Value(0.5)).current;
+  const reduced = useReducedMotion();
   useEffect(() => {
+    if (reduced) {
+      value.setValue(1);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(value, { toValue: 1, duration: 750, useNativeDriver: true }),
-        Animated.timing(value, { toValue: 0.5, duration: 750, useNativeDriver: true }),
+        Animated.timing(value, { toValue: 1, duration: interval.pulse, useNativeDriver: true }),
+        Animated.timing(value, { toValue: 0.5, duration: interval.pulse, useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
-  }, [value]);
+  }, [value, reduced]);
   return value;
 }
 

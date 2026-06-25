@@ -7,19 +7,18 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Animated, {
-  Easing,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { timing, useReducedMotion } from '../lib/motion';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Subtle + fast — premium, not flashy. Press dips the surface slightly and
 // fades it; release springs it back. Kept on the UI thread via Reanimated.
-const PRESS_IN = { duration: 110, easing: Easing.out(Easing.quad) } as const;
-const PRESS_OUT = { duration: 160, easing: Easing.out(Easing.quad) } as const;
+// Timings come from the shared motion tokens (timing.pressIn / pressOut).
 
 export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
   children: React.ReactNode;
@@ -55,6 +54,8 @@ export function PressableScale({
 }: PressableScaleProps) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
+  // When Reduce Motion is on, set values instantly instead of tweening.
+  const reduced = useReducedMotion();
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -66,13 +67,13 @@ export function PressableScale({
       {...rest}
       style={[animatedStyle, style]}
       onPressIn={(e: GestureResponderEvent) => {
-        scale.value = withTiming(scaleTo, PRESS_IN);
-        opacity.value = withTiming(pressedOpacity, PRESS_IN);
+        scale.value = reduced ? scaleTo : withTiming(scaleTo, timing.pressIn);
+        opacity.value = reduced ? pressedOpacity : withTiming(pressedOpacity, timing.pressIn);
         onPressIn?.(e);
       }}
       onPressOut={(e: GestureResponderEvent) => {
-        scale.value = withTiming(1, PRESS_OUT);
-        opacity.value = withTiming(1, PRESS_OUT);
+        scale.value = reduced ? 1 : withTiming(1, timing.pressOut);
+        opacity.value = reduced ? 1 : withTiming(1, timing.pressOut);
         onPressOut?.(e);
       }}
       onPress={(e: GestureResponderEvent) => {
