@@ -94,7 +94,7 @@ export default function JourneyScreen() {
     >
       <View style={s.heroTop}>
         <View style={{ flex: 1 }} />
-        <Pressable onPress={toggleTheme} hitSlop={8} style={s.glassBtn}>
+        <Pressable onPress={toggleTheme} hitSlop={8} style={s.glassBtn} accessibilityRole="button" accessibilityLabel={isDark ? 'Switch to light theme' : 'Switch to dark theme'}>
           <Ionicons name={isDark ? 'sunny' : 'moon'} size={18} color="#fff" />
         </Pressable>
       </View>

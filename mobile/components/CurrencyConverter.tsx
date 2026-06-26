@@ -88,7 +88,12 @@ export function CurrencyConverter({ defaultFrom, defaultTo }: Props) {
       <View style={s.block}>
         <View style={s.blockHead}>
           <Text style={[s.blockLabel, { color: colors.textTertiary }]}>YOU HAVE</Text>
-          <Pressable style={[s.curPill, { backgroundColor: colors.primarySubtle }]} onPress={() => setPicking('from')}>
+          <Pressable
+            style={[s.curPill, { backgroundColor: colors.primarySubtle }]}
+            onPress={() => setPicking('from')}
+            accessibilityRole="button"
+            accessibilityLabel={`Change the currency you have, currently ${from}`}
+          >
             <Text style={[s.curPillText, { color: colors.primary }]}>{from}</Text>
             <Ionicons name="chevron-down" size={12} color={colors.primary} />
           </Pressable>
@@ -109,7 +114,13 @@ export function CurrencyConverter({ defaultFrom, defaultTo }: Props) {
 
       {/* Divider + swap */}
       <View style={[s.divider, { backgroundColor: colors.border }]}>
-        <Pressable style={[s.swapBtn, { backgroundColor: colors.primary }]} onPress={swap} hitSlop={8}>
+        <Pressable
+          style={[s.swapBtn, { backgroundColor: colors.primary }]}
+          onPress={swap}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Swap the two currencies"
+        >
           <Ionicons name="swap-vertical" size={18} color="#fff" />
         </Pressable>
       </View>
@@ -118,7 +129,12 @@ export function CurrencyConverter({ defaultFrom, defaultTo }: Props) {
       <View style={[s.block, s.toBlock, { backgroundColor: colors.primarySubtle }]}>
         <View style={s.blockHead}>
           <Text style={[s.blockLabel, { color: colors.primary }]}>THEY GET</Text>
-          <Pressable style={[s.curPill, { backgroundColor: colors.surface }]} onPress={() => setPicking('to')}>
+          <Pressable
+            style={[s.curPill, { backgroundColor: colors.surface }]}
+            onPress={() => setPicking('to')}
+            accessibilityRole="button"
+            accessibilityLabel={`Change the currency they get, currently ${to}`}
+          >
             <Text style={[s.curPillText, { color: colors.textPrimary }]}>{to}</Text>
             <Ionicons name="chevron-down" size={12} color={colors.textSecondary} />
           </Pressable>
@@ -187,7 +203,7 @@ export function CurrencyConverter({ defaultFrom, defaultTo }: Props) {
           <Pressable style={[s.modalSheet, { backgroundColor: colors.bg }]} onPress={() => {}}>
             <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
               <Text style={[s.modalTitle, { color: colors.textPrimary }]}>Select {picking === 'from' ? '“from”' : '“to”'} currency</Text>
-              <Pressable onPress={() => setPicking(null)} hitSlop={10}><Ionicons name="close" size={22} color={colors.textSecondary} /></Pressable>
+              <Pressable onPress={() => setPicking(null)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close currency picker"><Ionicons name="close" size={22} color={colors.textSecondary} /></Pressable>
             </View>
             <FlatList
               data={CURRENCIES}

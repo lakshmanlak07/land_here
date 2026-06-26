@@ -194,7 +194,13 @@ export default function RankingsScreen() {
           <Pressable onPress={() => router.push('/methodology')} hitSlop={8} style={s.glassBtn} accessibilityLabel="How we rank">
             <Ionicons name="information" size={18} color="#fff" />
           </Pressable>
-          <Pressable onPress={toggleTheme} hitSlop={8} style={s.glassBtn}>
+          <Pressable
+            onPress={toggleTheme}
+            hitSlop={8}
+            style={s.glassBtn}
+            accessibilityRole="button"
+            accessibilityLabel={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
             <Ionicons name={isDark ? 'sunny' : 'moon'} size={18} color="#fff" />
           </Pressable>
         </View>

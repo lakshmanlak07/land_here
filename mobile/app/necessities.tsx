@@ -49,10 +49,10 @@ function Hero({
       style={{ paddingHorizontal: spacing.lg, paddingTop: insets.top + 12, paddingBottom: 26 }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Pressable onPress={onBack} hitSlop={10} style={h.glassBtn}>
+        <Pressable onPress={onBack} hitSlop={10} style={h.glassBtn} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="chevron-back" size={18} color="#fff" />
         </Pressable>
-        <Pressable onPress={toggleTheme} hitSlop={10} style={h.glassBtn}>
+        <Pressable onPress={toggleTheme} hitSlop={10} style={h.glassBtn} accessibilityRole="button" accessibilityLabel={isDark ? 'Switch to light theme' : 'Switch to dark theme'}>
           <Ionicons name={isDark ? 'sunny' : 'moon'} size={18} color="#fff" />
         </Pressable>
       </View>

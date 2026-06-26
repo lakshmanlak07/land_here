@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, Switch, ScrollView,
-  Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
+  Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,6 +18,10 @@ import { duration } from '../../lib/motion';
 import api, { getErrorMessage } from '../../lib/api';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+// PLACEHOLDER — replace with the real support inbox before release. Apple
+// requires an app to expose a working support contact.
+const SUPPORT_EMAIL = 'support@landhere.app';
 
 function InfoRow({
   icon, accent, label, value, last,
@@ -72,6 +76,18 @@ export default function ProfileScreen() {
   function handleLogout() {
     logout();
     router.replace('/(auth)/login');
+  }
+
+  // Open the device mail client to the support inbox. A prefilled subject lets
+  // us route messages; "Report a bug" reuses the same address with its own
+  // subject. Wrapped in a catch so a device with no mail client just no-ops.
+  async function openSupportMail(subject: string) {
+    const url = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      // No mail client / unsupported — fail silently rather than crash.
+    }
   }
 
   const initials = user?.full_name
@@ -135,6 +151,33 @@ export default function ProfileScreen() {
                 <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Dark mode</Text>
                 <Switch value={isDark} onValueChange={toggleTheme} trackColor={{ false: colors.border, true: colors.primary }} thumbColor="#fff" />
               </View>
+            </View>
+          </FadeInView>
+
+          {/* Support */}
+          <FadeInView delay={duration.fast * 2.5}>
+            <Text style={[s.sectionLabel, { color: colors.textTertiary }]}>SUPPORT</Text>
+            <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <PressableScale
+                style={[s.row, { borderBottomColor: colors.border }]}
+                onPress={() => openSupportMail('LandHere support')}
+                accessibilityRole="button"
+                accessibilityLabel="Contact support by email"
+              >
+                <IconBadge icon="help-buoy-outline" color={colors.primary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
+                <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Contact / Support</Text>
+                <Ionicons name="open-outline" size={18} color={colors.textTertiary} />
+              </PressableScale>
+              <PressableScale
+                style={[s.row, { borderBottomWidth: 0 }]}
+                onPress={() => openSupportMail('LandHere bug report')}
+                accessibilityRole="button"
+                accessibilityLabel="Report a bug by email"
+              >
+                <IconBadge icon="bug-outline" color={colors.after_acceptance} tone="soft" size={34} style={{ marginRight: spacing.md }} />
+                <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Report a bug</Text>
+                <Ionicons name="open-outline" size={18} color={colors.textTertiary} />
+              </PressableScale>
             </View>
           </FadeInView>
 

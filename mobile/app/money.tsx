@@ -55,10 +55,10 @@ export default function MoneyScreen() {
         style={[s.hero, { paddingTop: insets.top + 12 }]}
       >
         <View style={s.heroTop}>
-          <Pressable onPress={() => router.back()} hitSlop={10} style={s.glassBtn}>
+          <Pressable onPress={() => router.back()} hitSlop={10} style={s.glassBtn} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={18} color="#fff" />
           </Pressable>
-          <Pressable onPress={toggleTheme} hitSlop={10} style={s.glassBtn}>
+          <Pressable onPress={toggleTheme} hitSlop={10} style={s.glassBtn} accessibilityRole="button" accessibilityLabel={isDark ? 'Switch to light theme' : 'Switch to dark theme'}>
             <Ionicons name={isDark ? 'sunny' : 'moon'} size={18} color="#fff" />
           </Pressable>
         </View>
