@@ -7,9 +7,22 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.rate_limit import rate_limiter
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+)
 from app.models.user import User
-from app.schemas.user import UserRegister, UserLogin, UserOut, UserOnboarding, TokenOut
+from app.schemas.user import (
+    UserRegister,
+    UserLogin,
+    UserOut,
+    UserOnboarding,
+    TokenOut,
+    RefreshRequest,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -17,6 +30,17 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # blunt automated brute-force / credential stuffing. Fail-open (see rate_limit).
 _register_limit = rate_limiter("auth_register", limit=15, window_seconds=60)
 _login_limit = rate_limiter("auth_login", limit=30, window_seconds=60)
+# Refresh fires roughly once per access-token lifetime per device, so this is
+# comfortably above normal use while still capping abuse of a leaked token.
+_refresh_limit = rate_limiter("auth_refresh", limit=60, window_seconds=60)
+
+
+def _token_pair(user_id) -> TokenOut:
+    """Issue a fresh access + refresh token pair for a user id."""
+    return TokenOut(
+        access_token=create_access_token(user_id),
+        refresh_token=create_refresh_token(user_id),
+    )
 
 # A valid bcrypt hash of a random throwaway value, computed once at import. Login
 # verifies against this when the email doesn't exist so the request does the same
@@ -54,7 +78,7 @@ def register(body: UserRegister, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=400, detail="Email already registered")
     db.refresh(user)
-    return TokenOut(access_token=create_access_token(user.id))
+    return _token_pair(user.id)
 
 
 @router.post(
@@ -71,7 +95,38 @@ def login(body: UserLogin, db: Session = Depends(get_db)):
     password_ok = verify_password(body.password, hashed)
     if not user or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    return TokenOut(access_token=create_access_token(user.id))
+    return _token_pair(user.id)
+
+
+@router.post(
+    "/refresh",
+    response_model=TokenOut,
+    dependencies=[Depends(_refresh_limit)],
+)
+def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
+    """Exchange a valid refresh token for a fresh access + refresh token pair.
+
+    The refresh token is rotated on every use (sliding session). We re-check that
+    the user still exists so a deleted account's outstanding refresh token can no
+    longer mint access tokens — mirroring get_current_user, which is the only
+    other place tokens are honoured. (Tokens are stateless: the previous refresh
+    token stays valid until its own expiry; there is no server-side denylist.)
+    """
+    sub = decode_refresh_token(body.refresh_token)
+    if sub is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    user = db.query(User).filter(User.id == sub).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return _token_pair(user.id)
 
 
 @router.get("/me", response_model=UserOut)

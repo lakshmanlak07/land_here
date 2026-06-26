@@ -1,5 +1,6 @@
-import axios from 'axios';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from './store';
+import type { TokenOut } from './types';
 
 /**
  * The backend base URL, injected at build time via Expo's public env. Exported
@@ -34,6 +35,84 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// A single in-flight refresh shared across all callers. When several requests
+// 401 at once (e.g. a screen fires three queries on mount after the access token
+// expired), they all await this same promise so only ONE POST /auth/refresh
+// runs; the rest reuse its result. Reset to null once it settles.
+let refreshPromise: Promise<string | null> | null = null;
+
+/**
+ * Exchange the stored refresh token for a new access+refresh pair via a RAW
+ * fetch (never the `api` instance — that would re-enter this interceptor and
+ * recurse). Returns the new access token, or null if refresh isn't possible; on
+ * any failure it logs the user out so the app routes back to login.
+ */
+async function performRefresh(): Promise<string | null> {
+  const { refreshToken, setTokens, logout } = useAuthStore.getState();
+  if (!refreshToken || !API_URL) {
+    logout();
+    return null;
+  }
+  try {
+    const res = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) {
+      logout();
+      return null;
+    }
+    const pair = (await res.json()) as TokenOut;
+    if (pair?.access_token && pair?.refresh_token) {
+      setTokens(pair.access_token, pair.refresh_token);
+      return pair.access_token;
+    }
+    logout();
+    return null;
+  } catch {
+    logout();
+    return null;
+  }
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = axios.isAxiosError(error) ? error.config : undefined;
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+
+    // Only attempt recovery for 401s on a real request config.
+    if (status !== 401 || !original) {
+      return Promise.reject(error);
+    }
+
+    const cfg = original as InternalAxiosRequestConfig & { _retry?: boolean };
+    const isRefreshCall = (cfg.url ?? '').includes('/auth/refresh');
+
+    // Already retried once, or it was the refresh request itself that 401'd: the
+    // session can't be salvaged. Sign out and propagate the original error.
+    if (cfg._retry || isRefreshCall) {
+      useAuthStore.getState().logout();
+      return Promise.reject(error);
+    }
+
+    cfg._retry = true;
+    if (!refreshPromise) {
+      refreshPromise = performRefresh().finally(() => {
+        refreshPromise = null;
+      });
+    }
+    const newAccess = await refreshPromise;
+    if (!newAccess) {
+      // performRefresh already logged out on failure.
+      return Promise.reject(error);
+    }
+    cfg.headers.Authorization = `Bearer ${newAccess}`;
+    return api(cfg);
+  },
+);
 
 /**
  * Turn any thrown request error into a specific, human-readable message so

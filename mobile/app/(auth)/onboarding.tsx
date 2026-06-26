@@ -333,7 +333,7 @@ export default function OnboardingScreen() {
       const { data: userData } = await api.get<UserOut>('/auth/me', {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
       });
-      setAuth(tokenData.access_token, userData);
+      setAuth(tokenData.access_token, tokenData.refresh_token, userData);
     } catch (e) {
       setError(getErrorMessage(e, 'Registration failed. Please try again.'));
       setSubmitting(false);

@@ -72,7 +72,14 @@ class UserOnboarding(BaseModel):
 
 class TokenOut(BaseModel):
     access_token: str
+    # Long-lived token the client stores securely and sends to POST /auth/refresh
+    # to obtain a fresh access_token without re-entering credentials.
+    refresh_token: str
     token_type: str = "bearer"
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 class AccountDeleteRequest(BaseModel):

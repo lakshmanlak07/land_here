@@ -2,6 +2,7 @@ import logging
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
@@ -47,6 +48,12 @@ assert not (_allow_credentials and "*" in _cors_origins), (
     "Refusing to combine wildcard CORS origins with allow_credentials=True; "
     "set CORS_ALLOW_ORIGINS to explicit origins before enabling credentials."
 )
+# Compress responses larger than minimum_size bytes (gzip). Added BEFORE the
+# CORS middleware below so CORS remains the OUTERMOST middleware: Starlette
+# applies the most recently added middleware outermost, and CORS must attach its
+# headers to every response — including gzip-compressed bodies and error
+# responses — and answer preflight OPTIONS.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,

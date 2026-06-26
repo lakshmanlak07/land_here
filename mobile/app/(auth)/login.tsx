@@ -46,7 +46,7 @@ export default function LoginScreen() {
       const { data: userData } = await api.get<UserOut>('/auth/me', {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
       });
-      setAuth(tokenData.access_token, userData);
+      setAuth(tokenData.access_token, tokenData.refresh_token, userData);
       // Route by this device's onboarding flag: a returning, already-onboarded
       // user goes straight to the tabs (no onboarding flash); anyone else (fresh
       // install / new device) enters the flow. The (auth)/_layout redirect stays

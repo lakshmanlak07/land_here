@@ -52,6 +52,8 @@ export interface UserOut {
 
 export interface TokenOut {
   access_token: string;
+  /** Long-lived token stored securely and exchanged at POST /auth/refresh. */
+  refresh_token: string;
   token_type: string;
 }
 

@@ -5,7 +5,12 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
+    # Short-lived access token (1 hour). Clients transparently exchange a refresh
+    # token for a new one via POST /auth/refresh; see app/routes/auth.py.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    # Long-lived refresh token (30 days). Bounds how long a session can be kept
+    # alive without re-entering credentials.
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30
     SCORECARD_API_KEY: str = ""
     OPENALEX_API_KEY: str = ""
 
