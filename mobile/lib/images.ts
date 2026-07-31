@@ -1,3 +1,5 @@
+import api from './api';
+
 export interface ImageResult {
   url: string;
   credit: string;
@@ -5,40 +7,25 @@ export interface ImageResult {
 
 const cache = new Map<string, ImageResult | null>();
 
+/**
+ * Look up a city/place photo via the backend (`GET /images/city`), which holds
+ * the Unsplash key server-side — no credential ships in this bundle. Returns
+ * null (colored-block fallback) when signed out, offline, or no photo exists.
+ */
 export async function getCityImage(query: string): Promise<ImageResult | null> {
   if (cache.has(query)) return cache.get(query) ?? null;
 
-  const key = process.env.EXPO_PUBLIC_UNSPLASH_KEY;
-  console.log('[images] key present:', !!key, '| query:', query.substring(0, 40));
-
-  if (!key) {
-    console.warn('[images] EXPO_PUBLIC_UNSPLASH_KEY missing — restart Metro with --clear after setting it in .env');
-    cache.set(query, null);
-    return null;
-  }
-
   try {
-    const res = await fetch(
-      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=landscape&per_page=1`,
-      { headers: { Authorization: `Client-ID ${key}` } },
-    );
-    console.log('[images] HTTP', res.status, 'for:', query.substring(0, 40));
-    if (!res.ok) { cache.set(query, null); return null; }
-    const data = await res.json();
-    const photo = data.results?.[0];
-    if (!photo?.urls?.regular) { cache.set(query, null); return null; }
-    const result: ImageResult = {
-      url: photo.urls.regular,
-      // Always attribute Unsplash alongside the photographer (Unsplash credit
-      // guidelines); fall back to just "Unsplash" when no name is returned.
-      credit: photo.user?.name ? `${photo.user.name} · Unsplash` : 'Unsplash',
-    };
-    console.log('[images] loaded:', query.substring(0, 40), '| credit:', result.credit);
+    const res = await api.get<ImageResult | null>('/images/city', {
+      params: { query },
+    });
+    const result = res.data?.url ? res.data : null;
     cache.set(query, result);
     return result;
   } catch (e) {
-    console.error('[images] error for', query, e);
-    cache.set(query, null);
+    console.warn('[images] lookup failed for', query.substring(0, 40));
+    // Don't cache failures caused by transient auth/network state — retry on
+    // next mount. Only "no photo" (success path above) is cached as null.
     return null;
   }
 }
