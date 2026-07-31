@@ -35,7 +35,7 @@ def test_list_destinations_only(client):
     response = client.get("/countries/destinations")
     assert response.status_code == 200
     destinations = response.json()
-    assert len(destinations) == 16  # 16 destination countries seeded
+    assert len(destinations) == 3  # only live, human-verified corridors (US/CA/UK)
     for c in destinations:
         assert c["is_destination"] is True
 
@@ -82,5 +82,5 @@ def test_india_is_origin(client):
 def test_destination_countries_include_expected_set(client):
     response = client.get("/countries/destinations")
     codes = {c["code"] for c in response.json()}
-    expected = {"US", "UK", "CA", "AU", "DE", "FR", "CN", "JP", "NL", "IE", "NZ", "SG", "KR", "AE", "IT", "IN"}
+    expected = {"US", "UK", "CA"}
     assert expected.issubset(codes)

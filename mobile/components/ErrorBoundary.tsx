@@ -1,14 +1,23 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Linking } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+
+const SUPPORT_EMAIL = 'lakshmanlak07@gmail.com';
 
 /**
  * Themed fallback shown when a descendant throws during render. Kept as its
  * own function component so it can read the theme via hooks — the boundary
  * itself must be a class component.
  */
-function ErrorFallback({ onRetry }: { onRetry: () => void }) {
+function ErrorFallback({ onRetry, errorMessage }: { onRetry: () => void; errorMessage: string }) {
   const { colors, spacing, radius } = useTheme();
+
+  function contactSupport() {
+    const subject = encodeURIComponent('LandHere app crash report');
+    const body = encodeURIComponent(`\n\nError details:\n${errorMessage}`);
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`).catch(() => {});
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.bg, padding: spacing.xl }]}>
       <Text style={styles.icon}>⚠️</Text>
@@ -16,13 +25,22 @@ function ErrorFallback({ onRetry }: { onRetry: () => void }) {
         Something went wrong
       </Text>
       <Text style={[styles.body, { color: colors.textSecondary, marginBottom: spacing.xl }]}>
-        The app hit an unexpected error. Tap below to try again.
+        The app hit an unexpected error. Tap below to try again, or contact support if it keeps happening.
       </Text>
       <Pressable
         onPress={onRetry}
-        style={[styles.btn, { backgroundColor: colors.primary, borderRadius: radius.button }]}
+        style={[styles.btn, { backgroundColor: colors.primary, borderRadius: radius.button, marginBottom: spacing.md }]}
+        accessibilityRole="button"
+        accessibilityLabel="Try again"
       >
         <Text style={styles.btnText}>Try again</Text>
+      </Pressable>
+      <Pressable
+        onPress={contactSupport}
+        accessibilityRole="button"
+        accessibilityLabel="Contact support"
+      >
+        <Text style={[styles.supportLink, { color: colors.primary }]}>Contact support</Text>
       </Pressable>
     </View>
   );
@@ -34,6 +52,7 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  errorMessage: string;
 }
 
 /**
@@ -42,21 +61,22 @@ interface State {
  * clears the error state and re-renders the tree.
  */
 export class ErrorBoundary extends React.Component<Props, State> {
-  state: State = { hasError: false };
+  state: State = { hasError: false, errorMessage: '' };
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: unknown): State {
+    const msg = error instanceof Error ? error.message : String(error);
+    return { hasError: true, errorMessage: msg };
   }
 
-  componentDidCatch(error: unknown) {
-    console.error('[ErrorBoundary] caught render error:', error);
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
+    console.error('[ErrorBoundary] caught render error:', error, info.componentStack);
   }
 
-  reset = () => this.setState({ hasError: false });
+  reset = () => this.setState({ hasError: false, errorMessage: '' });
 
   render() {
     if (this.state.hasError) {
-      return <ErrorFallback onRetry={this.reset} />;
+      return <ErrorFallback onRetry={this.reset} errorMessage={this.state.errorMessage} />;
     }
     return this.props.children;
   }
@@ -73,4 +93,5 @@ const styles = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 22, textAlign: 'center' },
   btn: { paddingHorizontal: 28, paddingVertical: 14 },
   btnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  supportLink: { fontSize: 14, textDecorationLine: 'underline', textAlign: 'center' },
 });

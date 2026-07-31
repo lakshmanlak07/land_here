@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -5,6 +6,16 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def secret_key_strength(cls, v: str) -> str:
+        if len(v) < 32:
+            raise ValueError(
+                "SECRET_KEY must be at least 32 characters. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_hex(64))\""
+            )
+        return v
     # Short-lived access token (1 hour). Clients transparently exchange a refresh
     # token for a new one via POST /auth/refresh; see app/routes/auth.py.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
@@ -35,6 +46,11 @@ class Settings(BaseSettings):
         """Parse CORS_ALLOW_ORIGINS into a clean list; falls back to ["*"] if empty."""
         origins = [o.strip() for o in self.CORS_ALLOW_ORIGINS.split(",") if o.strip()]
         return origins or ["*"]
+
+    # Redis connection URL for shared rate limiting across multiple workers.
+    # Example: redis://localhost:6379/0  or  rediss://user:pass@host:6380/0 (TLS)
+    # Leave empty ("") to use the in-memory fallback (development / single-process).
+    REDIS_URL: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

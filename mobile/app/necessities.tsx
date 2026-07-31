@@ -13,21 +13,21 @@ import {
 
 const COUNTRY_NAMES: Record<string, string> = {
   US: 'the United States',
-  GB: 'the United Kingdom',
+  UK: 'the United Kingdom',
   CA: 'Canada',
   AU: 'Australia',
   DE: 'Germany',
 };
 
 const DISCLAIMER_TEXT =
-  'This is general guidance compiled from public sources, not legal or ' +
-  'immigration advice. Requirements vary by school and visa type and change ' +
-  'over time — always confirm details with your university’s international ' +
-  'office and the official sources linked here.';
+  'This is general guidance compiled from public sources — not legal or ' +
+  'immigration advice. Requirements vary by institution and visa type, and ' +
+  'change over time. Always confirm the details with your university\'s ' +
+  'international office and the official sources linked here.';
 
 const NEC_COUNTRIES: { code: string; name: string }[] = [
   { code: 'US', name: 'United States' },
-  { code: 'GB', name: 'United Kingdom' },
+  { code: 'UK', name: 'United Kingdom' },
   { code: 'CA', name: 'Canada' },
   { code: 'AU', name: 'Australia' },
   { code: 'DE', name: 'Germany' },
@@ -80,26 +80,30 @@ function NecessitiesList() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Hero title="Necessities" sub="Choose your destination" onBack={() => router.back()} />
+      <Hero title="Necessities" sub="Choose your destination" onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} />
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }} showsVerticalScrollIndicator={false}>
         {NEC_COUNTRIES.map((country) => {
           const ready = !!NECESSITIES_BY_COUNTRY[country.code];
           return (
             <PressableScale
               key={country.code}
-              onPress={ready ? () => router.push({ pathname: '/necessities', params: { code: country.code } }) : undefined}
-              style={[s.pickRow, { backgroundColor: colors.surface, borderColor: colors.border }, !ready && { opacity: 0.6 }]}
+              onPress={ready
+                ? () => router.push({ pathname: '/necessities', params: { code: country.code } })
+                : undefined}
+              style={[s.pickRow, { backgroundColor: colors.surface, borderColor: colors.border }, !ready && { opacity: 0.75 }]}
+              accessibilityRole="button"
+              accessibilityLabel={ready ? `${country.name} necessities` : `${country.name}, coming soon`}
             >
               <View style={[s.codeTile, { backgroundColor: ready ? colors.primary : colors.surfaceAlt }]}>
                 <Text style={[s.codeText, { color: ready ? '#fff' : colors.textTertiary }]}>{country.code}</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.rowName, { color: colors.textPrimary }]}>{country.name}</Text>
-                <Text style={[s.rowSub, { color: colors.textSecondary }]}>{ready ? 'Mandatories & necessities' : 'Coming soon'}</Text>
+                <Text style={[s.rowSub, { color: colors.textSecondary }]}>{ready ? 'Mandatories & necessities' : 'Guide in progress'}</Text>
               </View>
               {ready
                 ? <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-                : <View style={[s.soonBadge, { backgroundColor: colors.surfaceAlt }]}><Text style={[s.soonText, { color: colors.textTertiary }]}>Soon</Text></View>}
+                : <View style={[s.soonBadge, { backgroundColor: colors.primarySubtle ?? colors.surfaceAlt }]}><Text style={[s.soonText, { color: colors.primary }]}>Soon</Text></View>}
             </PressableScale>
           );
         })}
@@ -121,25 +125,24 @@ function NecessitiesDetail({ code }: { code: string }) {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Hero
-        title="First week"
+        title="Necessities"
         sub={hasContent ? `After you arrive in ${where}` : countryName}
-        onBack={() => router.back()}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
       />
       {hasContent ? (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }} showsVerticalScrollIndicator={false}>
           {sections.map((section) => <Section key={section.key} section={section} />)}
-          <View style={[s.disclaimer, { backgroundColor: colors.surfaceAlt }]}>
-            <Text style={[s.disclaimerText, { color: colors.textSecondary }]}>
-              <Text style={{ fontWeight: '700' }}>ⓘ </Text>{DISCLAIMER_TEXT}
-            </Text>
+          <View style={[s.disclaimer, { backgroundColor: colors.surfaceAlt, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }]}>
+            <Ionicons name="information-circle-outline" size={14} color={colors.textSecondary} style={{ marginTop: 2 }} />
+            <Text style={[s.disclaimerText, { color: colors.textSecondary, flex: 1 }]}>{DISCLAIMER_TEXT}</Text>
           </View>
         </ScrollView>
       ) : (
         <View style={s.centered}>
-          <Ionicons name="compass-outline" size={44} color={colors.textTertiary} style={{ marginBottom: 12 }} />
-          <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Not available yet</Text>
+          <Ionicons name="time-outline" size={44} color={colors.primary} style={{ marginBottom: 12 }} />
+          <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Coming soon</Text>
           <Text style={[s.emptyBody, { color: colors.textSecondary }]}>
-            We haven't published the necessities for {countryName} yet. Check back soon.
+            We're working on the {countryName} guide now. Check back in the next update — it'll cover SIM cards, banking, transport, and registration.
           </Text>
         </View>
       )}
@@ -179,7 +182,7 @@ function ItemCard({ item, accent, order }: { item: NecessityItem; accent: string
         )}
         <Text style={[s.explanation, { color: colors.textSecondary }]}>{item.explanation}</Text>
         {item.source && (
-          <Pressable style={[s.sourceBtn, { borderColor: colors.border }]} onPress={() => Linking.openURL(item.source!.url)}>
+          <Pressable style={[s.sourceBtn, { borderColor: colors.border }]} onPress={() => Linking.openURL(item.source!.url).catch(() => {})} accessibilityRole="link" accessibilityLabel={`Open ${item.source!.name}`}>
             <Ionicons name="open-outline" size={13} color={accent} />
             <Text style={[s.sourceBtnText, { color: accent }]}>{item.source.name}</Text>
           </Pressable>

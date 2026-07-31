@@ -103,9 +103,16 @@ export function CurrencyConverter({ defaultFrom, defaultTo }: Props) {
           <TextInput
             style={[s.amountInput, { color: colors.textPrimary }]}
             value={amount}
-            onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ''))}
+            onChangeText={(t) => {
+              // Digits + at most one decimal point (a second '.' would silently
+              // parse as NaN and show '—' with no explanation).
+              const cleaned = t.replace(/[^0-9.]/g, '');
+              const firstDot = cleaned.indexOf('.');
+              setAmount(firstDot === -1 ? cleaned : cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, ''));
+            }}
             keyboardType="decimal-pad"
             placeholder="0"
+            accessibilityLabel="Amount to convert"
             placeholderTextColor={colors.textTertiary}
             maxLength={12}
           />
@@ -128,12 +135,12 @@ export function CurrencyConverter({ defaultFrom, defaultTo }: Props) {
       {/* THEY GET */}
       <View style={[s.block, s.toBlock, { backgroundColor: colors.primarySubtle }]}>
         <View style={s.blockHead}>
-          <Text style={[s.blockLabel, { color: colors.primary }]}>THEY GET</Text>
+          <Text style={[s.blockLabel, { color: colors.primary }]}>CONVERTS TO</Text>
           <Pressable
             style={[s.curPill, { backgroundColor: colors.surface }]}
             onPress={() => setPicking('to')}
             accessibilityRole="button"
-            accessibilityLabel={`Change the currency they get, currently ${to}`}
+            accessibilityLabel={`Change the target currency, currently ${to}`}
           >
             <Text style={[s.curPillText, { color: colors.textPrimary }]}>{to}</Text>
             <Ionicons name="chevron-down" size={12} color={colors.textSecondary} />
@@ -144,7 +151,7 @@ export function CurrencyConverter({ defaultFrom, defaultTo }: Props) {
           {isLoading ? (
             <ActivityIndicator color={colors.primary} style={{ marginTop: 8 }} />
           ) : isError ? (
-            <Pressable onPress={() => refetch()}><Text style={[s.errorText, { color: colors.danger }]}>Rates unavailable — tap to retry</Text></Pressable>
+            <Pressable onPress={() => refetch()} accessibilityRole="button" accessibilityLabel="Retry loading exchange rates"><Text style={[s.errorText, { color: colors.danger }]}>Rates unavailable — tap to retry</Text></Pressable>
           ) : (
             <Text style={[s.resultValue, { color: colors.textPrimary }]}>{converted === null ? '—' : formatMoney(converted)}</Text>
           )}
@@ -166,6 +173,9 @@ export function CurrencyConverter({ defaultFrom, defaultTo }: Props) {
             <Pressable
               key={v}
               onPress={() => setAmount(String(v))}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Set amount to ${v}`}
               style={[s.quickChip, active ? { backgroundColor: colors.primary } : { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
             >
               <Text style={[s.quickText, { color: active ? '#fff' : colors.textSecondary }]}>{v.toLocaleString('en-US')}</Text>

@@ -44,7 +44,7 @@ export const WORK_RULES_BY_COUNTRY: Record<string, WorkRule> = {
     },
   },
 
-  GB: {
+  UK: {
     termTime: 'Up to 20 hours/week during term for degree-level students at a university.',
     breaks: 'Full-time work allowed during official holidays/vacation periods.',
     onCampus: 'On- and off-campus work count toward the same weekly limit.',
@@ -141,7 +141,7 @@ export const WORK_RULES_BY_COUNTRY: Record<string, WorkRule> = {
       url: 'https://www.immigration.govt.nz/study/once-you-have-a-student-visa/working-on-a-student-visa/',
     },
     note:
-      'The in-study limit rose from 20 to 25 hrs/week on 3 November 2025 — confirm the current figure on the official site.',
+      'The 25 hrs/week limit applies to student visas granted from 3 November 2025. Visas granted earlier may still carry a 20-hour condition unless varied — the conditions printed on your own visa are what count.',
   },
 
   FR: {
@@ -206,22 +206,31 @@ export interface WorkHoursEntry {
   sourceHost: string;
   /** Flag-derived accent hue for the country tile. */
   accent: string;
+  /**
+   * True only after a human has checked this entry against the official source.
+   * Non-launch corridors (AU/IE/NL/NZ/FR/SG) must stay false until verified.
+   * See VERIFY_workhours_*.md files.
+   */
+  verified: boolean;
 }
 
 /** Curated, ordered list of countries shown on the Work hours screen. */
 export const WORK_HOURS_COUNTRIES: WorkHoursEntry[] = [
-  { code: 'US', badge: 'US', name: 'United States', visa: 'F-1 visa', term: '20 hrs/wk', breaks: 'Full-time', sourceHost: 'dhs.gov', accent: '#3B5BA5' },
-  { code: 'GB', badge: 'UK', name: 'United Kingdom', visa: 'Student visa · degree level', term: '20 hrs/wk', breaks: 'Full-time', sourceHost: 'gov.uk', accent: '#8A1538' },
-  { code: 'CA', badge: 'CA', name: 'Canada', visa: 'Study permit · off-campus', term: '24 hrs/wk', breaks: 'Full-time', sourceHost: 'canada.ca', accent: '#C0392B' },
-  { code: 'AU', badge: 'AU', name: 'Australia', visa: 'Student visa (500)', term: '48 hrs/fortnight', breaks: 'Unlimited', sourceHost: 'homeaffairs.gov.au', accent: '#1E6F8A' },
-  { code: 'IE', badge: 'IE', name: 'Ireland', visa: 'Stamp 2', term: '20 hrs/wk', breaks: '40 hrs/wk', sourceHost: 'irishimmigration.ie', accent: '#1E8A5A' },
-  { code: 'NL', badge: 'NL', name: 'Netherlands', visa: 'Study residence permit', term: '16 hrs/wk', breaks: 'Jun–Aug only', sourceHost: 'ind.nl', accent: '#21468B' },
-  { code: 'NZ', badge: 'NZ', name: 'New Zealand', visa: 'Student visa', term: '25 hrs/wk', breaks: 'Full-time', sourceHost: 'immigration.govt.nz', accent: '#00247D' },
-  { code: 'FR', badge: 'FR', name: 'France', visa: 'VLS-TS étudiant', term: '964 hrs/yr', breaks: 'Same annual cap', sourceHost: 'campusfrance.org', accent: '#0055A4' },
-  { code: 'SG', badge: 'SG', name: 'Singapore', visa: 'Student’s Pass', term: '16 hrs/wk', breaks: 'Unlimited', sourceHost: 'mom.gov.sg', accent: '#EF3340' },
+  // -- Launch corridors -- human-verified against official sources -----------
+  { code: 'US', badge: 'US', name: 'United States', visa: 'F-1 visa', term: '20 hrs/wk', breaks: 'Full-time', sourceHost: 'dhs.gov', accent: '#3B5BA5', verified: true },
+  { code: 'UK', badge: 'UK', name: 'United Kingdom', visa: 'Student visa - degree level', term: '20 hrs/wk', breaks: 'Full-time', sourceHost: 'gov.uk', accent: '#8A1538', verified: true },
+  { code: 'CA', badge: 'CA', name: 'Canada', visa: 'Study permit - off-campus', term: '24 hrs/wk', breaks: 'Full-time', sourceHost: 'canada.ca', accent: '#C0392B', verified: true },
+  // -- Non-launch corridors -- pending human verification (see VERIFY_workhours_*.md) --
+  { code: 'AU', badge: 'AU', name: 'Australia', visa: 'Student visa (500)', term: '48 hrs/fortnight', breaks: 'Unlimited', sourceHost: 'homeaffairs.gov.au', accent: '#1E6F8A', verified: false },
+  { code: 'IE', badge: 'IE', name: 'Ireland', visa: 'Stamp 2', term: '20 hrs/wk', breaks: '40 hrs/wk', sourceHost: 'irishimmigration.ie', accent: '#1E8A5A', verified: false },
+  { code: 'NL', badge: 'NL', name: 'Netherlands', visa: 'Study residence permit', term: '16 hrs/wk', breaks: 'Jun-Aug only', sourceHost: 'ind.nl', accent: '#21468B', verified: false },
+  { code: 'NZ', badge: 'NZ', name: 'New Zealand', visa: 'Student visa', term: '25 hrs/wk', breaks: 'Full-time', sourceHost: 'immigration.govt.nz', accent: '#00247D', verified: false },
+  { code: 'FR', badge: 'FR', name: 'France', visa: 'VLS-TS etudiant', term: '964 hrs/yr', breaks: 'Same annual cap', sourceHost: 'campusfrance.org', accent: '#0055A4', verified: false },
+  { code: 'SG', badge: 'SG', name: 'Singapore', visa: "Student's Pass", term: '16 hrs/wk', breaks: 'Unlimited', sourceHost: 'mom.gov.sg', accent: '#EF3340', verified: false },
 ];
 
 /** Footer caption for the Work hours screen. */
 export const WORK_HOURS_FOOTER =
-  'Immigration rules change often. Always confirm current limits on the ' +
-  'official source before you work.';
+  'Rules last reviewed against official sources in July 2026. Immigration rules ' +
+  'change often — always confirm current limits on the official source before ' +
+  'you work. This is general guidance, not legal or immigration advice.';

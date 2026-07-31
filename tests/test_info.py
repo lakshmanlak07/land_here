@@ -80,9 +80,12 @@ def test_journey_destination_only_no_origin(client):
     assert journey["origin"] is None
 
 
-def test_journey_nonexistent_corridor_returns_404(client):
+def test_journey_nonexistent_corridor_returns_empty(client):
+    # Unknown corridors return an empty journey (200) — the app shows a friendly
+    # "no steps yet" state instead of an error.
     response = client.get("/info/journey", params={"origin": "AU", "destination": "NZ"})
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert response.json()["phases"] == []
 
 
 def test_journey_response_top_level_schema(client):

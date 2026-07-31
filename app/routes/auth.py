@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, parse_subject_uuid
 from app.core.rate_limit import rate_limiter
 from app.core.security import (
     hash_password,
@@ -28,11 +28,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Generous per-IP limits: well above any human-driven flow, low enough to
 # blunt automated brute-force / credential stuffing. Fail-open (see rate_limit).
-_register_limit = rate_limiter("auth_register", limit=15, window_seconds=60)
-_login_limit = rate_limiter("auth_login", limit=30, window_seconds=60)
-# Refresh fires roughly once per access-token lifetime per device, so this is
-# comfortably above normal use while still capping abuse of a leaked token.
-_refresh_limit = rate_limiter("auth_refresh", limit=60, window_seconds=60)
+_register_limit   = rate_limiter("auth_register",   limit=15,  window_seconds=60)
+_login_limit      = rate_limiter("auth_login",      limit=30,  window_seconds=60)
+# Refresh fires roughly once per access-token lifetime per device.
+_refresh_limit    = rate_limiter("auth_refresh",    limit=60,  window_seconds=60)
+# Profile updates: onboarding sends one PATCH per question answered.
+_update_me_limit  = rate_limiter("auth_update_me",  limit=60,  window_seconds=60)
+# Account deletion is irreversible — be very conservative.
+_delete_limit     = rate_limiter("auth_delete",     limit=5,   window_seconds=60)
 
 
 def _token_pair(user_id) -> TokenOut:
@@ -112,7 +115,7 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     other place tokens are honoured. (Tokens are stateless: the previous refresh
     token stays valid until its own expiry; there is no server-side denylist.)
     """
-    sub = decode_refresh_token(body.refresh_token)
+    sub = parse_subject_uuid(decode_refresh_token(body.refresh_token))
     if sub is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -134,7 +137,7 @@ def me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-@router.patch("/me", response_model=UserOut)
+@router.patch("/me", response_model=UserOut, dependencies=[Depends(_update_me_limit)])
 def update_me(
     body: UserOnboarding,
     current_user: User = Depends(get_current_user),

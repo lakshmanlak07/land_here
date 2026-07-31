@@ -9,10 +9,11 @@ import {
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { timing, useReducedMotion } from '../lib/motion';
+import { spring, timing, useReducedMotion } from '../lib/motion';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -72,7 +73,9 @@ export function PressableScale({
         onPressIn?.(e);
       }}
       onPressOut={(e: GestureResponderEvent) => {
-        scale.value = reduced ? 1 : withTiming(1, timing.pressOut);
+        // Release springs back with a slight tactile overshoot (snappy preset)
+        // instead of a flat tween; opacity still tweens so only scale "pops".
+        scale.value = reduced ? 1 : withSpring(1, spring.snappy);
         opacity.value = reduced ? 1 : withTiming(1, timing.pressOut);
         onPressOut?.(e);
       }}

@@ -4,10 +4,12 @@ import {
   StyleSheet, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 import { CityImage } from '../../components/CityImage';
 import { Pill } from '../../components/Pill';
 import { PressableScale } from '../../components/PressableScale';
@@ -16,32 +18,12 @@ import { SkeletonCard, SkeletonBlock, SkeletonText } from '../../components/Skel
 import type { CountryOut } from '../../lib/types';
 
 const DESCRIPTORS: Record<string, string> = {
-  US: 'World-class research universities across 50 states',
-  GB: 'Ancient universities, global city, vibrant culture',
-  UK: 'Ancient universities, global city, vibrant culture',
-  CA: 'Welcoming multicultural campuses with stunning nature',
-  AU: 'High quality of life with a sunny, outdoor lifestyle',
-  DE: 'Free or low-cost tuition with strong engineering programs',
-  FR: 'Art, gastronomy, and the prestigious grandes écoles',
-  JP: 'Cutting-edge technology meets centuries of tradition',
-  NL: 'International, English-taught, bike-friendly campuses',
-  IE: 'Vibrant student cities with a booming tech sector',
-  NZ: 'Pristine nature alongside world-class universities',
-  SG: "Asia's premier education hub with global connectivity",
-  KR: 'Tech innovation and a dynamic urban student culture',
-  IT: 'Study amid history at the world\'s oldest universities',
-  IN: 'IITs, IIMs, and a vast diverse higher-ed landscape',
-  CN: 'Rapid innovation backed by 5,000 years of heritage',
-  SE: 'Innovative society with free higher education',
-  CH: 'World-renowned research in a multilingual country',
-  AT: 'Rich musical heritage and affordable academic life',
-  ES: 'Warm climate, rich culture, and a growing tech scene',
-  PT: 'Affordable, welcoming, and set on the Atlantic coast',
-  BE: 'Heart of Europe with a multilingual academic tradition',
-  DK: 'Happy, innovative, with free tuition for EU students',
-  FI: 'Top-ranked education system in a tech-forward nation',
-  NO: 'Free tuition, stunning fjords, high quality of life',
-  AE: 'Global city campuses with world-class facilities',
+  US: 'World-class universities across 50 states',
+  UK: 'Historic universities, vibrant city life, and rich culture',
+  CA: 'Welcoming multicultural campuses surrounded by stunning nature',
+  AU: 'High quality of life, top-ranked universities, post-study work rights',
+  DE: 'Tuition-free universities, strong engineering programmes, central Europe',
+  IE: 'English-speaking EU hub with a thriving tech and pharma sector',
 };
 
 type ExploreCardProps = {
@@ -61,28 +43,33 @@ const ExploreCard = React.memo(function ExploreCard({ item, colors, radius, elev
     <PressableScale
       style={[s.card, elevation.card, { flex: 1, backgroundColor: colors.surface, borderRadius: radius.card }]}
       onPress={() => onPress(item.code)}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.name}${item.student_visa_name ? `, ${item.student_visa_name}` : ''}`}
     >
-      <CityImage
-        query={`${item.name} city`}
-        countryCode={item.code}
-        style={s.cardImage}
-        showCodeFallback
-      />
+      {/* Image with country name + visa type overlaid at bottom */}
+      <View style={s.imageWrap}>
+        <CityImage
+          query={`${item.name} city`}
+          countryCode={item.code}
+          style={s.cardImage}
+          showCodeFallback
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.7)']}
+          style={s.imageGrad}
+        />
+        <View style={s.imageOverlay}>
+          <Text style={s.overlayName} numberOfLines={1}>{item.name}</Text>
+          {item.student_visa_name && (
+            <Text style={s.overlayVisa} numberOfLines={1}>{item.student_visa_name}</Text>
+          )}
+        </View>
+      </View>
+      {/* Below image: currency pill + descriptor */}
       <View style={s.cardBody}>
-        <Text style={[s.cardName, { color: colors.textPrimary }]} numberOfLines={1}>
-          {item.name}
-        </Text>
-
-        {item.student_visa_name && (
-          <Text style={[s.cardVisa, { color: colors.textSecondary }]} numberOfLines={1}>
-            {item.student_visa_name}
-          </Text>
-        )}
-
         {item.currency_code && (
           <Pill label={item.currency_code} tone="accent" style={s.currencyPill} />
         )}
-
         {DESCRIPTORS[item.code] && (
           <Text style={[s.cardDesc, { color: colors.textTertiary }]} numberOfLines={2}>
             {DESCRIPTORS[item.code]}
@@ -130,7 +117,7 @@ export default function ExploreScreen() {
       {/* Search */}
       <View style={[s.searchWrap, { backgroundColor: colors.bg, paddingHorizontal: spacing.lg }]}>
         <View style={[s.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[s.searchIcon, { color: colors.textTertiary }]}>⌕</Text>
+          <Ionicons name="search" size={17} color={colors.textTertiary} style={{ marginLeft: 2 }} />
           <TextInput
             style={[s.searchInput, { color: colors.textPrimary }]}
             placeholder="Search countries…"
@@ -138,10 +125,12 @@ export default function ExploreScreen() {
             value={search}
             onChangeText={setSearch}
             autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel="Search countries"
           />
           {search.length > 0 && (
-            <Pressable onPress={() => setSearch('')} hitSlop={8}>
-              <Text style={{ color: colors.textTertiary, fontSize: 16 }}>✕</Text>
+            <Pressable onPress={() => setSearch('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
+              <Ionicons name="close" size={18} color={colors.textTertiary} />
             </Pressable>
           )}
         </View>
@@ -162,11 +151,13 @@ export default function ExploreScreen() {
 
       {isError && (
         <View style={s.centered}>
-          <Text style={s.emptyIcon}>⚠️</Text>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.danger} style={{ marginBottom: 16 }} />
           <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Couldn't load countries</Text>
           <Pressable
             style={[s.retryBtn, { backgroundColor: colors.primary, borderRadius: radius.button }]}
             onPress={() => refetch()}
+            accessibilityRole="button"
+            accessibilityLabel="Try again"
           >
             <Text style={s.retryText}>Try again</Text>
           </Pressable>
@@ -175,7 +166,7 @@ export default function ExploreScreen() {
 
       {!isLoading && !isError && filtered.length === 0 && (
         <View style={s.centered}>
-          <Text style={s.emptyIcon}>🧭</Text>
+          <Ionicons name="search-outline" size={48} color={colors.textTertiary} style={{ marginBottom: 16 }} />
           <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>No results</Text>
           <Text style={[s.emptyBody, { color: colors.textSecondary }]}>
             Try a different search term.
@@ -183,7 +174,7 @@ export default function ExploreScreen() {
         </View>
       )}
 
-      {!isLoading && !isError && (
+      {!isLoading && !isError && filtered.length > 0 && (
         <FadeInView style={{ flex: 1 }}>
         <FlatList
         data={filtered}
@@ -220,11 +211,10 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 11,
     borderRadius: 12, borderWidth: 1,
   },
-  searchIcon: { fontSize: 18 },
+  // searchIcon: removed — now using <Ionicons name='search' />
   searchInput: { flex: 1, fontSize: 15 },
 
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
   emptyTitle: { fontSize: 17, fontWeight: '700', marginBottom: 8 },
   emptyBody: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
   retryBtn: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10 },
@@ -233,10 +223,13 @@ const s = StyleSheet.create({
   card: {
     overflow: 'hidden',
   },
-  cardImage: { height: 100, width: '100%' },
+  imageWrap: { position: 'relative' },
+  cardImage: { height: 160, width: '100%' },
+  imageGrad: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 90 },
+  imageOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 10 },
+  overlayName: { fontSize: 15, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
+  overlayVisa: { fontSize: 11, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
   cardBody: { padding: 10 },
-  cardName: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  cardVisa: { fontSize: 11, marginBottom: 4 },
   currencyPill: { marginBottom: 4 },
   cardDesc: { fontSize: 11, lineHeight: 15 },
 });

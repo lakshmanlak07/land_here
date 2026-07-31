@@ -1,23 +1,114 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Linking, ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { usePurchaseStore } from '../lib/purchaseStore';
 import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from '../components/PressableScale';
 import { SCHOLARSHIP_SOURCES, SCHOLARSHIP_DISCLAIMER } from '../constants/scholarshipSources';
+
+
+function ScholarshipsPaywallGate({
+  locked,
+  colors,
+  spacing,
+  onUnlock,
+}: {
+  locked: number;
+  colors: ReturnType<typeof import('../context/ThemeContext').useTheme>['colors'];
+  spacing: ReturnType<typeof import('../context/ThemeContext').useTheme>['spacing'];
+  onUnlock: () => void;
+}) {
+  return (
+    <View style={[sgst.wrapper, { marginHorizontal: spacing.lg }]}>
+      {[0, 1].map((i) => (
+        <View
+          key={i}
+          aria-hidden={true}
+          style={[
+            sgst.ghostCard,
+            { backgroundColor: colors.surface, borderColor: colors.border, opacity: Math.max(0, 0.12 - i * 0.04) },
+          ]}
+        >
+          <View style={[sgst.ghostPill, { backgroundColor: colors.primarySubtle }]} />
+          <View style={[sgst.ghostBar, { backgroundColor: colors.border, width: '80%', marginTop: 12 }]} />
+          <View style={[sgst.ghostBar, { backgroundColor: colors.border, width: '55%', marginTop: 8 }]} />
+        </View>
+      ))}
+      <LinearGradient
+        colors={['transparent', colors.bg] as [string, string]}
+        locations={[0, 1]}
+        style={sgst.fade}
+        pointerEvents="none"
+      />
+      <View style={[sgst.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[sgst.lockIcon, { backgroundColor: colors.primary + '18' }]}>
+          <Ionicons name="lock-closed" size={20} color={colors.primary} />
+        </View>
+        <Text style={[sgst.title, { color: colors.textPrimary }]}>
+          {locked} official scholarship sources
+        </Text>
+        <Text style={[sgst.sub, { color: colors.textSecondary }]}>
+          Access every official scholarship source — plus rankings, work rules, and your full relocation journey.
+        </Text>
+        <PressableScale
+          onPress={onUnlock}
+          style={[sgst.btn, { backgroundColor: colors.primary }]}
+          accessibilityRole="button"
+          accessibilityLabel="Unlock all scholarships"
+        >
+          <Text style={sgst.btnText}>Unlock Everything — $1.99</Text>
+        </PressableScale>
+      </View>
+    </View>
+  );
+}
+
+const sgst = StyleSheet.create({
+  wrapper: { position: 'relative', marginBottom: 32, marginTop: 4 },
+  ghostCard: {
+    borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 10,
+  },
+  ghostPill: { height: 22, width: 80, borderRadius: 99 },
+  ghostBar: { height: 10, borderRadius: 5 },
+  fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 80 },
+  card: {
+    borderRadius: 18, borderWidth: 1, padding: 20, alignItems: 'center',
+    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 }, elevation: 4,
+  },
+  lockIcon: {
+    width: 48, height: 48, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+  },
+  title: { fontSize: 17, fontWeight: '800', textAlign: 'center', marginBottom: 8, letterSpacing: -0.3 },
+  sub: { fontSize: 13, textAlign: 'center', lineHeight: 19, marginBottom: 18, maxWidth: 270 },
+  btn: {
+    width: '100%', borderRadius: 12, paddingVertical: 14, alignItems: 'center',
+    shadowColor: '#A4133C', shadowOpacity: 0.3, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 }, elevation: 4,
+  },
+  btnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+});
 
 export default function ScholarshipsScreen() {
   const { colors, spacing, radius, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [region, setRegion] = useState('All');
+  const purchased = usePurchaseStore((s) => s.purchased);
 
   const chips = ['All', ...SCHOLARSHIP_SOURCES.map((g) => g.title)];
   const groups = region === 'All' ? SCHOLARSHIP_SOURCES : SCHOLARSHIP_SOURCES.filter((g) => g.title === region);
   // Flatten to link-only cards, each tagged with its group title.
-  const items = groups.flatMap((g) => g.sources.map((src) => ({ ...src, region: g.title })));
+  const allItems = groups.flatMap((g) => g.sources.map((src) => ({ ...src, region: g.title })));
+  // Freemium: the scholarship directory is a premium feature — free users see
+  // the screen, the official-sources promise, and a locked preview only.
+  const totalSourceCount = SCHOLARSHIP_SOURCES.flatMap((g) => g.sources).length;
+  const freeCount = 0;
+  const items = purchased ? allItems : [];
 
   const s = styles(colors, spacing, radius);
 
@@ -30,7 +121,7 @@ export default function ScholarshipsScreen() {
         style={[s.hero, { paddingTop: insets.top + 12 }]}
       >
         <View style={s.heroTop}>
-          <Pressable onPress={() => router.back()} hitSlop={10} style={s.glassBtn} accessibilityRole="button" accessibilityLabel="Go back">
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} hitSlop={10} style={s.glassBtn} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={18} color="#fff" />
           </Pressable>
           <Pressable onPress={toggleTheme} hitSlop={10} style={s.glassBtn} accessibilityRole="button" accessibilityLabel={isDark ? 'Switch to light theme' : 'Switch to dark theme'}>
@@ -38,7 +129,7 @@ export default function ScholarshipsScreen() {
           </Pressable>
         </View>
         <Text style={s.heroTitle}>Scholarships</Text>
-        <Text style={s.heroSub}>Funding for international students</Text>
+        <Text style={s.heroSub}>Official funding for international students</Text>
       </LinearGradient>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
@@ -48,11 +139,12 @@ export default function ScholarshipsScreen() {
             <Ionicons name="information-circle-outline" size={17} color={colors.primary} />
           </View>
           <Text style={[s.noteText, { color: colors.textSecondary }]}>
-            We link only to <Text style={{ fontWeight: '700', color: colors.textPrimary }}>official sources</Text>. {SCHOLARSHIP_DISCLAIMER}
+            We link exclusively to <Text style={{ fontWeight: '700', color: colors.textPrimary }}>official sources</Text>. {SCHOLARSHIP_DISCLAIMER}
           </Text>
         </View>
 
-        {/* Region chips */}
+        {/* Region chips — only useful once the directory is unlocked */}
+        {purchased && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipsRow}>
           {chips.map((label) => {
             const active = region === label;
@@ -60,13 +152,18 @@ export default function ScholarshipsScreen() {
               <Pressable
                 key={label}
                 onPress={() => setRegion(label)}
+                hitSlop={6}
                 style={[s.chip, active ? { backgroundColor: colors.primary, ...s.chipActiveShadow } : { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
+                accessibilityRole="button"
+                accessibilityLabel={label}
+                accessibilityState={{ selected: active }}
               >
                 <Text style={[s.chipText, { color: active ? '#fff' : colors.textSecondary, fontWeight: active ? '800' : '700' }]}>{label}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
+        )}
 
         {/* Cards */}
         <View style={s.list}>
@@ -77,7 +174,7 @@ export default function ScholarshipsScreen() {
               // "All" view. Qualify the key with the region group, which is.
               key={`${item.region}-${item.url}`}
               style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => Linking.openURL(item.url)}
+              onPress={() => Linking.openURL(item.url).catch(() => {})}
             >
               <View style={s.cardTop}>
                 <View style={[s.regionPill, { backgroundColor: colors.primarySubtle }]}>
@@ -94,6 +191,14 @@ export default function ScholarshipsScreen() {
             </PressableScale>
           ))}
         </View>
+        {!purchased && allItems.length > freeCount && (
+          <ScholarshipsPaywallGate
+            locked={allItems.length - freeCount}
+            colors={colors}
+            spacing={spacing}
+            onUnlock={() => router.push('/paywall')}
+          />
+        )}
       </ScrollView>
     </View>
   );

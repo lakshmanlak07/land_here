@@ -10,12 +10,14 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '../lib/store';
+import { useProgressStore } from '../lib/progressStore';
+import { usePurchaseStore } from '../lib/purchaseStore';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { SplashScreen } from '../components/SplashScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 60_000 } },
+  defaultOptions: { queries: { retry: 1, staleTime: 300_000 } },
 });
 
 // Feed React Navigation a theme built from OUR tokens. Without this, expo-router
@@ -62,11 +64,15 @@ function ThemedNavigation() {
 
 export default function RootLayout() {
   const hydrate = useAuthStore((s) => s.hydrate);
+  const hydrateProgress = useProgressStore((s) => s.hydrate);
+  const hydratePurchase = usePurchaseStore((s) => s.hydrate);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     hydrate();
-  }, []);
+    hydrateProgress();
+    hydratePurchase();
+  }, [hydrate, hydrateProgress, hydratePurchase]);
 
   return (
     // GestureHandlerRootView must wrap the whole app so gesture-handler and

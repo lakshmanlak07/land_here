@@ -16,7 +16,7 @@ import { Disclaimer } from '../../components/Disclaimer';
 import { SkeletonBlock, SkeletonCard, SkeletonText } from '../../components/Skeleton';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import {
-  formatScore, formatCurrency, formatPercent, formatCount,
+  formatScore, formatCurrency, formatPercent, formatCount, initials,
 } from '../../lib/format';
 import type { UniversityDetail } from '../../lib/types';
 
@@ -30,17 +30,11 @@ function lookupLinks(name: string) {
   ];
 }
 
-function initials(name: string): string {
-  const skip = new Set(['of', 'the', 'and', 'at', 'for', 'in']);
-  const words = name.split(/[\s.,&-]+/).filter((w) => w && !skip.has(w.toLowerCase()));
-  return words.slice(0, 3).map((w) => w[0].toUpperCase()).join('');
-}
-
 function band(score: number | null): { label: string; blurb: string } | null {
   if (score == null) return null;
-  if (score >= 85) return { label: 'Strong', blurb: 'Among the strongest destinations for international students this year.' };
-  if (score >= 70) return { label: 'Solid', blurb: 'A solid, well-rounded choice across academics and outcomes.' };
-  return { label: 'Fair', blurb: 'A reasonable option — weigh the breakdown below against your priorities.' };
+  if (score >= 85) return { label: 'Strong', blurb: 'One of the strongest destinations for international students this year.' };
+  if (score >= 70) return { label: 'Solid', blurb: 'A well-rounded choice across both academics and graduate outcomes.' };
+  return { label: 'Fair', blurb: 'A reasonable option — weigh the details below against your own priorities.' };
 }
 
 /** SVG progress ring for the score hero. */
@@ -83,9 +77,13 @@ export default function UniversityDetailScreen() {
     enabled: !!id,
   });
 
+  // Derive country from data; all current universities are US-sourced,
+  // but this makes it forward-compatible when non-US unis are added.
+  const uniCountry = (data as any)?.country_code ?? 'US';
+  const campusFallback = CAMPUS_QUERIES[uniCountry] ?? CAMPUS_QUERIES['US'];
   const heroQueries = data
-    ? [data.name, `${data.name} campus`, ...CAMPUS_QUERIES['US']]
-    : CAMPUS_QUERIES['US'];
+    ? [data.name, `${data.name} campus`, ...campusFallback]
+    : campusFallback;
 
   const hasIntl = data?.intl_student_pct != null;
   const s = useMemo(() => styles(colors, spacing, radius), [colors, spacing, radius]);
@@ -99,7 +97,7 @@ export default function UniversityDetailScreen() {
 
   const bars = data
     ? ([
-        { label: 'Research', value: data.research_score },
+        { label: 'Research output', value: data.research_score },
         { label: 'Graduate outcomes', value: data.outcomes_score },
         gradPct != null ? { label: 'Graduation rate', value: gradPct } : null,
       ].filter(Boolean) as { label: string; value: number | null }[])
@@ -109,7 +107,7 @@ export default function UniversityDetailScreen() {
   const scoreProgress = (data?.landhere_score ?? 0) / 100;
 
   const glassBtn = (icon: React.ComponentProps<typeof Ionicons>['name'], onPress: () => void, label?: string) => (
-    <Pressable onPress={onPress} hitSlop={8} style={s.glassBtn} accessibilityLabel={label}>
+    <Pressable onPress={onPress} hitSlop={8} style={s.glassBtn} accessibilityRole="button" accessibilityLabel={label}>
       <Ionicons name={icon} size={18} color="#fff" />
     </Pressable>
   );
@@ -118,11 +116,11 @@ export default function UniversityDetailScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       {/* Floating top bar (over the hero) */}
       <View style={[s.topBar, { paddingTop: insets.top + 10 }]}>
-        {glassBtn('chevron-back', () => router.back(), 'Back')}
+        {glassBtn('chevron-back', () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/rankings')), 'Back')}
         <View style={{ flexDirection: 'row', gap: 10 }}>
           {glassBtn(isDark ? 'sunny' : 'moon', toggleTheme, 'Toggle theme')}
           {glassBtn('share-outline', () => {
-            if (data) Share.share({ message: `${data.name} on LandHere${data.official_url ? ` — ${data.official_url}` : ''}` }).catch(() => {});
+            if (data) Share.share({ message: `Discover ${data.name} on LandHere${data.official_url ? ' — ' + data.official_url : ''}` }).catch(() => {});
           }, 'Share')}
         </View>
       </View>
@@ -146,7 +144,7 @@ export default function UniversityDetailScreen() {
       {isError && (
         <View style={s.centered}>
           <Ionicons name="alert-circle-outline" size={44} color={colors.danger} style={{ marginBottom: 12 }} />
-          <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Couldn't load university</Text>
+          <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Unable to load this university</Text>
           <PressableScale style={[s.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
             <Text style={s.retryText}>Try again</Text>
           </PressableScale>
@@ -157,7 +155,7 @@ export default function UniversityDetailScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
           {/* ───────── Crimson hero over campus photo ───────── */}
           <View style={s.hero}>
-            <RotatingImage queries={heroQueries} countryCode="US" style={StyleSheet.absoluteFillObject as object} />
+            <RotatingImage queries={heroQueries} countryCode={uniCountry} style={StyleSheet.absoluteFillObject as object} />
             <LinearGradient
               colors={['rgba(107,15,44,0.45)', 'rgba(107,15,44,0.86)', colors.bg] as [string, string, string]}
               locations={[0, 0.62, 1]}
@@ -260,7 +258,7 @@ export default function UniversityDetailScreen() {
             {/* ───────── Links ───────── */}
             <View style={[s.linksCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               {data.official_url && (
-                <Pressable style={s.linkRow} onPress={() => Linking.openURL(data.official_url!)}>
+                <Pressable style={s.linkRow} onPress={() => Linking.openURL(data.official_url!).catch(() => {})}>
                   <View style={[s.linkIcon, { backgroundColor: colors.primarySubtle }]}>
                     <Ionicons name="globe-outline" size={18} color={colors.primary} />
                   </View>
@@ -271,11 +269,11 @@ export default function UniversityDetailScreen() {
                   <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
                 </Pressable>
               )}
-              {links.map((l, i, arr) => (
+              {links.map((l, i) => (
                 <Pressable
                   key={l.key}
-                  style={[s.linkRow, (i < arr.length - 1 || data.official_url) ? { borderTopWidth: 1, borderTopColor: colors.border } : null]}
-                  onPress={() => Linking.openURL(l.url)}
+                  style={[s.linkRow, (i > 0 || data.official_url) ? { borderTopWidth: 1, borderTopColor: colors.border } : null]}
+                  onPress={() => Linking.openURL(l.url).catch(() => {})}
                 >
                   <View style={[s.linkIcon, { backgroundColor: colors.primarySubtle }]}>
                     <Ionicons name="open-outline" size={18} color={colors.primary} />

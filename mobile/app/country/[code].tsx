@@ -1,10 +1,12 @@
 import { View, Text, Pressable, StyleSheet, Linking, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthStore } from '../../lib/store';
+import { usePurchaseStore } from '../../lib/purchaseStore';
 import { RotatingImage } from '../../components/RotatingImage';
 import { ImageScrim } from '../../components/ImageScrim';
 import { SkeletonBlock, SkeletonCard } from '../../components/Skeleton';
@@ -27,7 +29,9 @@ export default function CountryDetailScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const { colors, spacing, radius } = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const homeCode = useAuthStore((st) => st.user?.origin_country_code);
+  const purchased = usePurchaseStore((st) => st.purchased);
 
   const { data, isLoading, isError, refetch } = useQuery<CountryOut>({
     queryKey: ['country', code],
@@ -39,13 +43,15 @@ export default function CountryDetailScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      {/* Back button floats above the hero */}
+      {/* Back button floats above the hero — top uses insets so it clears notch/Dynamic Island */}
       <Pressable
-        style={[s.backBtn, { backgroundColor: 'rgba(0,0,0,0.35)' }]}
-        onPress={() => router.back()}
+        style={[s.backBtn, { top: insets.top + 10 }]}
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
         hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
       >
-        <Text style={s.backText}>← Back</Text>
+        <Ionicons name="chevron-back" size={20} color="#fff" />
       </Pressable>
 
       {(isLoading || (!data && !isError)) && (
@@ -61,7 +67,7 @@ export default function CountryDetailScreen() {
 
       {isError && (
         <View style={s.centered}>
-          <Text style={s.emptyIcon}>⚠️</Text>
+          <Ionicons name="alert-circle-outline" size={48} color={colors.danger} style={{ marginBottom: 16 }} />
           <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Couldn't load country</Text>
           <Pressable
             style={[s.retryBtn, { backgroundColor: colors.primary, borderRadius: radius.button }]}
@@ -120,18 +126,21 @@ export default function CountryDetailScreen() {
 
                   {rule.note && (
                     <View style={[s.workNote, { backgroundColor: colors.surfaceAlt }]}>
-                      <Text style={[s.workNoteText, { color: colors.textSecondary }]}>⚠️ {rule.note}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                      <Ionicons name="warning-outline" size={14} color={colors.textSecondary} style={{ marginTop: 2 }} />
+                      <Text style={[s.workNoteText, { color: colors.textSecondary }, { flex: 1 }]}>{rule.note}</Text>
+                    </View>
                     </View>
                   )}
 
-                  <WorkRow label="During term" value={rule.termTime} colors={colors} />
-                  <WorkRow label="During breaks" value={rule.breaks} colors={colors} />
-                  <WorkRow label="On-campus" value={rule.onCampus} colors={colors} />
-                  <WorkRow label="Off-campus" value={rule.offCampus} colors={colors} />
+                  <WorkRow label="Term time" value={rule.termTime} colors={colors} />
+                  <WorkRow label="Holiday" value={rule.breaks} colors={colors} />
+                  <WorkRow label="On campus" value={rule.onCampus} colors={colors} />
+                  <WorkRow label="Off campus" value={rule.offCampus} colors={colors} />
 
                   <Pressable
                     style={[s.sourceBtn, { borderColor: colors.border }]}
-                    onPress={() => Linking.openURL(rule.source.url)}
+                    onPress={() => Linking.openURL(rule.source.url).catch(() => {})}
                   >
                     <Text style={[s.sourceBtnText, { color: colors.primary }]}>{rule.source.name}  ↗</Text>
                   </Pressable>
@@ -141,11 +150,29 @@ export default function CountryDetailScreen() {
               );
             })()}
 
-            {/* Currency converter */}
-            <CurrencyConverter
-              defaultFrom={resolveCurrency(data.currency_code, 'USD')}
-              defaultTo={resolveCurrency(homeCode, 'INR')}
-            />
+            {/* Currency converter — premium feature */}
+            {purchased ? (
+              <CurrencyConverter
+                defaultFrom={resolveCurrency(data.currency_code, 'USD')}
+                defaultTo={resolveCurrency(homeCode, 'INR')}
+              />
+            ) : (
+              <Pressable
+                style={[s.converterLock, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => router.push('/paywall')}
+                accessibilityRole="button"
+                accessibilityLabel="Unlock currency converter"
+              >
+                <View style={[s.converterLockIcon, { backgroundColor: colors.primary + '18' }]}>
+                  <Ionicons name="lock-closed" size={20} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.converterLockTitle, { color: colors.textPrimary }]}>Currency converter</Text>
+                  <Text style={[s.converterLockSub, { color: colors.textSecondary }]}>Unlock live rates — $1.99 once</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+              </Pressable>
+            )}
 
             {/* Rotating "Did you know?" facts */}
             <RotatingFacts countryCode={data.code} />
@@ -154,7 +181,9 @@ export default function CountryDetailScreen() {
             {data.official_immigration_url && (
               <Pressable
                 style={[s.officialBtn, { backgroundColor: colors.primary, borderRadius: radius.button }]}
-                onPress={() => Linking.openURL(data.official_immigration_url!)}
+                onPress={() => Linking.openURL(data.official_immigration_url!).catch(() => {})}
+                accessibilityRole="link"
+                accessibilityLabel="Open official immigration site"
               >
                 <Text style={s.officialBtnText}>Official immigration site  ↗</Text>
               </Pressable>
@@ -184,14 +213,14 @@ function WorkRow({
 
 const s = StyleSheet.create({
   backBtn: {
-    position: 'absolute', top: 56, left: 16,
+    position: 'absolute', left: 16,
     zIndex: 10, borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 7,
+    width: 38, height: 38,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.32)',
   },
-  backText: { color: '#fff', fontSize: 14, fontWeight: '600' },
 
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
   emptyTitle: { fontSize: 17, fontWeight: '700', marginBottom: 8 },
   retryBtn: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10 },
   retryText: { color: '#fff', fontWeight: '600', fontSize: 14 },
@@ -229,4 +258,15 @@ const s = StyleSheet.create({
     borderRadius: 8, borderWidth: 1, marginTop: 14,
   },
   sourceBtnText: { fontSize: 13, fontWeight: '600' },
+
+  converterLock: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderRadius: 16, borderWidth: 1, padding: 16,
+  },
+  converterLockIcon: {
+    width: 44, height: 44, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  converterLockTitle: { fontSize: 15, fontWeight: '800' },
+  converterLockSub: { fontSize: 12.5, marginTop: 2 },
 });

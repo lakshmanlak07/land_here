@@ -220,6 +220,18 @@ export const COUNTRIES: CountryOption[] = [
   { code: 'ZW', name: 'Zimbabwe' },
 ];
 
+/** O(1) lookup from a country code to its display name (e.g. "US" → "United States"). */
+const _nameIndex: Record<string, string> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c.name]));
+
+/**
+ * Returns the human-readable country name for a given ISO alpha-2 code.
+ * Falls back to the raw code if not found. Always returns a string.
+ */
+export function getCountryName(code: string | null | undefined): string {
+  if (!code) return '—';
+  return _nameIndex[code] ?? code;
+}
+
 /**
  * The bundled list in the picker's CountryOut shape. Only `code` and `name`
  * are read by the picker; the remaining fields carry inert defaults so this
@@ -235,3 +247,50 @@ export const FALLBACK_COUNTRIES: CountryOut[] = COUNTRIES.map((c) => ({
   is_destination: true,
   is_origin: true,
 }));
+
+/**
+ * Curated fallback for origin picker — shows only countries with at least one
+ * live, human-verified corridor. Used when the backend is unreachable so the
+ * picker never shows the full 196-country list.
+ */
+export const FALLBACK_ORIGINS: CountryOut[] = [
+  {
+    id: 'IN', code: 'IN', name: 'India',
+    student_visa_name: null,
+    official_immigration_url: null,
+    currency_code: 'INR',
+    is_destination: false,
+    is_origin: true,
+  },
+];
+
+/**
+ * Curated fallback for destination picker — shows only countries with at least
+ * one live, human-verified corridor (IN→US, IN→CA, IN→UK).
+ */
+export const FALLBACK_DESTINATIONS: CountryOut[] = [
+  {
+    id: 'CA', code: 'CA', name: 'Canada',
+    student_visa_name: 'Study Permit',
+    official_immigration_url: null,
+    currency_code: 'CAD',
+    is_destination: true,
+    is_origin: false,
+  },
+  {
+    id: 'UK', code: 'UK', name: 'United Kingdom',
+    student_visa_name: 'Student Visa (formerly Tier 4)',
+    official_immigration_url: null,
+    currency_code: 'GBP',
+    is_destination: true,
+    is_origin: false,
+  },
+  {
+    id: 'US', code: 'US', name: 'United States',
+    student_visa_name: 'F-1 Student Visa',
+    official_immigration_url: null,
+    currency_code: 'USD',
+    is_destination: true,
+    is_origin: false,
+  },
+];

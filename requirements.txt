@@ -11,3 +11,4 @@ bcrypt==4.0.1
 python-dotenv
 pydantic-settings
 pydantic[email]
+redis  # Redis client for shared rate limiting (optional; falls back to in-memory)

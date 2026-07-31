@@ -92,3 +92,8 @@ Thumbs.db
 # Claude Code local settings (machine-specific)
 .claude/settings.local.json
 mobile/.claude/settings.local.json
+
+# Local dev helper output (machine-specific)
+mobile/my_ip.txt
+mobile/get_ip.bat
+mobile/get_ip.py

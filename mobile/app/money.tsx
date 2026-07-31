@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { useAuthStore } from '../lib/store';
+import { usePurchaseStore } from '../lib/purchaseStore';
 import { PressableScale } from '../components/PressableScale';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -15,6 +16,7 @@ export default function MoneyScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const destCode = useAuthStore((st) => st.user?.destination_country_code);
+  const purchased = usePurchaseStore((st) => st.purchased);
 
   // Both money tools live on the destination's country page (the currency
   // converter is embedded there, alongside its currency and living context).
@@ -32,15 +34,13 @@ export default function MoneyScreen() {
       key: 'converter',
       icon: 'swap-horizontal-outline',
       title: 'Currency converter',
-      body: 'Convert your home currency to your destination’s with live reference rates, so prices abroad make sense at a glance.',
+      body: 'Convert your home currency using live mid-market rates — so prices in your destination always make sense at a glance.',
     },
     {
       key: 'cost-of-living',
       icon: 'home-outline',
-      title: 'Cost of living',
-      // Honest framing: this is reference data, not a prediction. We show what
-      // living costs look like — we don't forecast them.
-      body: 'See what living costs look like in your destination — rent, transport and everyday basics — as a reference for planning your budget.',
+      title: 'Country guide',
+      body: "See your destination's currency, student work rules, and key facts — everything on one page to help you plan before you arrive.",
     },
   ];
 
@@ -55,7 +55,7 @@ export default function MoneyScreen() {
         style={[s.hero, { paddingTop: insets.top + 12 }]}
       >
         <View style={s.heroTop}>
-          <Pressable onPress={() => router.back()} hitSlop={10} style={s.glassBtn} accessibilityRole="button" accessibilityLabel="Go back">
+          <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} hitSlop={10} style={s.glassBtn} accessibilityRole="button" accessibilityLabel="Go back">
             <Ionicons name="chevron-back" size={18} color="#fff" />
           </Pressable>
           <Pressable onPress={toggleTheme} hitSlop={10} style={s.glassBtn} accessibilityRole="button" accessibilityLabel={isDark ? 'Switch to light theme' : 'Switch to dark theme'}>
@@ -63,38 +63,74 @@ export default function MoneyScreen() {
           </Pressable>
         </View>
         <Text style={s.heroTitle}>Money</Text>
-        <Text style={s.heroSub}>Tools for planning your costs abroad</Text>
+        <Text style={s.heroSub}>Financial tools for planning your move abroad</Text>
       </LinearGradient>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xxl }}>
-        {/* Intro paragraph overlapping the hero */}
-        <View style={[s.intro, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[s.introText, { color: colors.textSecondary }]}>
-            Moving abroad means thinking in a new currency. These tools help you{' '}
-            <Text style={{ fontWeight: '700', color: colors.textPrimary }}>understand prices and plan a realistic budget</Text>
-            {' '}— convert between currencies with live reference rates, and see what everyday living costs look like in your destination.
-          </Text>
-        </View>
+        {!purchased ? (
+          /* Ghost preview + lock card */
+          <View style={{ padding: spacing.lg, gap: spacing.md }}>
+            {/* Ghost tool cards */}
+            {[0, 1].map((i) => (
+              <View key={i} style={[s.ghostCard, { backgroundColor: colors.surface, borderColor: colors.border, opacity: Math.max(0.18, 0.38 - i * 0.16) }]}>
+                <View style={[s.ghostIcon, { backgroundColor: colors.surfaceAlt }]} />
+                <View style={{ flex: 1, gap: 8 }}>
+                  <View style={[s.ghostBar, { backgroundColor: colors.border, width: '55%' }]} />
+                  <View style={[s.ghostBar, { backgroundColor: colors.border, width: '80%', height: 10 }]} />
+                </View>
+              </View>
+            ))}
+            {/* Lock card */}
+            <View style={[s.intro, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={[s.paywallIconWrap, { backgroundColor: colors.primary + '18' }]}>
+                <Ionicons name="lock-closed" size={24} color={colors.primary} />
+              </View>
+              <Text style={[s.paywallTitle, { color: colors.textPrimary }]}>Financial tools locked</Text>
+              <Text style={[s.paywallSub, { color: colors.textSecondary }]}>
+                Live currency conversion, country cost guides, and more — one payment, no subscription.
+              </Text>
+              <PressableScale
+                style={[s.paywallBtn, { backgroundColor: colors.primary }]}
+                onPress={() => router.push('/paywall')}
+                accessibilityRole="button"
+                accessibilityLabel="Unlock money tools"
+              >
+                <Text style={s.paywallBtnText}>Unlock Everything — $1.99</Text>
+              </PressableScale>
+            </View>
+          </View>
+        ) : (
+          <>
+            {/* Intro paragraph overlapping the hero */}
+            <View style={[s.intro, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[s.introText, { color: colors.textSecondary }]}>
+                Moving abroad means navigating a new currency. These tools help you{' '}
+                <Text style={{ fontWeight: '700', color: colors.textPrimary }}>understand prices and plan a realistic budget</Text>
+                {' '}— convert between currencies with live reference rates, and see what everyday essentials cost in your destination.
+              </Text>
+            </View>
 
-        {/* Tool cards */}
-        <View style={s.list}>
-          {cards.map((card) => (
-            <PressableScale
-              key={card.key}
-              style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={openMoneyTools}
-            >
-              <View style={[s.cardIcon, { backgroundColor: colors.primarySubtle }]}>
-                <Ionicons name={card.icon} size={22} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.cardTitle, { color: colors.textPrimary }]}>{card.title}</Text>
-                <Text style={[s.cardBody, { color: colors.textSecondary }]}>{card.body}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-            </PressableScale>
-          ))}
-        </View>
+            {/* Tool cards */}
+            <View style={s.list}>
+              {cards.map((card) => (
+                <PressableScale
+                  key={card.key}
+                  style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  onPress={openMoneyTools}
+                >
+                  <View style={[s.cardIcon, { backgroundColor: colors.primarySubtle }]}>
+                    <Ionicons name={card.icon} size={22} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.cardTitle, { color: colors.textPrimary }]}>{card.title}</Text>
+                    <Text style={[s.cardBody, { color: colors.textSecondary }]}>{card.body}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+                </PressableScale>
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -128,5 +164,14 @@ function styles(
     cardIcon: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
     cardTitle: { fontSize: 16, fontWeight: '800', letterSpacing: -0.2 },
     cardBody: { fontSize: 12.5, marginTop: 4, lineHeight: 18 },
+
+    paywallIconWrap: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+    paywallTitle: { fontSize: 18, fontWeight: '800', marginBottom: 6 },
+    paywallSub: { fontSize: 13, lineHeight: 20, marginBottom: 18 },
+    paywallBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+    ghostCard: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 14, borderWidth: 1, padding: 16 },
+    ghostIcon: { width: 44, height: 44, borderRadius: 12 },
+    ghostBar: { height: 13, borderRadius: 6 },
+    paywallBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   });
 }

@@ -49,7 +49,7 @@ export function PlanReveal({
               <Text style={s.badgeText}>YOUR PLAN IS READY</Text>
             </View>
             <Text style={s.heroTitle}>{heroTitle}</Text>
-            <Text style={s.heroSub}>Everything lined up, built around your answers.</Text>
+            <Text style={s.heroSub}>Everything lined up — built around your answers.</Text>
           </LinearGradient>
         </FadeInView>
 

@@ -25,7 +25,7 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
   // Fail fast instead of hanging on the OS-level TCP timeout when the
   // backend is unreachable (stale LAN IP, server down, firewall).
-  timeout: 15000,
+  timeout: 8000,
 });
 
 api.interceptors.request.use((config) => {

@@ -19,7 +19,7 @@ COUNTRIES = [
         "official_immigration_url": "https://travel.state.gov/content/travel/en/us-visas/study/student-visa.html",
         "currency_code": "USD",
         "is_destination": True,
-        "is_origin": True,
+        "is_origin": False,
     },
     {
         "code": "UK",
@@ -28,7 +28,7 @@ COUNTRIES = [
         "official_immigration_url": "https://www.gov.uk/student-visa",
         "currency_code": "GBP",
         "is_destination": True,
-        "is_origin": True,
+        "is_origin": False,
     },
     {
         "code": "CA",
@@ -45,7 +45,7 @@ COUNTRIES = [
         "student_visa_name": "Student Visa (Subclass 500)",
         "official_immigration_url": "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-listing/student-500",
         "currency_code": "AUD",
-        "is_destination": True,
+        "is_destination": False,
         "is_origin": False,
     },
     {
@@ -54,8 +54,8 @@ COUNTRIES = [
         "student_visa_name": "National Visa for Study Purposes",
         "official_immigration_url": "https://www.auswaertiges-amt.de/en/visa-service/buergerservice/faq/-/606852",
         "currency_code": "EUR",
-        "is_destination": True,
-        "is_origin": True,
+        "is_destination": False,
+        "is_origin": False,
     },
     {
         "code": "FR",
@@ -63,8 +63,8 @@ COUNTRIES = [
         "student_visa_name": "Long-Stay Student Visa (VLS-TS Étudiant)",
         "official_immigration_url": "https://www.campusfrance.org/en/visa",
         "currency_code": "EUR",
-        "is_destination": True,
-        "is_origin": True,
+        "is_destination": False,
+        "is_origin": False,
     },
     {
         "code": "CN",
@@ -72,8 +72,8 @@ COUNTRIES = [
         "student_visa_name": "X1/X2 Student Visa",
         "official_immigration_url": "https://www.mfa.gov.cn/mfa_eng/visa/",
         "currency_code": "CNY",
-        "is_destination": True,
-        "is_origin": True,
+        "is_destination": False,
+        "is_origin": False,
     },
     {
         "code": "JP",
@@ -81,7 +81,7 @@ COUNTRIES = [
         "student_visa_name": "Student Visa (College Student)",
         "official_immigration_url": "https://www.mofa.go.jp/j_info/visit/visa/long/index.html",
         "currency_code": "JPY",
-        "is_destination": True,
+        "is_destination": False,
         "is_origin": False,
     },
     {
@@ -90,7 +90,7 @@ COUNTRIES = [
         "student_visa_name": "MVV / Residence Permit for Study",
         "official_immigration_url": "https://ind.nl/en/residence-permits/study",
         "currency_code": "EUR",
-        "is_destination": True,
+        "is_destination": False,
         "is_origin": False,
     },
     {
@@ -99,7 +99,7 @@ COUNTRIES = [
         "student_visa_name": "Study Visa (C Study / D Study)",
         "official_immigration_url": "https://www.irishimmigration.ie/coming-to-study-in-ireland/",
         "currency_code": "EUR",
-        "is_destination": True,
+        "is_destination": False,
         "is_origin": False,
     },
     {
@@ -108,7 +108,7 @@ COUNTRIES = [
         "student_visa_name": "Student Visa",
         "official_immigration_url": "https://www.immigration.govt.nz/new-zealand-visas/visas/visa/student-visa",
         "currency_code": "NZD",
-        "is_destination": True,
+        "is_destination": False,
         "is_origin": False,
     },
     {
@@ -117,7 +117,7 @@ COUNTRIES = [
         "student_visa_name": "Student Pass",
         "official_immigration_url": "https://www.ica.gov.sg/pass-visa/student-pass",
         "currency_code": "SGD",
-        "is_destination": True,
+        "is_destination": False,
         "is_origin": False,
     },
     {
@@ -126,7 +126,7 @@ COUNTRIES = [
         "student_visa_name": "D-2 Student Visa",
         "official_immigration_url": "https://www.hikorea.go.kr/info/InfoDatail_E.pt?CategoryId=5&Lang=en",
         "currency_code": "KRW",
-        "is_destination": True,
+        "is_destination": False,
         "is_origin": False,
     },
     {
@@ -135,7 +135,7 @@ COUNTRIES = [
         "student_visa_name": "Student Residence Visa",
         "official_immigration_url": "https://u.ae/en/information-and-services/visa-and-emirates-id/types-of-visa/student-visa",
         "currency_code": "AED",
-        "is_destination": True,
+        "is_destination": False,
         "is_origin": False,
     },
     {
@@ -144,7 +144,7 @@ COUNTRIES = [
         "student_visa_name": "Student Visa (Type D – Study)",
         "official_immigration_url": "https://vistoperitalia.esteri.it/home/en",
         "currency_code": "EUR",
-        "is_destination": True,
+        "is_destination": False,
         "is_origin": False,
     },
     {
@@ -153,7 +153,7 @@ COUNTRIES = [
         "student_visa_name": "Student Visa",
         "official_immigration_url": "https://indianvisaonline.gov.in/evisa/tvoa.html",
         "currency_code": "INR",
-        "is_destination": True,
+        "is_destination": False,
         "is_origin": True,
     },
     # ── Origin-only ───────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ COUNTRIES = [
         "official_immigration_url": "https://immigration.gov.ng/",
         "currency_code": "NGN",
         "is_destination": False,
-        "is_origin": True,
+        "is_origin": False,
     },
     {
         "code": "PK",
@@ -173,7 +173,7 @@ COUNTRIES = [
         "official_immigration_url": "https://www.nadra.gov.pk/",
         "currency_code": "PKR",
         "is_destination": False,
-        "is_origin": True,
+        "is_origin": False,
     },
     {
         "code": "BD",
@@ -182,7 +182,7 @@ COUNTRIES = [
         "official_immigration_url": "https://www.dip.gov.bd/",
         "currency_code": "BDT",
         "is_destination": False,
-        "is_origin": True,
+        "is_origin": False,
     },
     {
         "code": "NP",
@@ -191,7 +191,7 @@ COUNTRIES = [
         "official_immigration_url": "https://www.immigration.gov.np/",
         "currency_code": "NPR",
         "is_destination": False,
-        "is_origin": True,
+        "is_origin": False,
     },
     {
         "code": "UZ",
@@ -200,7 +200,7 @@ COUNTRIES = [
         "official_immigration_url": "https://www.mfa.uz/en/consular/visa/",
         "currency_code": "UZS",
         "is_destination": False,
-        "is_origin": True,
+        "is_origin": False,
     },
     {
         "code": "VN",
@@ -209,7 +209,7 @@ COUNTRIES = [
         "official_immigration_url": "https://xuatnhapcanh.gov.vn/en",
         "currency_code": "VND",
         "is_destination": False,
-        "is_origin": True,
+        "is_origin": False,
     },
 ]
 
@@ -919,6 +919,23 @@ def seed():
             print(f"[seed] Inserted {len(new_countries)} countries.")
         else:
             print("[seed] Countries already seeded - skipping.")
+
+        # Sync is_destination / is_origin for all existing rows so re-running
+        # seed fixes stale flags without a manual migration.
+        live_destinations = {"US", "CA", "UK"}
+        live_origins = {"IN"}
+        needs_sync = False
+        for row in db.query(Country).all():
+            want_dest = row.code in live_destinations
+            want_orig = row.code in live_origins
+            if row.is_destination != want_dest or row.is_origin != want_orig:
+                row.is_destination = want_dest
+                row.is_origin = want_orig
+                needs_sync = True
+        if needs_sync:
+            db.commit()
+            print("[seed] Country flags synced to live corridors (IN→US/CA/UK).")
+
 
         # Check if IN->US steps already exist
         existing_steps = (

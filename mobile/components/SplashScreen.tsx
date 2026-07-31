@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useReducedMotion } from '../lib/motion';
 
 interface Props {
   /**
@@ -20,6 +21,10 @@ const TAGLINE = 'Your companion from acceptance to graduation';
 
 export function SplashScreen({ onFinish, minDurationMs = 2200 }: Props) {
   const { colors, spacing } = useTheme();
+  // Honor the OS "Reduce Motion" setting: render the brand settled and skip the
+  // intro sequence and the looping dot pulse, matching every other animated
+  // component in the app.
+  const reduced = useReducedMotion();
 
   // Brand mark: fade + scale in together.
   const logoOpacity = useRef(new Animated.Value(0)).current;
@@ -33,6 +38,21 @@ export function SplashScreen({ onFinish, minDurationMs = 2200 }: Props) {
   const dot2 = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
+    const timer = setTimeout(() => onFinish?.(), minDurationMs);
+
+    // Reduce Motion on: settle everything to its final frame, run no animations,
+    // and still honor minDurationMs so onFinish timing is unchanged.
+    if (reduced) {
+      logoOpacity.setValue(1);
+      logoScale.setValue(1);
+      taglineOpacity.setValue(1);
+      taglineLift.setValue(0);
+      dot0.setValue(1);
+      dot1.setValue(1);
+      dot2.setValue(1);
+      return () => clearTimeout(timer);
+    }
+
     const intro = Animated.sequence([
       Animated.parallel([
         Animated.timing(logoOpacity, {
@@ -88,8 +108,6 @@ export function SplashScreen({ onFinish, minDurationMs = 2200 }: Props) {
     intro.start();
     loop.start();
 
-    const timer = setTimeout(() => onFinish?.(), minDurationMs);
-
     return () => {
       intro.stop();
       loop.stop();
@@ -97,7 +115,7 @@ export function SplashScreen({ onFinish, minDurationMs = 2200 }: Props) {
     };
     // Animated values are stable refs; deps intentionally minimal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [minDurationMs]);
+  }, [minDurationMs, reduced]);
 
   const dots = [dot0, dot1, dot2];
 

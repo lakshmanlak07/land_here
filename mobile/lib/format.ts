@@ -50,3 +50,15 @@ export function formatWeight(value: number | null | undefined): string {
   const pct = value <= 1 ? value * 100 : value;
   return `${Math.round(pct)}%`;
 }
+
+/**
+ * Compact initials from a university name — skips filler words, returns up to
+ * 3 uppercase letters. E.g. "University of Michigan" -> "UM".
+ */
+export function initials(name: string): string {
+  const skip = new Set(['of', 'the', 'and', 'at', 'for', 'in']);
+  const words = name.split(/[\s.,&-]+/).filter((w) => w && !skip.has(w.toLowerCase()));
+  const out = words.slice(0, 3).map((w) => w[0].toUpperCase()).join('');
+  // Names made only of filler words (or empty) would otherwise render a blank tile.
+  return out || (name.trim()[0] ?? '?').toUpperCase();
+}

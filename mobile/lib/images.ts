@@ -101,6 +101,9 @@ export async function getCityImage(
 export const COUNTRY_COLORS: Record<string, string> = {
   US: '#B22234',
   GB: '#012169',
+  // The backend uses 'UK' (its one ISO deviation) — without this entry the UK
+  // always fell through to the crimson fallback.
+  UK: '#012169',
   CA: '#D52B1E',
   DE: '#2C2C2C',
   AU: '#003087',

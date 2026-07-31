@@ -10,10 +10,26 @@ from app.routes import account, auth, countries, info, guides, universities
 
 logger = logging.getLogger("landhere")
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    # ── Startup checks ───────────────────────────────────────────────────────
+    if "*" in settings.cors_allow_origins:
+        logger.warning(
+            "CORS_ALLOW_ORIGINS is wildcard ('*'). "
+            "Set it to your explicit production origin(s) before going live. "
+            "See PRE_LAUNCH_SECURITY.md §2."
+        )
+    # ─────────────────────────────────────────────────────────────────────────
+    yield
+
+
 app = FastAPI(
     title="LandHere API",
     description="Information-first companion for international students",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -71,5 +87,5 @@ app.include_router(universities.router)
 
 
 @app.get("/", tags=["health"])
-def health_check():
+async def health_check():
     return {"status": "ok", "service": "LandHere API"}

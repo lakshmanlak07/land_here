@@ -136,7 +136,7 @@ const US_SECTIONS: NecessitySection[] = [
   },
 ];
 
-const GB_SECTIONS: NecessitySection[] = [
+const UK_SECTIONS: NecessitySection[] = [
   {
     key: 'mandatories',
     title: 'Mandatories',
@@ -535,7 +535,7 @@ const DE_SECTIONS: NecessitySection[] = [
 /** Necessities content keyed by destination country code. */
 export const NECESSITIES_BY_COUNTRY: Record<string, NecessitySection[]> = {
   US: US_SECTIONS,
-  GB: GB_SECTIONS,
+  UK: UK_SECTIONS,
   CA: CA_SECTIONS,
   AU: AU_SECTIONS,
   DE: DE_SECTIONS,

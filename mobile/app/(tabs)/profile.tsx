@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, Switch, ScrollView,
-  Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Linking,
+  Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Linking, Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useAuthStore } from '../../lib/store';
 import { useProgressStore } from '../../lib/progressStore';
+import { usePurchaseStore } from '../../lib/purchaseStore';
 import { useTheme } from '../../context/ThemeContext';
 import { IconBadge } from '../../components/IconBadge';
 import { PressableScale } from '../../components/PressableScale';
@@ -16,12 +19,12 @@ import { FadeInView } from '../../components/FadeInView';
 import { withAlpha } from '../../lib/color';
 import { duration } from '../../lib/motion';
 import api, { getErrorMessage } from '../../lib/api';
+import { getCountryName } from '../../constants/countries';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
-// PLACEHOLDER — replace with the real support inbox before release. Apple
-// requires an app to expose a working support contact.
-const SUPPORT_EMAIL = 'support@landhere.app';
+// Support contact — App Store requires a working support email.
+const SUPPORT_EMAIL = 'lakshmanlak07@gmail.com';
 
 function InfoRow({
   icon, accent, label, value, last,
@@ -46,6 +49,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((st) => st.user);
   const logout = useAuthStore((st) => st.logout);
+  const { purchased, restorePurchases, restoring: restorePending } = usePurchaseStore();
   const router = useRouter();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -64,29 +68,42 @@ export default function ProfileScreen() {
       await api.delete('/account', { data: { password } });
       logout();
       useProgressStore.setState({ completedIds: {} });
+      AsyncStorage.removeItem('journey_completed_ids').catch(() => {});
       setConfirmOpen(false);
       router.replace('/(auth)/login');
     } catch (e) {
       setError(getErrorMessage(e, 'Could not delete your account. Please try again.'));
+      setPassword(''); // Clear password so user re-enters it after a failure
     } finally {
       setDeleting(false);
     }
   }
 
   function handleLogout() {
+    useProgressStore.setState({ completedIds: {} });
+    AsyncStorage.removeItem('journey_completed_ids').catch(() => {});
     logout();
     router.replace('/(auth)/login');
   }
 
-  // Open the device mail client to the support inbox. A prefilled subject lets
-  // us route messages; "Report a bug" reuses the same address with its own
-  // subject. Wrapped in a catch so a device with no mail client just no-ops.
+  // Open the device mail client to the support inbox. Bug reports include
+  // a prefilled body with app version and platform for easier triage.
   async function openSupportMail(subject: string) {
-    const url = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+    const isBugReport = subject.toLowerCase().includes('bug');
+    const version = Constants.expoConfig?.version ?? '?';
+    const body = isBugReport
+      ? `\n\n---\nApp version: ${version}\nPlatform: ${Platform.OS} ${Platform.Version}\n`
+      : '';
+    const url = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}${body ? `&body=${encodeURIComponent(body)}` : ''}`;
     try {
       await Linking.openURL(url);
     } catch {
-      // No mail client / unsupported — fail silently rather than crash.
+      // No mail client / unsupported — tell the user instead of failing
+      // silently, and surface the address so they can still reach support.
+      Alert.alert(
+        'No email app available',
+        `Please email us directly at ${SUPPORT_EMAIL}`,
+      );
     }
   }
 
@@ -113,18 +130,25 @@ export default function ProfileScreen() {
                 <Text style={s.avatarText}>{initials}</Text>
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={s.name} numberOfLines={1}>{user?.full_name ?? 'Student'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={s.name} numberOfLines={1}>{user?.full_name ?? 'Student'}</Text>
+                  {purchased && (
+                    <View style={s.proBadge}>
+                      <Text style={s.proBadgeText}>PRO</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={s.email} numberOfLines={1}>{user?.email}</Text>
               </View>
             </View>
             <View style={s.statRow}>
               <View style={s.statTile}>
                 <Text style={s.statLabel}>Destination</Text>
-                <Text style={s.statValue}>{destination ?? 'Not set'}</Text>
+                <Text style={s.statValue}>{destination ? getCountryName(destination) : 'Not set'}</Text>
               </View>
               <View style={s.statTile}>
                 <Text style={s.statLabel}>Origin</Text>
-                <Text style={s.statValue}>{origin ?? 'Not set'}</Text>
+                <Text style={s.statValue}>{origin ? getCountryName(origin) : 'Not set'}</Text>
               </View>
             </View>
           </LinearGradient>
@@ -137,8 +161,8 @@ export default function ProfileScreen() {
             <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <InfoRow icon="person-outline" accent={colors.primary} label="Full name" value={user?.full_name} />
               <InfoRow icon="mail-outline" accent={colors.after_acceptance} label="Email" value={user?.email} />
-              <InfoRow icon="location-outline" accent={colors.before_departure} label="Origin" value={origin} />
-              <InfoRow icon="airplane-outline" accent={colors.visa_process} label="Destination" value={destination} last />
+              <InfoRow icon="location-outline" accent={colors.before_departure} label="Origin" value={origin ? getCountryName(origin) : undefined} />
+              <InfoRow icon="airplane-outline" accent={colors.visa_process} label="Destination" value={destination ? getCountryName(destination) : undefined} last />
             </View>
           </FadeInView>
 
@@ -154,6 +178,29 @@ export default function ProfileScreen() {
             </View>
           </FadeInView>
 
+          {/* Purchases */}
+          <FadeInView delay={duration.fast * 2.25}>
+            <Text style={[s.sectionLabel, { color: colors.textTertiary }]}>PURCHASES</Text>
+            <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <PressableScale
+                style={[s.row, { borderBottomWidth: 0 }]}
+                onPress={restorePurchases}
+                disabled={restorePending}
+                accessibilityRole="button"
+                accessibilityLabel="Restore purchases"
+              >
+                <IconBadge icon="refresh-outline" color={colors.primary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Restore Purchases</Text>
+                  <Text style={[s.rowHint, { color: colors.textTertiary }]}>
+                    {restorePending ? 'Checking your account…' : 'Already paid? Recover access here.'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+              </PressableScale>
+            </View>
+          </FadeInView>
+
           {/* Support */}
           <FadeInView delay={duration.fast * 2.5}>
             <Text style={[s.sectionLabel, { color: colors.textTertiary }]}>SUPPORT</Text>
@@ -165,7 +212,7 @@ export default function ProfileScreen() {
                 accessibilityLabel="Contact support by email"
               >
                 <IconBadge icon="help-buoy-outline" color={colors.primary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
-                <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Contact / Support</Text>
+                <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Contact Support</Text>
                 <Ionicons name="open-outline" size={18} color={colors.textTertiary} />
               </PressableScale>
               <PressableScale
@@ -185,7 +232,7 @@ export default function ProfileScreen() {
           <FadeInView delay={duration.fast * 3}>
             <Text style={[s.sectionLabel, { color: colors.danger }]}>DANGER ZONE</Text>
             <View style={[s.card, { backgroundColor: colors.surface, borderColor: withAlpha(colors.danger, 0.3) }]}>
-              <PressableScale style={[s.row, { borderBottomColor: colors.border }]} onPress={handleLogout}>
+              <PressableScale style={[s.row, { borderBottomColor: colors.border }]} onPress={handleLogout} accessibilityRole="button" accessibilityLabel="Sign out">
                 <IconBadge icon="log-out-outline" color={colors.textSecondary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
                 <Text style={[s.rowLabel, { color: colors.textPrimary, fontWeight: '700' }]}>Sign out</Text>
               </PressableScale>
@@ -194,14 +241,14 @@ export default function ProfileScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={[s.rowLabel, { color: colors.danger, fontWeight: '700' }]}>Delete account</Text>
                   <Text style={[s.rowHint, { color: colors.textTertiary }]}>
-                    Permanently erases your journey and data. This can't be undone.
+                    Permanently deletes your account and all associated data. This cannot be undone.
                   </Text>
                 </View>
               </PressableScale>
             </View>
           </FadeInView>
 
-          <Text style={[s.version, { color: colors.textTertiary }]}>LandHere · v1.0.0</Text>
+          <Text style={[s.version, { color: colors.textTertiary }]}>LandHere · v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
         </View>
       </ScrollView>
 
@@ -214,7 +261,7 @@ export default function ProfileScreen() {
             </View>
             <Text style={[s.modalTitle, { color: colors.textPrimary }]}>Delete account?</Text>
             <Text style={[s.modalBody, { color: colors.textSecondary }]}>
-              This is <Text style={{ fontWeight: '800' }}>permanent and cannot be undone</Text>. Your account and all
+              This action is <Text style={{ fontWeight: '800' }}>permanent and cannot be undone</Text>. Your account and all
               associated data will be erased immediately. Enter your password to confirm.
             </Text>
             <TextInput
@@ -265,6 +312,8 @@ function styles(
     avatarText: { fontSize: 24, fontWeight: '800', color: '#8A1538' },
     name: { fontSize: 21, fontWeight: '800', color: '#fff', letterSpacing: -0.2 },
     email: { fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 2 },
+    proBadge: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
+    proBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
     statRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
     statTile: { flex: 1, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 13, padding: 12 },
     statLabel: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.72)' },
@@ -289,7 +338,7 @@ function styles(
     modalInput: { width: '100%', borderWidth: 1.5, borderRadius: radius.button, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     modalError: { fontSize: 13, fontWeight: '600', marginTop: 10, textAlign: 'center', width: '100%' },
     modalActions: { flexDirection: 'row', gap: 12, marginTop: 18, width: '100%' },
-    modalBtn: { flex: 1, paddingVertical: 13, alignItems: 'center', justifyContent: 'center', minHeight: 46, borderRadius: radius.button },
-    modalBtnText: { fontSize: 15, fontWeight: '700' },
+    modalBtn: { flex: 1, paddingVertical: 13, alignItems: 'center', borderRadius: radius.button },
+    modalBtnText: { fontSize: 15, fontWeight: '800' },
   });
 }

@@ -19,7 +19,13 @@ import { PressableScale } from '../../components/PressableScale';
 import { FadeInView } from '../../components/FadeInView';
 import { SkeletonBlock } from '../../components/Skeleton';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
+import { getCountryName } from '../../constants/countries';
 import api from '../../lib/api';
+import { usePurchaseStore } from '../../lib/purchaseStore';
+
+// Fully-locked premium features (show a lock badge on their Home tile).
+// Rankings and Journey are NOT here — they have free previews (top 10 / first half).
+const PREMIUM_KEYS = new Set(['money', 'scholarships', 'work-hours']);
 import type { JourneyOut, CountryOut, InfoStep } from '../../lib/types';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -28,12 +34,14 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 // quick-access tiles — the design's signature brand wash.
 const CRIMSON_GRAD = ['#B5163F', '#8E1133', '#6B0F2C'] as const;
 
-// Display names for the corridor banner; falls back to the raw code.
-const COUNTRY_NAMES: Record<string, string> = {
-  IN: 'India', US: 'United States', GB: 'United Kingdom', UK: 'United Kingdom',
-  CA: 'Canada', AU: 'Australia', DE: 'Germany', FR: 'France', JP: 'Japan',
-  NL: 'Netherlands', IE: 'Ireland', NZ: 'New Zealand', SG: 'Singapore',
-  KR: 'South Korea', CN: 'China', IT: 'Italy', AE: 'UAE',
+// Per-tile accent gradients — each feature gets its own distinct colour identity.
+const TILE_GRADS: Record<string, readonly [string, string, string]> = {
+  necessities:  ['#D97706', '#B45309', '#92400E'],
+  money:        ['#0891B2', '#0E7490', '#155E75'],
+  rankings:     ['#4338CA', '#3730A3', '#312E81'],
+  scholarships: ['#7C3AED', '#6D28D9', '#5B21B6'],
+  'work-hours': ['#059669', '#047857', '#065F46'],
+  visa:         ['#B5163F', '#8E1133', '#6B0F2C'],
 };
 
 // User's self-reported onboarding stage → the journey phase it corresponds to.
@@ -51,10 +59,6 @@ function greeting(): string {
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
-}
-
-function countryName(code: string): string {
-  return COUNTRY_NAMES[code] ?? code;
 }
 
 /** SVG progress ring used in the momentum card. */
@@ -91,6 +95,7 @@ export default function HomeScreen() {
   const user = useAuthStore((st) => st.user);
   const router = useRouter();
   const completedIds = useProgressStore((st) => st.completedIds);
+  const purchased = usePurchaseStore((s) => s.purchased);
 
   const { data: journey, isLoading: journeyLoading, isError: journeyError, refetch: refetchJourney, isRefetching } = useQuery<JourneyOut>({
     queryKey: ['journey', user?.origin_country_code, user?.destination_country_code],
@@ -141,12 +146,12 @@ export default function HomeScreen() {
     key: string; title: string; subtitle: string;
     icon: IoniconName; onPress: () => void;
   }[] = [
-    { key: 'necessities', title: 'Necessities', subtitle: 'What to pack & do', icon: 'document-text-outline', onPress: () => router.push('/necessities') },
-    { key: 'money', title: 'Money Setup', subtitle: 'Currency & living costs', icon: 'card-outline', onPress: () => router.push('/money') },
-    { key: 'rankings', title: 'Rankings', subtitle: '500 schools, scored', icon: 'trophy-outline', onPress: () => router.push('/(tabs)/rankings') },
-    { key: 'scholarships', title: 'Scholarships', subtitle: 'Official sources', icon: 'ribbon-outline', onPress: () => router.push('/scholarships') },
-    { key: 'work-hours', title: 'Work hours', subtitle: 'Earn while you study', icon: 'briefcase-outline', onPress: () => router.push('/work-hours') },
-    { key: 'visa', title: 'Visa steps', subtitle: 'Your journey guide', icon: 'compass-outline', onPress: () => router.push('/(tabs)/journey') },
+    { key: 'necessities', title: 'Necessities', subtitle: 'What to get and do first', icon: 'document-text-outline', onPress: () => router.push('/necessities') },
+    { key: 'money', title: 'Money Setup', subtitle: 'Currency and costs abroad', icon: 'card-outline', onPress: () => router.push('/money') },
+    { key: 'rankings', title: 'Rankings', subtitle: '500+ universities, scored', icon: 'trophy-outline', onPress: () => router.push('/(tabs)/rankings') },
+    { key: 'scholarships', title: 'Scholarships', subtitle: 'Official sources only', icon: 'ribbon-outline', onPress: () => router.push('/scholarships') },
+    { key: 'work-hours', title: 'Work hours', subtitle: 'Work rules for students', icon: 'briefcase-outline', onPress: () => router.push('/work-hours') },
+    { key: 'visa', title: 'Visa steps', subtitle: 'Your step-by-step guide', icon: 'compass-outline', onPress: () => router.push('/(tabs)/journey') },
   ];
 
   // Lead the grid with tiles matching the user's onboarding answers. A stable
@@ -207,10 +212,22 @@ export default function HomeScreen() {
                 <Text style={s.brandName}>LandHere</Text>
               </View>
               <View style={s.heroActions}>
-                <Pressable onPress={toggleTheme} hitSlop={8} style={s.glassBtn}>
+                <Pressable
+                  onPress={toggleTheme}
+                  hitSlop={8}
+                  style={s.glassBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
                   <Ionicons name={isDark ? 'sunny' : 'moon'} size={19} color="#fff" />
                 </Pressable>
-                <Pressable onPress={() => router.push('/(tabs)/profile')} hitSlop={8} style={s.avatar}>
+                <Pressable
+                  onPress={() => router.push('/(tabs)/profile')}
+                  hitSlop={8}
+                  style={s.avatar}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open profile"
+                >
                   <Text style={s.avatarText}>{initial}</Text>
                 </Pressable>
               </View>
@@ -219,13 +236,17 @@ export default function HomeScreen() {
             <Text style={s.greetingHint}>
               {greeting()}{displayName ? `, ${displayName}` : ''}
             </Text>
-            <Text style={s.heroHeadline}>Ready to move{'\n'}abroad?</Text>
+            <Text style={s.heroHeadline}>
+              {destCode
+                ? `Ready to move to\n${getCountryName(destCode)}?`
+                : `Ready to move\nabroad?`}
+            </Text>
           </View>
 
           {/* Floating search bar straddling the hero base */}
           <PressableScale style={s.search} onPress={() => router.push('/(tabs)/rankings')}>
             <Ionicons name="search" size={19} color={colors.textTertiary} />
-            <Text style={[s.searchText, { color: colors.textTertiary }]}>Search visas, schools, costs…</Text>
+            <Text style={[s.searchText, { color: colors.textTertiary }]}>Browse 500+ ranked universities</Text>
           </PressableScale>
         </View>
 
@@ -242,8 +263,8 @@ export default function HomeScreen() {
                   <Text style={s.momentumTitle}>Your journey</Text>
                   <Text style={s.momentumSub}>
                     {journeyLoading ? 'Loading steps…'
-                      : totalSteps === 0 ? `No steps yet · ${countryName(destCode)}`
-                      : `${doneSteps} of ${totalSteps} steps · ${countryName(destCode)}`}
+                      : totalSteps === 0 ? `No steps yet · ${getCountryName(destCode)}`
+                      : `${doneSteps} of ${totalSteps} steps · ${getCountryName(destCode)}`}
                   </Text>
                 </View>
                 <PressableScale style={s.momentumGo} haptic onPress={() => router.push('/(tabs)/journey')}>
@@ -254,7 +275,7 @@ export default function HomeScreen() {
               {journeyError ? (
                 <PressableScale style={s.nextBanner} onPress={() => refetchJourney()}>
                   <Ionicons name="refresh" size={16} color="#fff" />
-                  <Text style={s.nextText}>Couldn't load your steps — <Text style={s.nextStrong}>tap to retry</Text></Text>
+                  <Text style={s.nextText}>Unable to load your steps — <Text style={s.nextStrong}>tap to retry</Text></Text>
                 </PressableScale>
               ) : nextStep ? (
                 <PressableScale style={s.nextBanner} onPress={() => router.push('/(tabs)/journey')}>
@@ -264,7 +285,7 @@ export default function HomeScreen() {
               ) : totalSteps > 0 ? (
                 <View style={s.nextBanner}>
                   <Ionicons name="checkmark-circle" size={16} color="#FFD36B" />
-                  <Text style={s.nextText}><Text style={s.nextStrong}>All steps complete.</Text> You're ready.</Text>
+                  <Text style={s.nextText}><Text style={s.nextStrong}>All steps complete.</Text> You're all set.</Text>
                 </View>
               ) : null}
             </LinearGradient>
@@ -275,7 +296,7 @@ export default function HomeScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.setupTitle, { color: colors.textPrimary }]}>Set your destination</Text>
-                <Text style={[s.setupBody, { color: colors.textSecondary }]}>Choose where you're going to unlock your journey.</Text>
+                <Text style={[s.setupBody, { color: colors.textSecondary }]}>Choose a destination to unlock your personalised journey.</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
             </PressableScale>
@@ -285,7 +306,12 @@ export default function HomeScreen() {
           <View style={s.grid}>
             {orderedQuickAccess.map((item) => (
               <PressableScale key={item.key} style={s.tileWrap} onPress={item.onPress}>
-                <LinearGradient colors={CRIMSON_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.tile}>
+                <LinearGradient colors={TILE_GRADS[item.key] ?? CRIMSON_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.tile}>
+                  {PREMIUM_KEYS.has(item.key) && !purchased && (
+                    <View style={s.tileLockBadge}>
+                      <Ionicons name="lock-closed" size={10} color="rgba(255,255,255,0.95)" />
+                    </View>
+                  )}
                   <View style={s.tileIcon}>
                     <Ionicons name={item.icon} size={22} color="#fff" />
                   </View>
@@ -297,7 +323,7 @@ export default function HomeScreen() {
           </View>
 
           {/* ───────── Fun facts ───────── */}
-          <Text style={[s.sectionLabel, { color: colors.textSecondary }]}>Fun facts</Text>
+          <Text style={[s.sectionLabel, { color: colors.textPrimary }]}>Did you know?</Text>
           <View style={{ marginBottom: spacing.xl }}>
             <SwipeableFacts countryCode={user?.destination_country_code} />
           </View>
@@ -308,7 +334,7 @@ export default function HomeScreen() {
           <>
             <View style={s.shelfHead}>
               <Text style={[s.shelfTitle, { color: colors.textPrimary }]}>Explore destinations</Text>
-              <Pressable onPress={() => router.push('/(tabs)/explore')} hitSlop={8}>
+              <Pressable onPress={() => router.push('/(tabs)/explore')} hitSlop={8} accessibilityRole="button" accessibilityLabel="See all destinations">
                 <Text style={[s.seeAll, { color: colors.primary }]}>See all</Text>
               </Pressable>
             </View>
@@ -372,7 +398,7 @@ function styles(
     root: { flex: 1, backgroundColor: colors.bg },
 
     // Hero
-    hero: { height: 300, backgroundColor: colors.primary, marginBottom: 30 },
+    hero: { minHeight: 300, backgroundColor: colors.primary, marginBottom: 30 },
     heroContent: { paddingHorizontal: spacing.lg, paddingTop: 14 },
     heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
@@ -443,17 +469,23 @@ function styles(
     tileWrap: { width: '47.5%', flexGrow: 1, borderRadius: radius.lg },
     tile: {
       borderRadius: radius.lg, padding: 18,
-      shadowColor: '#A4133C', shadowOpacity: 0.32, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 6,
+      shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5,
     },
     tileIcon: {
       width: 46, height: 46, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.2)',
       alignItems: 'center', justifyContent: 'center', marginBottom: 14,
     },
+    tileLockBadge: {
+      position: 'absolute', top: 10, right: 10,
+      width: 20, height: 20, borderRadius: 10,
+      backgroundColor: 'rgba(0,0,0,0.35)',
+      alignItems: 'center', justifyContent: 'center',
+    },
     tileTitle: { fontSize: 15, fontWeight: '800', color: '#fff' },
     tileSub: { fontSize: 12.5, color: 'rgba(255,255,255,0.72)', marginTop: 3 },
 
     sectionLabel: {
-      fontSize: 13, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase',
+      fontSize: 19, fontWeight: '800', letterSpacing: -0.3,
       marginBottom: spacing.md,
     },
 
@@ -467,12 +499,12 @@ function styles(
     shelf: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm },
     destCard: { width: 264, height: 188, borderRadius: radius.xl, overflow: 'hidden' },
     destImage: { width: '100%', height: '100%' },
-    destOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', padding: 18 },
+    destOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', padding: 14 },
     destPill: {
-      alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.22)',
-      borderRadius: 99, paddingHorizontal: 10, paddingVertical: 3, marginBottom: 8,
+      backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 99,
+      paddingHorizontal: 9, paddingVertical: 3, alignSelf: 'flex-start', marginBottom: 6,
     },
-    destPillText: { fontSize: 11.5, fontWeight: '700', color: '#fff' },
-    destName: { color: '#fff', fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
+    destPillText: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.9)' },
+    destName: { fontSize: 18, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
   });
 }

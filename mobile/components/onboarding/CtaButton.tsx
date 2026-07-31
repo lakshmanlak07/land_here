@@ -5,13 +5,12 @@ import Animated, {
   useSharedValue,
   withRepeat,
   withTiming,
-  Easing,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { PressableScale } from '../PressableScale';
-import { useReducedMotion } from '../../lib/motion';
+import { easing, useReducedMotion } from '../../lib/motion';
 
 interface Props {
   label: string;
@@ -34,7 +33,7 @@ export function CtaButton({ label, onPress, variant = 'solid', arrow = true, loa
 
   useEffect(() => {
     if (variant !== 'glow' || reduced) return;
-    glow.value = withRepeat(withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }), -1, true);
+    glow.value = withRepeat(withTiming(1, { duration: 1200, easing: easing.standard }), -1, true);
   }, [variant, reduced, glow]);
 
   const shadowStyle = useAnimatedStyle(() => ({

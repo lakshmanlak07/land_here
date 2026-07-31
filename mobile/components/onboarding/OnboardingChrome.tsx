@@ -23,11 +23,11 @@ interface Props {
   disabled?: boolean;
 }
 
-function momentumCopy(pct: number): string {
+function momentumCopy(pct: number, remaining: number): string {
   if (pct <= 0) return "Let's begin";
-  if (pct < 40) return 'Nice start ✨';
-  if (pct < 70) return "You're rolling";
-  if (pct < 100) return 'Almost there!';
+  if (pct < 40) return remaining > 0 ? `~${Math.ceil(remaining * 15 / 60)} min left` : 'Nice start ✨';
+  if (pct < 70) return remaining > 3 ? '~1 min left' : 'Almost done!';
+  if (pct < 100) return 'Almost there! 🎯';
   return 'All set 🎉';
 }
 
@@ -105,7 +105,7 @@ export function OnboardingChrome({ qIndex, qTotal, onBack, disabled }: Props) {
 
       <View style={[s.subRow, { paddingLeft: 48 }]}>
         <Text style={[s.step, { color: colors.textSecondary }]}>Step {qIndex + 1} of {qTotal}</Text>
-        <Text style={[s.momentum, { color: colors.primary }]}>{momentumCopy(pct)}</Text>
+        <Text style={[s.momentum, { color: colors.primary }]}>{momentumCopy(pct, qTotal - qIndex)}</Text>
       </View>
     </View>
   );

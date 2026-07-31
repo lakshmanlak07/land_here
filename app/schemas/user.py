@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from enum import Enum
 from typing import Annotated
 from pydantic import AfterValidator, BaseModel, EmailStr, Field
 
@@ -55,12 +56,22 @@ class UserOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class StageEnum(str, Enum):
+    deciding = "deciding"
+    accepted = "accepted"
+    visa_process = "visa_process"
+    about_to_fly = "about_to_fly"
+    landed = "landed"
+
+
 class UserOnboarding(BaseModel):
     """Partial onboarding profile — every field optional so callers can PATCH
     one answer at a time. Only fields actually present in the request body are
     applied (see PATCH /auth/me); unset fields are left untouched."""
 
-    stage: str | None = None
+    origin_country_code: str | None = None
+    destination_country_code: str | None = None
+    stage: StageEnum | None = None
     wants_to_work: bool | None = None
     wants_scholarships: bool | None = None
     concerns: list[str] | None = None

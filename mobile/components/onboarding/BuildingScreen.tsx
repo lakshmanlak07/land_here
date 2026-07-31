@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
   Easing,
@@ -16,9 +16,22 @@ import { useReducedMotion } from '../../lib/motion';
 // "Building your plan" loader: an expanding ring pulse, an inset spinner, a spark
 // glyph, and three staggered dots. The parent owns the ~2.3s auto-advance timer.
 // Under Reduce Motion everything renders static (no spin/pulse loops).
+const BUILD_MESSAGES = [
+  'Mapping your visa timeline…',
+  'Building your first-week checklist…',
+  'Personalising for your destination…',
+  'Finalising your plan…',
+];
+
 export function BuildingScreen() {
   const { colors } = useTheme();
   const reduced = useReducedMotion();
+  const [msgIdx, setMsgIdx] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setMsgIdx((i) => Math.min(i + 1, BUILD_MESSAGES.length - 1)), 550);
+    return () => clearInterval(t);
+  }, []);
 
   const spin = useSharedValue(0);
   const ring = useSharedValue(0);
@@ -58,7 +71,7 @@ export function BuildingScreen() {
       </View>
 
       <Text style={[s.title, { color: colors.textPrimary }]}>Building your plan</Text>
-      <Text style={[s.sub, { color: colors.textSecondary }]}>Mapping your visa timeline and first-week checklist…</Text>
+      <Text style={[s.sub, { color: colors.textSecondary }]}>{BUILD_MESSAGES[msgIdx]}</Text>
 
       <View style={s.dots}>
         <Animated.View style={[s.dot, { backgroundColor: colors.primary }, dot0]} />

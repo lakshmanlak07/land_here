@@ -3,9 +3,11 @@ import { useTheme } from '../context/ThemeContext';
 
 /** Default copy, used wherever a LandHere Score is shown. */
 const DEFAULT_TEXT =
-  'The LandHere Score is our own objective estimate built from open public ' +
-  'data — not an opinion survey or sponsored placement. Always do your own ' +
-  'research before making a decision.';
+  'The LandHere Score is our own estimate built from open U.S. federal data ' +
+  '(College Scorecard, OpenAlex) — not an opinion survey or sponsored placement. ' +
+  'It covers U.S. universities and mostly reflects undergraduate outcomes; if ' +
+  "you're heading to a master's program, treat it as one signal, not a verdict. " +
+  'Always do your own research before making a decision.';
 
 interface Props {
   /** Extra container styling (margins, etc.). */
@@ -42,7 +44,6 @@ export function Disclaimer({ style, onMethodology, text }: Props) {
     </View>
   );
 }
-
 const s = StyleSheet.create({
   box: { padding: 14 },
   icon: { fontWeight: '700' },

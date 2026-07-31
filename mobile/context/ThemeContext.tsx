@@ -1,6 +1,9 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const THEME_STORAGE_KEY = 'theme_override';
 
 // Journey-phase accent colours. A categorical scale (one hue per phase) that is
 // mode-independent — each is shown as a small stripe/dot/badge with white text,
@@ -74,7 +77,9 @@ const lightPalette = {
   surfaceAlt: '#F4EEF0',
   textPrimary: '#1B1416',
   textSecondary: '#6E646A',
-  textTertiary: '#9A8E94',
+  // Darkened from #9A8E94 (3.0:1 — failed WCAG AA for the small hint text
+  // this token labels). #7A7076 reads the same visual hierarchy at 4.8:1.
+  textTertiary: '#7A7076',
   border: '#F0EAEC',
   primary: '#A4133C',
   primarySoft: '#C4456A',
@@ -142,13 +147,31 @@ const ThemeContext = createContext<Theme>(defaultTheme);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Seed from the device's colour scheme, then let the user override it live
-  // via the in-app toggle (Profile → Dark mode). Override is kept in memory.
+  // via the in-app toggle (Profile → Dark mode). Override persists across restarts.
   const systemScheme = useColorScheme();
   const [override, setOverride] = useState<boolean | null>(null);
   const isDark = override ?? systemScheme === 'dark';
 
-  const toggleTheme = useCallback(() => setOverride((prev) => !(prev ?? systemScheme === 'dark')), [systemScheme]);
-  const setDark = useCallback((value: boolean) => setOverride(value), []);
+  // Load persisted theme preference on mount.
+  useEffect(() => {
+    AsyncStorage.getItem(THEME_STORAGE_KEY).then((val) => {
+      if (val === 'dark') setOverride(true);
+      else if (val === 'light') setOverride(false);
+    }).catch(() => {});
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setOverride((prev) => {
+      const next = !(prev ?? systemScheme === 'dark');
+      AsyncStorage.setItem(THEME_STORAGE_KEY, next ? 'dark' : 'light').catch(() => {});
+      return next;
+    });
+  }, [systemScheme]);
+
+  const setDark = useCallback((value: boolean) => {
+    setOverride(value);
+    AsyncStorage.setItem(THEME_STORAGE_KEY, value ? 'dark' : 'light').catch(() => {});
+  }, []);
 
   const colors = isDark ? darkPalette : lightPalette;
   const elevation = isDark ? darkElevation : lightElevation;

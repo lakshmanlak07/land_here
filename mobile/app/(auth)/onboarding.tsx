@@ -12,7 +12,7 @@ import api, { getErrorMessage } from '../../lib/api';
 import { useAuthStore } from '../../lib/store';
 import { useTheme } from '../../context/ThemeContext';
 import { PressableScale } from '../../components/PressableScale';
-import { FALLBACK_COUNTRIES } from '../../constants/countries';
+import { FALLBACK_ORIGINS, FALLBACK_DESTINATIONS } from '../../constants/countries';
 import type { TokenOut, UserOut, CountryOut, UniversityListItem } from '../../lib/types';
 
 import { OnboardingChrome } from '../../components/onboarding/OnboardingChrome';
@@ -28,7 +28,7 @@ import { uniInitials } from '../../components/onboarding/flags';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
 const ANSWERS_BUFFER_KEY = 'onboarding_answers';
 const BUILDING_MS = 2300;
 
@@ -56,18 +56,18 @@ interface GenericConfig { field: GenericField; multi: boolean; title: string; su
 const GENERIC: Record<GenericField, GenericConfig> = {
   stage: {
     field: 'stage', multi: false,
-    title: 'Where are you in the journey?', subtitle: "We'll start your plan right from here.",
+    title: 'Where are you in the journey?', subtitle: "We'll start your plan from exactly where you are.",
     options: [
-      { value: 'deciding', title: 'Still deciding', sub: 'Weighing my offers' },
-      { value: 'accepted', title: 'Accepted', sub: 'Got my offer letter' },
-      { value: 'visa_process', title: 'In the visa process', sub: 'Sorting my paperwork' },
-      { value: 'about_to_fly', title: 'About to fly', sub: 'Bags nearly packed' },
-      { value: 'landed', title: 'Already landed', sub: "I'm here!" },
+      { value: 'deciding', title: 'Still deciding', sub: 'Comparing my options' },
+      { value: 'accepted', title: 'Accepted', sub: 'Offer letter in hand' },
+      { value: 'visa_process', title: 'In the visa process', sub: 'Working through the paperwork' },
+      { value: 'about_to_fly', title: 'About to fly', sub: 'Almost ready to fly' },
+      { value: 'landed', title: 'Already landed', sub: 'Already here' },
     ],
   },
   concerns: {
     field: 'concerns', multi: true,
-    title: "What's on your mind?", subtitle: 'Pick anything that feels heavy right now — as many as you like.',
+    title: "What's on your mind?", subtitle: "Select everything that's weighing on you — as many as you like.",
     options: [
       { value: 'visa', title: 'Visa & paperwork', icon: 'document-text-outline' },
       { value: 'money', title: 'Money & budget', icon: 'cash-outline' },
@@ -77,16 +77,16 @@ const GENERIC: Record<GenericField, GenericConfig> = {
   },
   work: {
     field: 'work', multi: false,
-    title: 'Planning to work while you study?', subtitle: 'Totally optional — just changes which steps we surface.',
+    title: 'Planning to work while you study?', subtitle: "No pressure — this just helps us tailor your plan.",
     options: [
       { value: 'yes', title: 'Yes, I want to', icon: 'briefcase-outline' },
       { value: 'maybe', title: 'Maybe later', icon: 'briefcase-outline' },
-      { value: 'no', title: 'No, focusing on studies', icon: 'briefcase-outline' },
+      { value: 'no', title: 'No, focusing on my studies', icon: 'briefcase-outline' },
     ],
   },
   scholarships: {
     field: 'scholarships', multi: false,
-    title: 'Looking for scholarships?', subtitle: 'We only ever link to official, verified sources.',
+    title: 'Looking for scholarships?', subtitle: 'We link only to official, verified sources.',
     options: [
       { value: 'yes', title: 'Yes, actively looking', icon: 'ribbon-outline' },
       { value: 'open', title: "I'm open to it", icon: 'ribbon-outline' },
@@ -95,7 +95,7 @@ const GENERIC: Record<GenericField, GenericConfig> = {
   },
   firstMonth: {
     field: 'firstMonth', multi: false,
-    title: 'First month — where do we start?', subtitle: "We'll put this at the top of your plan.",
+    title: 'First month — where do we start?', subtitle: "We'll put this front and centre in your plan.",
     options: [
       { value: 'documents', title: 'Documents & registration', sub: 'Permits, ID, enrolment', icon: 'document-text-outline' },
       { value: 'housing', title: 'Housing', sub: 'Somewhere to live', icon: 'home-outline' },
@@ -105,7 +105,7 @@ const GENERIC: Record<GenericField, GenericConfig> = {
   },
   firstTimer: {
     field: 'firstTimer', multi: false,
-    title: 'Is this your first time living abroad?', subtitle: 'No wrong answer — it just sets how much we explain.',
+    title: 'Is this your first time living abroad?', subtitle: "There's no wrong answer — it just sets how much detail we include.",
     options: [
       { value: 'yes', title: 'Yes, first time', sub: "We'll walk you through everything", icon: 'compass-outline' },
       { value: 'no', title: "I've done this before", sub: "We'll keep it brief", icon: 'globe-outline' },
@@ -113,7 +113,7 @@ const GENERIC: Record<GenericField, GenericConfig> = {
   },
   primaryGoal: {
     field: 'primaryGoal', multi: false,
-    title: 'What matters most to you right now?', subtitle: "We'll lead your plan with it.",
+    title: 'What matters most to you right now?', subtitle: "We'll lead your plan with this.",
     options: [
       { value: 'deadlines', title: 'Never miss a deadline', sub: 'Visa dates & steps, on time', icon: 'time-outline' },
       { value: 'saving', title: 'Keep costs down', sub: 'Budget & official funding', icon: 'cash-outline' },
@@ -127,7 +127,7 @@ const GENERIC: Record<GenericField, GenericConfig> = {
 // personalization input). Falls back to the timeline lead.
 const LEAD: Record<string, string> = {
   deadlines: 'Your visa timeline, mapped to your dates',
-  saving: 'Money & scholarships, the official way',
+  saving: 'Money and scholarships, the official way',
   prepared: 'Your first-week checklist',
   smooth_landing: 'A smooth landing, step by step',
 };
@@ -222,15 +222,20 @@ export default function OnboardingScreen() {
   const { data: origins } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'origins'],
     queryFn: async () => (await api.get('/countries/origins')).data,
-    placeholderData: FALLBACK_COUNTRIES,
+    placeholderData: FALLBACK_ORIGINS,
   });
   const { data: destinations } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'destinations'],
     queryFn: async () => (await api.get('/countries/destinations')).data,
-    placeholderData: FALLBACK_COUNTRIES,
+    placeholderData: FALLBACK_DESTINATIONS,
   });
-  const originList = origins && origins.length > 0 ? origins : FALLBACK_COUNTRIES;
-  const destinationList = destinations && destinations.length > 0 ? destinations : FALLBACK_COUNTRIES;
+  const originList = origins && origins.length > 0 ? origins : FALLBACK_ORIGINS;
+  // Only offer destinations with a live, human-verified journey corridor.
+  // Countries without seeded content would give new users an empty journey —
+  // a dead end on day one. Expand this set as new corridors go live.
+  const LIVE_DESTINATIONS = React.useMemo(() => new Set(['US', 'CA', 'UK']), []);
+  const rawDestinations = destinations && destinations.length > 0 ? destinations : FALLBACK_DESTINATIONS;
+  const destinationList = rawDestinations.filter((c) => LIVE_DESTINATIONS.has(c.code));
   const nameFor = (list: CountryOut[], code: string | null) => (code ? list.find((c) => c.code === code)?.name ?? null : null);
 
   // ── University search (real /universities?search=, not persisted) ──────────
@@ -299,7 +304,7 @@ export default function OnboardingScreen() {
       completeOnboarding();
       router.replace('/(tabs)');
     } catch (e) {
-      setError(getErrorMessage(e, 'Could not save your answers. Please try again.'));
+      setError(getErrorMessage(e, "We couldn't save your answers. Please try again."));
       setSubmitting(false);
     }
   }
@@ -318,7 +323,7 @@ export default function OnboardingScreen() {
     setError(null);
     if (!validateAccount()) return;
     if (!answers.originCode || !answers.destCode) {
-      setError('Please choose your origin and destination countries.');
+      setError('Please select both your origin and destination countries to continue.');
       return;
     }
     setSubmitting(true);
@@ -335,7 +340,7 @@ export default function OnboardingScreen() {
       });
       setAuth(tokenData.access_token, tokenData.refresh_token, userData);
     } catch (e) {
-      setError(getErrorMessage(e, 'Registration failed. Please try again.'));
+      setError(getErrorMessage(e, "We couldn't create your account. Please try again."));
       setSubmitting(false);
       return;
     }
@@ -385,7 +390,7 @@ export default function OnboardingScreen() {
             </View>
 
             <Text style={[s.title, { color: colors.textPrimary, marginTop: 22 }]}>Create your account</Text>
-            <Text style={[s.subtitle, { color: colors.textSecondary }]}>One last step — save your answers and unlock your personalized plan.</Text>
+            <Text style={[s.subtitle, { color: colors.textSecondary }]}>Almost there — save your answers to unlock your personalised plan.</Text>
             {corridor ? <Text style={[s.corridorNote, { color: colors.textTertiary }]}>{corridor}</Text> : null}
 
             {error && (
@@ -418,7 +423,7 @@ export default function OnboardingScreen() {
                 <View>
                   <TextInput
                     style={[s.input, { backgroundColor: colors.surfaceAlt, borderColor: inputBorder(fieldErrors.password), color: colors.textPrimary, paddingRight: 46 }]}
-                    placeholder="At least 8 characters" placeholderTextColor={colors.textTertiary}
+                    placeholder="Minimum 8 characters" placeholderTextColor={colors.textTertiary}
                     value={password} onChangeText={(t) => { setPassword(t); if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined })); }}
                     secureTextEntry={!showPw}
                   />
@@ -434,7 +439,10 @@ export default function OnboardingScreen() {
               <CtaButton label="Create account" onPress={submitAccount} loading={submitting} />
             </View>
 
-            <Pressable style={s.footerLink} onPress={() => router.replace('/(auth)/login')}>
+            <Pressable style={s.footerLink} onPress={() => {
+              AsyncStorage.removeItem(ANSWERS_BUFFER_KEY).catch(() => {});
+              router.replace('/(auth)/login');
+            }}>
               <Text style={[s.footerText, { color: colors.textSecondary }]}>
                 Already have an account? <Text style={{ fontWeight: '800', color: colors.primary }}>Log in</Text>
               </Text>
@@ -462,7 +470,10 @@ export default function OnboardingScreen() {
 
     switch (stepId) {
       case 'welcome':
-        return <WelcomeScreen onStart={() => go(1)} onLogin={() => router.replace('/(auth)/login')} />;
+        return <WelcomeScreen onStart={() => go(1)} onLogin={() => {
+          AsyncStorage.removeItem(ANSWERS_BUFFER_KEY).catch(() => {});
+          router.replace('/(auth)/login');
+        }} questionCount={QUESTION_IDS.length} />;
 
       case 'dest':
         return (
@@ -548,8 +559,8 @@ export default function OnboardingScreen() {
         const insideRows = [
           lead,
           `First-week checklist for ${destName ?? 'your city'}`,
-          'Budget & official scholarship tools',
-          'Verified official sources for every step',
+          'Official scholarship tools and budget guidance',
+          'Every step backed by a verified, official source',
         ];
         return (
           <PlanReveal
@@ -652,9 +663,9 @@ function styles(colors: ReturnType<typeof useTheme>['colors']) {
     input: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 15, fontSize: 15, fontWeight: '600' },
     eye: { position: 'absolute', right: 8, top: 0, bottom: 0, width: 34, alignItems: 'center', justifyContent: 'center' },
     fieldError: { fontSize: 13, marginTop: 6 },
-    errorBox: { padding: 12, borderRadius: 12 },
-    errorText: { fontSize: 14, fontWeight: '600' },
-    footerLink: { marginTop: 24, alignItems: 'center' },
-    footerText: { fontSize: 13.5 },
+    errorBox: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginTop: 0 },
+    errorText: { fontSize: 13, fontWeight: '600' },
+    footerLink: { alignItems: 'center', paddingVertical: 12 },
+    footerText: { fontSize: 13, textAlign: 'center' },
   });
 }

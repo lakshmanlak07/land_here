@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   View, Text, TextInput, Pressable, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView,
@@ -13,7 +13,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { PressableScale } from '../../components/PressableScale';
 import type { TokenOut, UserOut } from '../../lib/types';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/; // require 2+ char TLD — matches onboarding.tsx
 
 export default function LoginScreen() {
   const { colors, radius, isDark, toggleTheme } = useTheme();
@@ -27,12 +27,13 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const setAuth = useAuthStore((st) => st.setAuth);
+  const passwordRef = useRef<TextInput>(null);
 
   function validate() {
     const fe: typeof fieldErrors = {};
-    if (!email.trim()) fe.email = 'Email is required.';
-    else if (!EMAIL_RE.test(email.trim())) fe.email = 'Enter a valid email address.';
-    if (!password) fe.password = 'Password is required.';
+    if (!email.trim()) fe.email = 'Please enter your email address.';
+    else if (!EMAIL_RE.test(email.trim())) fe.email = 'Please enter a valid email address.';
+    if (!password) fe.password = 'Please enter your password.';
     setFieldErrors(fe);
     return Object.keys(fe).length === 0;
   }
@@ -53,7 +54,7 @@ export default function LoginScreen() {
       // as the backstop for any path that lands here still un-onboarded.
       router.replace(useAuthStore.getState().onboarded ? '/(tabs)' : '/(auth)/onboarding');
     } catch (e) {
-      setError(getErrorMessage(e, 'Login failed. Check your credentials.'));
+      setError(getErrorMessage(e, 'Sign-in failed. Please check your email and password.'));
     } finally {
       setLoading(false);
     }
@@ -72,7 +73,13 @@ export default function LoginScreen() {
             locations={[0, 0.55, 1]}
             style={[s.hero, { paddingTop: insets.top + 24 }]}
           >
-            <Pressable onPress={toggleTheme} hitSlop={8} style={s.themeBtn}>
+            <Pressable
+              onPress={toggleTheme}
+              hitSlop={8}
+              style={[s.themeBtn, { top: insets.top + 12 }]}
+              accessibilityRole="button"
+              accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
               <Ionicons name={isDark ? 'sunny' : 'moon'} size={19} color="#fff" />
             </Pressable>
             <View style={s.logoMark}>
@@ -94,7 +101,7 @@ export default function LoginScreen() {
             </View>
 
             <Text style={[s.heading, { color: colors.textPrimary }]}>Welcome back</Text>
-            <Text style={[s.sub, { color: colors.textSecondary }]}>Pick up your journey right where you left off.</Text>
+            <Text style={[s.sub, { color: colors.textSecondary }]}>Your plan is waiting — pick up right where you left off.</Text>
 
             {error && (
               <View style={[s.errorBox, { backgroundColor: colors.primarySubtle }]}>
@@ -114,6 +121,8 @@ export default function LoginScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoComplete="email"
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
                 />
                 {fieldErrors.email && <Text style={[s.fieldError, { color: colors.danger }]}>{fieldErrors.email}</Text>}
               </View>
@@ -122,14 +131,17 @@ export default function LoginScreen() {
                 <Text style={[s.label, { color: colors.textSecondary }]}>Password</Text>
                 <View>
                   <TextInput
+                    ref={passwordRef}
                     style={[s.input, { backgroundColor: colors.surfaceAlt, borderColor: inputBorder(fieldErrors.password), color: colors.textPrimary, paddingRight: 46 }]}
                     placeholder="••••••••"
                     placeholderTextColor={colors.textTertiary}
                     value={password}
                     onChangeText={(t) => { setPassword(t); if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: undefined })); }}
                     secureTextEntry={!showPw}
+                    returnKeyType="done"
+                    onSubmitEditing={handleLogin}
                   />
-                  <Pressable style={s.eye} hitSlop={6} onPress={() => setShowPw((v) => !v)}>
+                  <Pressable style={s.eye} hitSlop={6} onPress={() => setShowPw((v) => !v)} accessibilityRole="button" accessibilityLabel={showPw ? 'Hide password' : 'Show password'}>
                     <Ionicons name={showPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.textSecondary} />
                   </Pressable>
                 </View>
@@ -162,7 +174,7 @@ function styles(colors: ReturnType<typeof useTheme>['colors'], radius: ReturnTyp
   return StyleSheet.create({
     hero: { height: 252, alignItems: 'center', paddingBottom: 20 },
     themeBtn: {
-      position: 'absolute', right: 22, top: 0, marginTop: 58, width: 40, height: 40, borderRadius: 20,
+      position: 'absolute', right: 22, top: 0, width: 40, height: 40, borderRadius: 20,
       alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.2)',
     },
     logoMark: {
@@ -193,9 +205,9 @@ function styles(colors: ReturnType<typeof useTheme>['colors'], radius: ReturnTyp
       marginTop: 22, height: 54, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       shadowColor: '#A4133C', shadowOpacity: 0.4, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 6,
     },
-    ctaText: { fontSize: 16, fontWeight: '800', color: '#fff' },
+    ctaText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: -0.2 },
 
     footer: { marginTop: 26, alignItems: 'center' },
-    footerText: { fontSize: 13.5 },
+    footerText: { fontSize: 14, textAlign: 'center' },
   });
 }

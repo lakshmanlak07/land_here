@@ -139,7 +139,7 @@ export const SCHOLARSHIP_SOURCES: ScholarshipGroup[] = [
     ],
   },
   {
-    code: 'GB',
+    code: 'UK',
     title: 'United Kingdom',
     sources: [
       {
