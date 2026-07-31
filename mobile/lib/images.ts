@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import api from './api';
+
 export interface ImageResult {
   url: string;
   credit: string;
@@ -12,7 +14,7 @@ const MAX_WIDTH = 1080;
 const STORE_PREFIX = 'imgcache:';
 
 /**
- * What we cache and persist: the *un-sized* Unsplash base URL plus whether it's
+ * What we cache and persist: the *un-sized* base URL plus whether it's
  * resizable. The display width is applied per call in `getCityImage`, so one
  * cached entry serves both a full-bleed hero and a small thumbnail — and the
  * width never has to be part of the cache key.
@@ -37,6 +39,11 @@ function toResult(c: CachedImage, width: number): ImageResult {
   };
 }
 
+/**
+ * Look up a city/place photo via the backend (`GET /images/city`), which holds
+ * the Unsplash key server-side — no credential ships in this bundle. Returns
+ * null (colored-block fallback) when signed out, offline, or no photo exists.
+ */
 export async function getCityImage(
   query: string,
   width: number = DEFAULT_WIDTH,
@@ -45,9 +52,8 @@ export async function getCityImage(
   if (mem !== undefined) return mem ? toResult(mem, width) : null;
 
   // Persistent layer: reuse results captured on a previous launch so a cold
-  // start doesn't re-fire the search API (and re-hit the demo-key rate cap).
-  // Only successes are persisted, so a transient rate-limit can't poison the
-  // cache forever — a miss simply retries next launch.
+  // start doesn't re-fire the backend lookup. Only successes are persisted, so a
+  // transient failure can't poison the cache forever — it retries next launch.
   try {
     const stored = await AsyncStorage.getItem(`${STORE_PREFIX}${query}`);
     if (stored) {
@@ -59,30 +65,21 @@ export async function getCityImage(
     // Storage read/parse failure — ignore and fall through to the network.
   }
 
-  const key = process.env.EXPO_PUBLIC_UNSPLASH_KEY;
-
-  if (!key) {
-    // EXPO_PUBLIC_UNSPLASH_KEY missing — remember the miss (this session) and
-    // fall back silently. Not persisted, so it retries once a key is set.
-    memory.set(query, null);
-    return null;
-  }
-
   try {
-    const res = await fetch(
-      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=landscape&per_page=1`,
-      { headers: { Authorization: `Client-ID ${key}` } },
+    const res = await api.get<{ url: string; credit: string; resizable?: boolean } | null>(
+      '/images/city',
+      { params: { query } },
     );
-    if (!res.ok) { memory.set(query, null); return null; }
-    const data = await res.json();
-    const photo = data.results?.[0];
-    if (!photo?.urls?.regular) { memory.set(query, null); return null; }
+    if (!res.data?.url) {
+      // Backend says "no photo for this query" — a stable answer, so remember it
+      // for the session (not persisted; a future upload could change it).
+      memory.set(query, null);
+      return null;
+    }
     const cached: CachedImage = {
-      base: photo.urls.raw ?? photo.urls.regular,
-      resizable: !!photo.urls.raw,
-      // Always attribute Unsplash alongside the photographer (Unsplash credit
-      // guidelines); fall back to just "Unsplash" when no name is returned.
-      credit: photo.user?.name ? `${photo.user.name} · Unsplash` : 'Unsplash',
+      base: res.data.url,
+      resizable: !!res.data.resizable,
+      credit: res.data.credit,
     };
     memory.set(query, cached);
     try {
@@ -92,8 +89,7 @@ export async function getCityImage(
     }
     return toResult(cached, width);
   } catch {
-    // Network/parse failure — remember the miss (this session) and fall back.
-    memory.set(query, null);
+    // Transient auth/network/backend failure — don't cache it, retry next mount.
     return null;
   }
 }

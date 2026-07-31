@@ -47,7 +47,7 @@ Open `mobile/.env` in any text editor and set `EXPO_PUBLIC_API_URL` to your curr
 
 ```
 EXPO_PUBLIC_API_URL=http://192.168.1.42:8000
-EXPO_PUBLIC_UNSPLASH_KEY=
+# Unsplash key moved server-side (backend .env: UNSPLASH_ACCESS_KEY)
 ```
 
 Save the file. The change takes effect when you start Expo in the next step.

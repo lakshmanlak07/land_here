@@ -41,7 +41,13 @@ def test_register_duplicate_email_returns_400(client):
 
     second = client.post("/auth/register", json=payload)
     assert second.status_code == 400
-    assert "already registered" in second.json()["detail"].lower()
+    # The rejection must not confirm that this email is registered. This reduces
+    # obvious disclosure; it does not eliminate enumeration (the 400 itself is
+    # still a signal) — email verification is the real fix, tracked post-launch.
+    detail = second.json()["detail"].lower()
+    assert "already registered" not in detail
+    assert "exists" not in detail
+    assert email.lower() not in detail
 
 
 def test_register_with_corridor(client):

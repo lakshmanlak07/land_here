@@ -6,7 +6,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.routes import account, auth, countries, info, guides, universities
+from app.routes import account, auth, countries, images, info, guides, universities
 
 logger = logging.getLogger("landhere")
 
@@ -30,6 +30,12 @@ app = FastAPI(
     description="Information-first companion for international students",
     version="1.0.0",
     lifespan=lifespan,
+    # The interactive docs enumerate every route, parameter, and schema. Useful
+    # in development, an unnecessary map of the attack surface in production —
+    # the mobile client never reads them. None disables the route entirely.
+    docs_url=None if settings.is_production else "/docs",
+    redoc_url=None if settings.is_production else "/redoc",
+    openapi_url=None if settings.is_production else "/openapi.json",
 )
 
 
@@ -84,8 +90,43 @@ app.include_router(countries.router)
 app.include_router(info.router)
 app.include_router(guides.router)
 app.include_router(universities.router)
+app.include_router(images.router)
+
+if settings.ENV.lower() == "production":
+    # The rate limiter is in-memory and per-process; with multiple workers or
+    # instances the effective limit multiplies and resets on restart. Loud
+    # warning until a shared (Redis) backend exists — see PRE_LAUNCH_SECURITY.md #5.
+    logger.warning(
+        "ENV=production with in-memory rate limiting: limits are per-process "
+        "only. Run a single worker or add a shared rate-limit store before "
+        "scaling out."
+    )
 
 
 @app.get("/", tags=["health"])
 async def health_check():
     return {"status": "ok", "service": "LandHere API"}
+
+
+@app.get("/health/live", tags=["health"])
+def liveness():
+    """Process is up. Deliberately touches nothing external."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready", tags=["health"])
+def readiness():
+    """Essential dependencies reachable (currently: the database)."""
+    from sqlalchemy import text
+
+    from app.core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        logger.exception("Readiness check failed: database unreachable")
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
+    finally:
+        db.close()
+    return {"status": "ok"}

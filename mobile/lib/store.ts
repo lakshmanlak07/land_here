@@ -28,7 +28,7 @@ interface AuthState {
   hydrate: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   token: null,
   refreshToken: null,
   user: null,
@@ -62,6 +62,20 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
+    // Tell the server to revoke this session lineage before dropping local
+    // state. Without this, the refresh token stays valid server-side for its
+    // full lifetime even though the device forgot it. Best-effort and
+    // fire-and-forget: local sign-out must never depend on the network.
+    const { refreshToken: revoking } = get();
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (revoking && apiUrl) {
+      fetch(`${apiUrl}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: revoking }),
+      }).catch(() => {});
+    }
+
     // Also clear the device-local onboarding flag so a fresh signup on this
     // device starts un-onboarded and sees the questions — otherwise a leftover
     // `onboarded: true` would route the next account straight past onboarding.

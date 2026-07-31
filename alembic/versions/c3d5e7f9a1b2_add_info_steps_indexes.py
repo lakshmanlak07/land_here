@@ -25,6 +25,8 @@ Revises: b2f4a1c3d5e7
 Create Date: 2026-06-27 00:00:00.000000
 """
 from typing import Sequence, Union
+
+import sqlalchemy as sa
 from alembic import op
 
 revision: str = 'c3d5e7f9a1b2'
@@ -33,39 +35,50 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _existing(table: str) -> set:
+    """Index names already present on `table`.
+
+    ix_info_steps_destination_code is also created by the initial schema
+    (5a2934344d6f), so on a database built from scratch this migration would
+    fail with "index already exists" — which meant a fresh deploy crashed at
+    boot, since the container runs `alembic upgrade head` on startup. Checking
+    first makes each create_index idempotent without rewriting history for
+    databases that already migrated past this revision.
+    """
+    bind = op.get_bind()
+    return {ix["name"] for ix in sa.inspect(bind).get_indexes(table)}
+
+
+def _create_if_missing(name: str, table: str, columns: list[str]) -> None:
+    if name not in _existing(table):
+        op.create_index(name, table, columns)
+
+
+def _drop_if_present(name: str, table: str) -> None:
+    if name in _existing(table):
+        op.drop_index(name, table_name=table)
+
+
 def upgrade() -> None:
     # info_steps: primary query filter + ordering
-    op.create_index(
-        "ix_info_steps_destination_code",
-        "info_steps",
-        ["destination_code"],
-    )
-    op.create_index(
-        "ix_info_steps_origin_code",
-        "info_steps",
-        ["origin_code"],
-    )
-    op.create_index(
+    _create_if_missing("ix_info_steps_destination_code", "info_steps", ["destination_code"])
+    _create_if_missing("ix_info_steps_origin_code", "info_steps", ["origin_code"])
+    _create_if_missing(
         "ix_info_steps_destination_phase_step",
         "info_steps",
         ["destination_code", "phase", "step_number"],
     )
     # users: FK columns without automatic indexes
-    op.create_index(
-        "ix_users_origin_country_code",
-        "users",
-        ["origin_country_code"],
-    )
-    op.create_index(
-        "ix_users_destination_country_code",
-        "users",
-        ["destination_country_code"],
+    _create_if_missing("ix_users_origin_country_code", "users", ["origin_country_code"])
+    _create_if_missing(
+        "ix_users_destination_country_code", "users", ["destination_country_code"]
     )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_users_destination_country_code", table_name="users")
-    op.drop_index("ix_users_origin_country_code", table_name="users")
-    op.drop_index("ix_info_steps_destination_phase_step", table_name="info_steps")
-    op.drop_index("ix_info_steps_origin_code", table_name="info_steps")
-    op.drop_index("ix_info_steps_destination_code", table_name="info_steps")
+    _drop_if_present("ix_users_destination_country_code", "users")
+    _drop_if_present("ix_users_origin_country_code", "users")
+    _drop_if_present("ix_info_steps_destination_phase_step", "info_steps")
+    _drop_if_present("ix_info_steps_origin_code", "info_steps")
+    # Deliberately NOT dropped: it belongs to the initial schema, whose own
+    # downgrade removes it.

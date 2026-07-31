@@ -177,8 +177,30 @@ def _client_ip(request: Request) -> str:
     return "unknown"
 
 
+def enforce_limit(key: str, *, limit: int, window_seconds: int) -> None:
+    """Sliding-window check for an arbitrary key.
+
+    Used directly for buckets that aren't keyed on client IP (e.g. the
+    per-account login bucket in app/routes/auth.py), and as the shared
+    implementation behind the rate_limiter() dependency — so both paths get the
+    same Redis-or-memory backend selection.
+
+    Raises 429 when over limit; fail-open on any internal/infrastructure error.
+    """
+    try:
+        if _redis_client is not None:
+            _redis_check(key, limit=limit, window_seconds=window_seconds)
+        else:
+            _memory_check(key, limit=limit, window_seconds=window_seconds)
+    except HTTPException:
+        raise
+    except Exception:
+        # Fail open — never block a legitimate request on a limiter error.
+        return
+
+
 def rate_limiter(bucket: str, *, limit: int, window_seconds: int):
-    """Return a FastAPI dependency enforcing `limit` requests per window.
+    """Return a FastAPI dependency enforcing `limit` requests per window per IP.
 
     Automatically uses the Redis backend when REDIS_URL is configured and
     reachable; otherwise falls back to the in-memory backend.
@@ -187,14 +209,8 @@ def rate_limiter(bucket: str, *, limit: int, window_seconds: int):
     def dependency(request: Request) -> None:
         try:
             key = f"rl:{bucket}:{_client_ip(request)}"
-            if _redis_client is not None:
-                _redis_check(key, limit=limit, window_seconds=window_seconds)
-            else:
-                _memory_check(key, limit=limit, window_seconds=window_seconds)
-        except HTTPException:
-            raise
         except Exception:
-            # Fail open — never block a legitimate request on a limiter error.
             return
+        enforce_limit(key, limit=limit, window_seconds=window_seconds)
 
     return dependency

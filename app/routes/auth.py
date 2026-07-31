@@ -1,4 +1,6 @@
 import secrets
+import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -6,14 +8,15 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, parse_subject_uuid
-from app.core.rate_limit import rate_limiter
+from app.core.rate_limit import enforce_limit, rate_limiter
 from app.core.security import (
     hash_password,
     verify_password,
     create_access_token,
     create_refresh_token,
-    decode_refresh_token,
+    decode_refresh_claims,
 )
+from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.schemas.user import (
     UserRegister,
@@ -38,12 +41,46 @@ _update_me_limit  = rate_limiter("auth_update_me",  limit=60,  window_seconds=60
 _delete_limit     = rate_limiter("auth_delete",     limit=5,   window_seconds=60)
 
 
-def _token_pair(user_id) -> TokenOut:
-    """Issue a fresh access + refresh token pair for a user id."""
+def _token_pair(user_id, db: Session, *, family_id: uuid.UUID | None = None) -> TokenOut:
+    """Issue an access + refresh token pair and record the refresh token's id.
+
+    `family_id` continues an existing session lineage (rotation); omitting it
+    starts a new one (fresh login). The row is what makes replay detectable —
+    see app/models/refresh_token.py.
+    """
+    jti = uuid.uuid4()
+    refresh_token, expires_at = create_refresh_token(user_id, jti=str(jti))
+    db.add(
+        RefreshToken(
+            id=jti,
+            user_id=user_id,
+            family_id=family_id or jti,
+            expires_at=expires_at,
+        )
+    )
+    db.commit()
     return TokenOut(
         access_token=create_access_token(user_id),
-        refresh_token=create_refresh_token(user_id),
+        refresh_token=refresh_token,
     )
+
+
+def _revoke_family(db: Session, family_id: uuid.UUID) -> None:
+    """Kill every live token in one session lineage. Called on replay detection
+    and on logout."""
+    now = datetime.now(timezone.utc)
+    db.query(RefreshToken).filter(
+        RefreshToken.family_id == family_id,
+        RefreshToken.revoked_at.is_(None),
+    ).update({"revoked_at": now}, synchronize_session=False)
+    db.commit()
+
+
+_INVALID_REFRESH = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Invalid or expired refresh token",
+    headers={"WWW-Authenticate": "Bearer"},
+)
 
 # A valid bcrypt hash of a random throwaway value, computed once at import. Login
 # verifies against this when the email doesn't exist so the request does the same
@@ -51,6 +88,18 @@ def _token_pair(user_id) -> TokenOut:
 # that would otherwise let an attacker enumerate registered emails. It never
 # matches any real password and is not a secret.
 _DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
+
+# Registration failure message. Deliberately generic and identical for a
+# duplicate email and for other rejected-registration cases, so a scripted
+# caller can't read "this email exists" straight off the response body.
+#
+# This REDUCES obvious disclosure; it does not eliminate email enumeration. Any
+# register endpoint that refuses a duplicate is still an oracle (via status code,
+# timing, or simply the fact that registration failed). The real fix is an
+# email-verification flow where both the new-account and existing-account paths
+# return the same "check your inbox" response and no token — tracked as a
+# post-launch item.
+_REGISTER_REJECTED = "Unable to register with these details."
 
 
 @router.post(
@@ -63,7 +112,7 @@ def register(body: UserRegister, db: Session = Depends(get_db)):
     # body.email is already normalized (trimmed + lower-cased) by the schema, so
     # this pre-check and the unique constraint both compare the canonical form.
     if db.query(User).filter(User.email == body.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail=_REGISTER_REJECTED)
     user = User(
         email=body.email,
         hashed_password=hash_password(body.password),
@@ -79,9 +128,9 @@ def register(body: UserRegister, db: Session = Depends(get_db)):
         # constraint on users.email is the real guard. Convert the loser's
         # constraint violation into the same clean 400 instead of a 500.
         db.rollback()
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail=_REGISTER_REJECTED)
     db.refresh(user)
-    return _token_pair(user.id)
+    return _token_pair(user.id, db)
 
 
 @router.post(
@@ -90,6 +139,14 @@ def register(body: UserRegister, db: Session = Depends(get_db)):
     dependencies=[Depends(_login_limit)],
 )
 def login(body: UserLogin, db: Session = Depends(get_db)):
+    # Per-account bucket on top of the per-IP limit: blunts distributed
+    # credential stuffing against one account. Applied before the password check
+    # and regardless of whether the account exists, so the 429 itself can't be
+    # used to enumerate accounts. Window is short (15 min) to keep lockout-abuse
+    # (attacker deliberately exhausting someone's bucket) an annoyance, not a
+    # durable denial of access.
+    enforce_limit(f"rl:auth_login_email:{body.email}", limit=10, window_seconds=900)
+
     user = db.query(User).filter(User.email == body.email).first()
     # Always run exactly one password verification — against the real hash when
     # the account exists, otherwise a dummy hash — so a non-existent email and a
@@ -98,7 +155,7 @@ def login(body: UserLogin, db: Session = Depends(get_db)):
     password_ok = verify_password(body.password, hashed)
     if not user or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    return _token_pair(user.id)
+    return _token_pair(user.id, db)
 
 
 @router.post(
@@ -109,27 +166,60 @@ def login(body: UserLogin, db: Session = Depends(get_db)):
 def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     """Exchange a valid refresh token for a fresh access + refresh token pair.
 
-    The refresh token is rotated on every use (sliding session). We re-check that
-    the user still exists so a deleted account's outstanding refresh token can no
-    longer mint access tokens — mirroring get_current_user, which is the only
-    other place tokens are honoured. (Tokens are stateless: the previous refresh
-    token stays valid until its own expiry; there is no server-side denylist.)
+    Rotation is replay-safe: each refresh token is recorded by id, and using one
+    marks it revoked. Presenting an already-rotated token is treated as theft —
+    the entire family is revoked, so the attacker AND the legitimate device are
+    logged out rather than the attacker keeping a live session. That is the
+    intended trade: a forced re-login beats a silent account takeover.
     """
-    sub = parse_subject_uuid(decode_refresh_token(body.refresh_token))
-    if sub is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired refresh token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    user = db.query(User).filter(User.id == sub).first()
+    claims = decode_refresh_claims(body.refresh_token)
+    if claims is None:
+        raise _INVALID_REFRESH
+    user_id = parse_subject_uuid(claims.get("sub"))
+    jti = parse_subject_uuid(claims.get("jti"))
+    if user_id is None or jti is None:
+        raise _INVALID_REFRESH
+
+    record = db.query(RefreshToken).filter(RefreshToken.id == jti).first()
+    if record is None or record.user_id != user_id:
+        # Signed, unexpired, but unknown to us (e.g. issued before this table
+        # existed, or the account was deleted) — refuse rather than trust it.
+        raise _INVALID_REFRESH
+
+    if record.revoked_at is not None:
+        # Replay: this token was already rotated away or explicitly revoked.
+        _revoke_family(db, record.family_id)
+        raise _INVALID_REFRESH
+
+    # Re-check the user still exists so a deleted account's outstanding refresh
+    # token can no longer mint access tokens.
+    user = db.query(User).filter(User.id == user_id).first()
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired refresh token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return _token_pair(user.id)
+        raise _INVALID_REFRESH
+
+    record.revoked_at = datetime.now(timezone.utc)
+    db.commit()
+    return _token_pair(user.id, db, family_id=record.family_id)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(body: RefreshRequest, db: Session = Depends(get_db)):
+    """Revoke the session lineage this refresh token belongs to.
+
+    Always 204, even for a token we can't resolve: logout must not become an
+    oracle for whether a token is valid, and the client's local state is cleared
+    either way.
+    """
+    claims = decode_refresh_claims(body.refresh_token)
+    if claims is None:
+        return None
+    jti = parse_subject_uuid(claims.get("jti"))
+    if jti is None:
+        return None
+    record = db.query(RefreshToken).filter(RefreshToken.id == jti).first()
+    if record is not None:
+        _revoke_family(db, record.family_id)
+    return None
 
 
 @router.get("/me", response_model=UserOut)

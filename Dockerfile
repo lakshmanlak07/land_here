@@ -16,12 +16,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Run Alembic migrations then start the server.
+# Migrate + start. Worker count is decided in start.sh, which refuses to run
+# multiple workers without a shared (Redis) rate-limit backend — in-memory
+# limits don't coordinate across processes, so N workers = N× every limit.
 # Railway / Render inject PORT; default to 8000 for local Docker runs.
-CMD alembic upgrade head && \
-    uvicorn app.main:app \
-      --host 0.0.0.0 \
-      --port ${PORT:-8000} \
-      --workers 2 \
-      --proxy-headers \
-      --forwarded-allow-ips='*'
+RUN chmod +x /app/start.sh
+CMD ["/app/start.sh"]

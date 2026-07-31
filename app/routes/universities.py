@@ -18,11 +18,11 @@ _CACHE = "public, max-age=3600"
 def list_universities(
     response: Response,
     db: Session = Depends(get_db),
-    search: str | None = Query(None, description="Filter by name (case-insensitive substring)"),
-    max_tuition: int | None = Query(None, ge=0, description="Max international tuition"),
-    state: str | None = Query(None, description="Filter by state"),
+    search: str | None = Query(None, max_length=100, description="Filter by name (case-insensitive substring)"),
+    max_tuition: int | None = Query(None, ge=0, le=1_000_000, description="Max international (out-of-state) tuition"),
+    state: str | None = Query(None, max_length=50, description="Filter by state"),
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=100_000),
 ):
     response.headers["Cache-Control"] = _CACHE
     query = db.query(University).filter(University.has_full_score == True)

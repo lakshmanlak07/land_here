@@ -19,6 +19,7 @@ import app.models.user  # noqa: E402, F401
 import app.models.info_step  # noqa: E402, F401
 import app.models.country_guide  # noqa: E402, F401
 import app.models.university  # noqa: E402, F401
+import app.models.refresh_token  # noqa: E402, F401
 
 target_metadata = Base.metadata
 

@@ -14,6 +14,16 @@ services:
       # https://landhere-api.onrender.com  — do NOT leave it as "*" in production.
       - key: CORS_ALLOW_ORIGINS
         sync: false
+      # Required. Production refuses to boot with ENV=production unless CORS,
+      # DATABASE_URL, and SECRET_KEY are real values (app/core/config.py).
+      - key: ENV
+        value: production
+      # Shared rate-limit backend. Without it the app runs a SINGLE worker
+      # (start.sh) because in-memory limits don't coordinate across processes.
+      # Provision: Render Dashboard → New → Key Value, then paste its internal
+      # connection URL here.
+      - key: REDIS_URL
+        sync: false
       - key: TRUST_PROXY_HEADERS
         value: "true"
       - key: TRUSTED_PROXY_HOPS
@@ -22,7 +32,10 @@ services:
         value: "60"
       - key: REFRESH_TOKEN_EXPIRE_MINUTES
         value: "43200"
-    healthCheckPath: /
+      # Server-side Unsplash key for GET /images/city. Never an EXPO_PUBLIC_ var.
+      - key: UNSPLASH_ACCESS_KEY
+        sync: false
+    healthCheckPath: /health/ready
 
 databases:
   - name: landhere-db
