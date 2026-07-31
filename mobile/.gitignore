@@ -6,6 +6,8 @@ node_modules/
 # Expo
 .expo/
 dist/
+# Any `expo export --output-dir` target (e.g. dist-android, dist-ios).
+dist-*/
 web-build/
 expo-env.d.ts
 

@@ -92,7 +92,7 @@ To add a rotating campus-photo strip between the category pills and the fact car
 ## Behaviour notes
 
 - **RotatingFacts** starts on a random fact from the pool, then fades to the next every 8 seconds. When `countryCode` changes it resets immediately.
-- **RotatingImage** fetches all queries in parallel on mount (results are cached by `getCityImage` after the first fetch). It starts cycling once at least two images are loaded. If `EXPO_PUBLIC_UNSPLASH_KEY` is empty it shows the country-colour fallback immediately — no error.
+- **RotatingImage** fetches all queries in parallel on mount (results are cached by `getCityImage` after the first fetch). It starts cycling once at least two images are loaded. If the backend image lookup (`GET /images/city`) is unavailable or the user is signed out, it shows the country-colour fallback immediately — no error. The Unsplash key is server-side only; there is no image credential in the mobile bundle.
 - Both components are fully self-contained. If you decide not to use them, just delete the import lines and the JSX block — zero side effects.
 
 ---

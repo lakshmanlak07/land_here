@@ -6,7 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthStore } from '../../lib/store';
-import { usePurchaseStore } from '../../lib/purchaseStore';
 import { RotatingImage } from '../../components/RotatingImage';
 import { ImageScrim } from '../../components/ImageScrim';
 import { SkeletonBlock, SkeletonCard } from '../../components/Skeleton';
@@ -31,7 +30,6 @@ export default function CountryDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const homeCode = useAuthStore((st) => st.user?.origin_country_code);
-  const purchased = usePurchaseStore((st) => st.purchased);
 
   const { data, isLoading, isError, refetch } = useQuery<CountryOut>({
     queryKey: ['country', code],
@@ -150,29 +148,11 @@ export default function CountryDetailScreen() {
               );
             })()}
 
-            {/* Currency converter — premium feature */}
-            {purchased ? (
-              <CurrencyConverter
-                defaultFrom={resolveCurrency(data.currency_code, 'USD')}
-                defaultTo={resolveCurrency(homeCode, 'INR')}
-              />
-            ) : (
-              <Pressable
-                style={[s.converterLock, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                onPress={() => router.push('/paywall')}
-                accessibilityRole="button"
-                accessibilityLabel="Unlock currency converter"
-              >
-                <View style={[s.converterLockIcon, { backgroundColor: colors.primary + '18' }]}>
-                  <Ionicons name="lock-closed" size={20} color={colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.converterLockTitle, { color: colors.textPrimary }]}>Currency converter</Text>
-                  <Text style={[s.converterLockSub, { color: colors.textSecondary }]}>Unlock live rates — $1.99 once</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-              </Pressable>
-            )}
+            {/* Currency converter */}
+            <CurrencyConverter
+              defaultFrom={resolveCurrency(data.currency_code, 'USD')}
+              defaultTo={resolveCurrency(homeCode, 'INR')}
+            />
 
             {/* Rotating "Did you know?" facts */}
             <RotatingFacts countryCode={data.code} />
@@ -267,6 +247,4 @@ const s = StyleSheet.create({
     width: 44, height: 44, borderRadius: 13,
     alignItems: 'center', justifyContent: 'center',
   },
-  converterLockTitle: { fontSize: 15, fontWeight: '800' },
-  converterLockSub: { fontSize: 12.5, marginTop: 2 },
 });

@@ -18,7 +18,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIAP, finishTransaction, type Purchase } from 'react-native-iap';
 import { useTheme } from '../context/ThemeContext';
-import { PRODUCT_ID, usePurchaseStore } from '../lib/purchaseStore';
+import { usePurchaseStore } from '../lib/purchaseStore';
+
+// Product identifier for the (disabled) one-time Pro unlock. Kept here rather
+// than in lib/ so the shipped bundle contains no reference to it.
+const PRODUCT_ID = 'com.landhere.app.pro';
 import { PressableScale } from '../components/PressableScale';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];

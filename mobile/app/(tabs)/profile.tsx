@@ -11,7 +11,6 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useAuthStore } from '../../lib/store';
 import { useProgressStore } from '../../lib/progressStore';
-import { usePurchaseStore } from '../../lib/purchaseStore';
 import { useTheme } from '../../context/ThemeContext';
 import { IconBadge } from '../../components/IconBadge';
 import { PressableScale } from '../../components/PressableScale';
@@ -19,6 +18,7 @@ import { FadeInView } from '../../components/FadeInView';
 import { withAlpha } from '../../lib/color';
 import { duration } from '../../lib/motion';
 import api, { getErrorMessage } from '../../lib/api';
+import { PRIVACY_POLICY_URL, SUPPORT_URL, TERMS_URL } from '../../lib/config';
 import { getCountryName } from '../../constants/countries';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -49,7 +49,6 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((st) => st.user);
   const logout = useAuthStore((st) => st.logout);
-  const { purchased, restorePurchases, restoring: restorePending } = usePurchaseStore();
   const router = useRouter();
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -88,6 +87,21 @@ export default function ProfileScreen() {
 
   // Open the device mail client to the support inbox. Bug reports include
   // a prefilled body with app version and platform for easier triage.
+  // Opens a configured external URL. The URL is validated at build time
+  // (lib/config.ts), so a missing value here means a dev build — say so rather
+  // than failing silently on a tap.
+  async function openExternal(url: string | undefined, label: string) {
+    if (!url) {
+      Alert.alert(`${label} unavailable`, 'This link is not configured in this build.');
+      return;
+    }
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert(`Couldn't open ${label}`, url);
+    }
+  }
+
   async function openSupportMail(subject: string) {
     const isBugReport = subject.toLowerCase().includes('bug');
     const version = Constants.expoConfig?.version ?? '?';
@@ -132,11 +146,6 @@ export default function ProfileScreen() {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={s.name} numberOfLines={1}>{user?.full_name ?? 'Student'}</Text>
-                  {purchased && (
-                    <View style={s.proBadge}>
-                      <Text style={s.proBadgeText}>PRO</Text>
-                    </View>
-                  )}
                 </View>
                 <Text style={s.email} numberOfLines={1}>{user?.email}</Text>
               </View>
@@ -178,29 +187,6 @@ export default function ProfileScreen() {
             </View>
           </FadeInView>
 
-          {/* Purchases */}
-          <FadeInView delay={duration.fast * 2.25}>
-            <Text style={[s.sectionLabel, { color: colors.textTertiary }]}>PURCHASES</Text>
-            <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <PressableScale
-                style={[s.row, { borderBottomWidth: 0 }]}
-                onPress={restorePurchases}
-                disabled={restorePending}
-                accessibilityRole="button"
-                accessibilityLabel="Restore purchases"
-              >
-                <IconBadge icon="refresh-outline" color={colors.primary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Restore Purchases</Text>
-                  <Text style={[s.rowHint, { color: colors.textTertiary }]}>
-                    {restorePending ? 'Checking your account…' : 'Already paid? Recover access here.'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-              </PressableScale>
-            </View>
-          </FadeInView>
-
           {/* Support */}
           <FadeInView delay={duration.fast * 2.5}>
             <Text style={[s.sectionLabel, { color: colors.textTertiary }]}>SUPPORT</Text>
@@ -223,6 +209,43 @@ export default function ProfileScreen() {
               >
                 <IconBadge icon="bug-outline" color={colors.after_acceptance} tone="soft" size={34} style={{ marginRight: spacing.md }} />
                 <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Report a bug</Text>
+                <Ionicons name="open-outline" size={18} color={colors.textTertiary} />
+              </PressableScale>
+            </View>
+          </FadeInView>
+
+          {/* Legal — App Store requires reachable privacy policy and terms. */}
+          <FadeInView delay={duration.fast * 2.75}>
+            <Text style={[s.sectionLabel, { color: colors.textTertiary }]}>LEGAL</Text>
+            <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <PressableScale
+                style={[s.row, { borderBottomColor: colors.border }]}
+                onPress={() => openExternal(PRIVACY_POLICY_URL, 'Privacy Policy')}
+                accessibilityRole="link"
+                accessibilityLabel="Open the privacy policy"
+              >
+                <IconBadge icon="shield-checkmark-outline" color={colors.primary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
+                <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Privacy Policy</Text>
+                <Ionicons name="open-outline" size={18} color={colors.textTertiary} />
+              </PressableScale>
+              <PressableScale
+                style={[s.row, { borderBottomColor: colors.border }]}
+                onPress={() => openExternal(TERMS_URL, 'Terms of Service')}
+                accessibilityRole="link"
+                accessibilityLabel="Open the terms of service"
+              >
+                <IconBadge icon="document-text-outline" color={colors.primary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
+                <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Terms of Service</Text>
+                <Ionicons name="open-outline" size={18} color={colors.textTertiary} />
+              </PressableScale>
+              <PressableScale
+                style={[s.row, { borderBottomWidth: 0 }]}
+                onPress={() => openExternal(SUPPORT_URL, 'Support')}
+                accessibilityRole="link"
+                accessibilityLabel="Open the support site"
+              >
+                <IconBadge icon="globe-outline" color={colors.primary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
+                <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Support Site</Text>
                 <Ionicons name="open-outline" size={18} color={colors.textTertiary} />
               </PressableScale>
             </View>
@@ -312,8 +335,6 @@ function styles(
     avatarText: { fontSize: 24, fontWeight: '800', color: '#8A1538' },
     name: { fontSize: 21, fontWeight: '800', color: '#fff', letterSpacing: -0.2 },
     email: { fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 2 },
-    proBadge: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 },
-    proBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
     statRow: { flexDirection: 'row', gap: 8, marginTop: 16 },
     statTile: { flex: 1, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', borderRadius: 13, padding: 12 },
     statLabel: { fontSize: 11, fontWeight: '700', color: 'rgba(255,255,255,0.72)' },

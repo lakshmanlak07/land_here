@@ -388,3 +388,51 @@ def test_error_responses_do_not_leak_password_or_traceback(client):
     assert "wrong-one" not in body
     assert "Traceback" not in body
     assert "hashed_password" not in body
+
+
+# ── Account deletion ──────────────────────────────────────────────────────────
+#
+# Deletion is the one irreversible user-facing action and an App Store
+# requirement for apps with accounts, so it gets explicit coverage.
+
+
+def test_account_deletion_requires_correct_password(client):
+    tokens = _tokens(client)
+    auth = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    wrong = client.request(
+        "DELETE", "/account", headers=auth, json={"password": "not-my-password"}
+    )
+    assert wrong.status_code == 401
+
+    # Still usable — a failed confirmation must not partially delete anything.
+    assert client.get("/auth/me", headers=auth).status_code == 200
+
+
+def test_account_deletion_removes_the_account(client):
+    email = _email()
+    r = client.post("/auth/register", json={"email": email, "password": "TestPass123!"})
+    assert r.status_code == 201
+    tokens = r.json()
+    auth = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    gone = client.request(
+        "DELETE", "/account", headers=auth, json={"password": "TestPass123!"}
+    )
+    assert gone.status_code == 204
+
+    # The token no longer resolves to a user.
+    assert client.get("/auth/me", headers=auth).status_code == 401
+
+    # The refresh token can no longer mint access tokens either.
+    after = client.post("/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    assert after.status_code == 401
+
+    # And the address is free to register again.
+    again = client.post("/auth/register", json={"email": email, "password": "TestPass123!"})
+    assert again.status_code == 201
+
+
+def test_account_deletion_requires_authentication(client):
+    r = client.request("DELETE", "/account", json={"password": "whatever"})
+    assert r.status_code == 401

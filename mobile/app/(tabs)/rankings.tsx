@@ -16,7 +16,6 @@ import { FadeInView } from '../../components/FadeInView';
 import { PressableScale } from '../../components/PressableScale';
 import { formatScore, formatCurrencyCompact, initials } from '../../lib/format';
 import type { UniversityListItem, UniversityListPage } from '../../lib/types';
-import { usePurchaseStore } from '../../lib/purchaseStore';
 
 const PAGE_SIZE = 20;
 
@@ -129,112 +128,9 @@ const RankingRow = React.memo(function RankingRow({ item, index, colors, s, onPr
 });
 
 
-// Ghost rows used in the paywall gate preview
-const GATE_GHOST_GRADS: [string, string][] = [
-  ['#8A1538', '#5A0C24'], ['#3B5BA5', '#1E2F5E'], ['#6B5B95', '#3B2F57'],
-];
-
-function RankingsPaywallGate({
-  colors,
-  spacing,
-  onUnlock,
-}: {
-  colors: ReturnType<typeof useTheme>['colors'];
-  spacing: ReturnType<typeof useTheme>['spacing'];
-  onUnlock: () => void;
-}) {
-  return (
-    <View style={gst.wrapper}>
-      {/* Ghost rows at low opacity */}
-      {GATE_GHOST_GRADS.map((grad, i) => (
-        <View
-          key={i}
-          aria-hidden={true}
-          style={[
-            gst.ghostRow,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              opacity: Math.max(0.05, 0.18 - i * 0.05),
-            },
-          ]}
-        >
-          <LinearGradient colors={grad} start={GRAD_START} end={GRAD_END} style={gst.ghostTile} />
-          <View style={{ flex: 1, marginLeft: 14, gap: 7 }}>
-            <View style={[gst.ghostBar, { backgroundColor: colors.border, width: '75%' }]} />
-            <View style={[gst.ghostBar, { backgroundColor: colors.border, width: '45%' }]} />
-          </View>
-          <View style={[gst.ghostScore, { backgroundColor: colors.primarySubtle }]} />
-        </View>
-      ))}
-
-      {/* Gradient fade */}
-      <LinearGradient
-        colors={['transparent', colors.bg] as [string, string]}
-        locations={[0, 1]}
-        style={gst.fade}
-        pointerEvents="none"
-      />
-
-      {/* Lock card */}
-      <View style={[gst.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={[gst.lockIcon, { backgroundColor: colors.primary + '18' }]}>
-          <Ionicons name="lock-closed" size={22} color={colors.primary} />
-        </View>
-        <Text style={[gst.cardTitle, { color: colors.textPrimary }]}>
-          490+ more schools locked
-        </Text>
-        <Text style={[gst.cardSub, { color: colors.textSecondary }]}>
-          See rankings, tuition, and LandHere scores for every university — one payment, no subscription.
-        </Text>
-        <PressableScale
-          onPress={onUnlock}
-          style={[gst.ctaBtn, { backgroundColor: colors.primary }]}
-          accessibilityRole="button"
-          accessibilityLabel="Unlock all university rankings"
-        >
-          <Text style={gst.ctaText}>Unlock Rankings — $1.99</Text>
-        </PressableScale>
-      </View>
-    </View>
-  );
-}
-
-const gst = StyleSheet.create({
-  wrapper: { position: 'relative', marginBottom: 32 },
-  ghostRow: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: 15, borderRadius: 14, borderWidth: 1, marginBottom: 10,
-  },
-  ghostTile: { width: 54, height: 54, borderRadius: 16 },
-  ghostBar: { height: 10, borderRadius: 5 },
-  ghostScore: { width: 46, height: 46, borderRadius: 12 },
-  fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 100 },
-  card: {
-    marginHorizontal: 0, marginTop: 8,
-    borderRadius: 18, borderWidth: 1, padding: 22, alignItems: 'center',
-    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 }, elevation: 4,
-  },
-  lockIcon: {
-    width: 52, height: 52, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
-  },
-  cardTitle: { fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 8, letterSpacing: -0.3 },
-  cardSub: { fontSize: 13.5, textAlign: 'center', lineHeight: 20, marginBottom: 20, maxWidth: 280 },
-  ctaBtn: {
-    width: '100%', borderRadius: 13, paddingVertical: 15,
-    alignItems: 'center',
-    shadowColor: '#A4133C', shadowOpacity: 0.35, shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 }, elevation: 5,
-  },
-  ctaText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.1 },
-});
-
 export default function RankingsScreen() {
   const { colors, spacing, radius, isDark, toggleTheme } = useTheme();
   const router = useRouter();
-  const purchased = usePurchaseStore((s) => s.purchased);
   const insets = useSafeAreaInsets();
 
   const [search, setSearch] = useState('');
@@ -267,8 +163,8 @@ export default function RankingsScreen() {
   });
 
   const allRows = data?.pages.flatMap((p) => p.items) ?? [];
-  const FREE_PREVIEW = 10;
-  const rows = purchased ? allRows : allRows.slice(0, FREE_PREVIEW);
+  // Free-only release: the full ranked list, no preview cap.
+  const rows = allRows;
   const s = useMemo(() => styles(colors, spacing, radius), [colors, spacing, radius]);
   const handleRowPress = useCallback(
     (id: string) => router.push({ pathname: '/university/[id]', params: { id } }),
@@ -312,38 +208,24 @@ export default function RankingsScreen() {
           a premium entry point: letting them search would surface the top-10 of
           ANY query — i.e. the whole dataset — through the free preview. */}
       <View style={s.searchWrap}>
-        {purchased ? (
-          <View style={[s.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Ionicons name="search" size={18} color={colors.textTertiary} />
-            <TextInput
-              style={[s.searchInput, { color: colors.textPrimary }]}
-              placeholder="Search 500+ universities…"
-              placeholderTextColor={colors.textTertiary}
-              value={search}
-              onChangeText={setSearch}
-              autoCorrect={false}
-              returnKeyType="search"
-              accessibilityLabel="Search universities"
-            />
-            {search.length > 0 && (
-              <Pressable onPress={() => setSearch('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
-                <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
-              </Pressable>
-            )}
-          </View>
-        ) : (
-          <Pressable
-            style={[s.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push('/paywall')}
-            accessibilityRole="button"
-            accessibilityLabel="Unlock search across all universities"
-          >
-            <Ionicons name="lock-closed" size={16} color={colors.primary} />
-            <Text style={[s.searchInput, { color: colors.textTertiary }]} numberOfLines={1}>
-              Search all 500+ schools — unlock
-            </Text>
-          </Pressable>
-        )}
+        <View style={[s.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Ionicons name="search" size={18} color={colors.textTertiary} />
+          <TextInput
+            style={[s.searchInput, { color: colors.textPrimary }]}
+            placeholder="Search 500+ universities…"
+            placeholderTextColor={colors.textTertiary}
+            value={search}
+            onChangeText={setSearch}
+            autoCorrect={false}
+            returnKeyType="search"
+            accessibilityLabel="Search universities"
+          />
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
+              <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
+            </Pressable>
+          )}
+        </View>
       </View>
 
       {/* Budget chips */}
@@ -358,7 +240,7 @@ export default function RankingsScreen() {
           const active = maxTuition === item.value;
           return (
             <Pressable
-              onPress={() => (purchased ? setMaxTuition(item.value) : router.push('/paywall'))}
+              onPress={() => setMaxTuition(item.value)}
               hitSlop={6}
               accessibilityRole="button"
               accessibilityLabel={`Tuition filter: ${item.label}`}
@@ -381,7 +263,7 @@ export default function RankingsScreen() {
       {/* Sort / count row */}
       <View style={s.sortRow}>
         <Text style={[s.countText, { color: colors.textSecondary }]}>
-          Showing <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{purchased ? `${rows.length}${hasNextPage ? '+' : ''}` : `${rows.length} of 500+`}</Text> schools
+          Showing <Text style={{ fontWeight: '800', color: colors.textPrimary }}>{`${rows.length}${hasNextPage ? '+' : ''}`}</Text> schools
         </Text>
         <View style={s.sortBy}>
           <Ionicons name="swap-vertical" size={15} color={colors.primary} />
@@ -418,7 +300,7 @@ export default function RankingsScreen() {
             maxToRenderPerBatch={6}
             windowSize={5}
             onEndReachedThreshold={0.5}
-            onEndReached={() => { if (purchased && hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
+            onEndReached={() => { if (hasNextPage && !isFetchingNextPage) fetchNextPage(); }}
             ListHeaderComponent={
               <Disclaimer style={{ marginBottom: spacing.md }} onMethodology={() => router.push('/methodology')} />
             }
@@ -430,9 +312,7 @@ export default function RankingsScreen() {
               </View>
             }
             ListFooterComponent={
-              !purchased && allRows.length >= FREE_PREVIEW ? (
-                <RankingsPaywallGate colors={colors} spacing={spacing} onUnlock={() => router.push('/paywall')} />
-              ) : isFetchingNextPage ? (
+              isFetchingNextPage ? (
                 <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.lg }} />
               ) : null
             }

@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useAuthStore } from '../../lib/store';
-import { usePurchaseStore } from '../../lib/purchaseStore';
 import { useTheme } from '../../context/ThemeContext';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -51,7 +50,6 @@ const lt = StyleSheet.create({
 export default function TabsLayout() {
   const token = useAuthStore((s) => s.token);
   const hydrated = useAuthStore((s) => s.hydrated);
-  const purchased = usePurchaseStore((s) => s.purchased);
   const router = useRouter();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();

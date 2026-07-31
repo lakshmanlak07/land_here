@@ -47,7 +47,18 @@ Open `mobile/.env` in any text editor and set `EXPO_PUBLIC_API_URL` to your curr
 
 ```
 EXPO_PUBLIC_API_URL=http://192.168.1.42:8000
-# Unsplash key moved server-side (backend .env: UNSPLASH_ACCESS_KEY)
+# Unsplash key moved server-side (backend .env: UNSPLASH_ACCESS_KEY).
+# If a line starting EXPO_PUBLIC_UNSPLASH_KEY is still here, DELETE it — the
+# build gate rejects any EXPO_PUBLIC_* name ending in KEY/SECRET/TOKEN/PASSWORD,
+# because those ship inside the app bundle.
+
+Verify the file before building:
+
+```
+cd mobile
+npm run check:env:dev     # development rules
+npm run check:env         # production rules (HTTPS + legal URLs required)
+```
 ```
 
 Save the file. The change takes effect when you start Expo in the next step.

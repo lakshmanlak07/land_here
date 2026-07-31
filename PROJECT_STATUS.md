@@ -195,8 +195,10 @@ with `--clear`. Port 8000 must be allowed through Windows Firewall on private ne
 - `SECRET_KEY` — JWT signing (backend `.env`; currently a dev placeholder — rotate to a
   strong secret before any real deployment).
 - `DATABASE_URL` — Postgres connection incl. DB password (backend `.env`).
-- `EXPO_PUBLIC_UNSPLASH_KEY` — Unsplash images (mobile `.env`; note `EXPO_PUBLIC_*`
-  vars are bundled into the client and are not secret-grade).
+- `UNSPLASH_ACCESS_KEY` — Unsplash images (backend `.env`, server-side only).
+  Was previously `EXPO_PUBLIC_UNSPLASH_KEY` in the mobile `.env`; moved because
+  `EXPO_PUBLIC_*` vars are bundled into the client and are not secret-grade.
+  The mobile app now calls `GET /images/city` instead of Unsplash directly.
 
 ---
 

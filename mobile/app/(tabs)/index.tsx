@@ -21,11 +21,9 @@ import { SkeletonBlock } from '../../components/Skeleton';
 import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import { getCountryName } from '../../constants/countries';
 import api from '../../lib/api';
-import { usePurchaseStore } from '../../lib/purchaseStore';
 
 // Fully-locked premium features (show a lock badge on their Home tile).
 // Rankings and Journey are NOT here — they have free previews (top 10 / first half).
-const PREMIUM_KEYS = new Set(['money', 'scholarships', 'work-hours']);
 import type { JourneyOut, CountryOut, InfoStep } from '../../lib/types';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -95,7 +93,6 @@ export default function HomeScreen() {
   const user = useAuthStore((st) => st.user);
   const router = useRouter();
   const completedIds = useProgressStore((st) => st.completedIds);
-  const purchased = usePurchaseStore((s) => s.purchased);
 
   const { data: journey, isLoading: journeyLoading, isError: journeyError, refetch: refetchJourney, isRefetching } = useQuery<JourneyOut>({
     queryKey: ['journey', user?.origin_country_code, user?.destination_country_code],
@@ -307,11 +304,6 @@ export default function HomeScreen() {
             {orderedQuickAccess.map((item) => (
               <PressableScale key={item.key} style={s.tileWrap} onPress={item.onPress}>
                 <LinearGradient colors={TILE_GRADS[item.key] ?? CRIMSON_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.tile}>
-                  {PREMIUM_KEYS.has(item.key) && !purchased && (
-                    <View style={s.tileLockBadge}>
-                      <Ionicons name="lock-closed" size={10} color="rgba(255,255,255,0.95)" />
-                    </View>
-                  )}
                   <View style={s.tileIcon}>
                     <Ionicons name={item.icon} size={22} color="#fff" />
                   </View>

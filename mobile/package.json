@@ -37,7 +37,11 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "check:env": "node --experimental-strip-types lib/checkBuildEnv.ts",
+    "check:env:dev": "node --experimental-strip-types lib/checkBuildEnv.ts --dev",
+    "check": "node --experimental-strip-types lib/urlPolicy.check.ts",
+    "eas-build-pre-install": "node --experimental-strip-types lib/checkBuildEnv.ts"
   },
   "private": true
 }

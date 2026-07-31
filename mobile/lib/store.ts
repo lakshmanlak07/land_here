@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
+import { API_URL } from './config';
 import type { TokenOut, UserOut } from './types';
 
 const TOKEN_KEY = 'auth_token';
@@ -67,7 +68,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // full lifetime even though the device forgot it. Best-effort and
     // fire-and-forget: local sign-out must never depend on the network.
     const { refreshToken: revoking } = get();
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    const apiUrl = API_URL;
     if (revoking && apiUrl) {
       fetch(`${apiUrl}/auth/logout`, {
         method: 'POST',
@@ -98,7 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const token = await SecureStore.getItemAsync(TOKEN_KEY);
       const refreshTok = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY).catch(() => null);
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      const apiUrl = API_URL;
       // Guard a missing API URL: without it we'd fetch `undefined/auth/me` and
       // fail confusingly. api.ts already logs the misconfiguration loudly at
       // startup; here we just skip the call and settle into signed-out.

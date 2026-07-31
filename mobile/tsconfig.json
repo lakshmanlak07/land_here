@@ -1,7 +1,10 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true
+    "strict": true,
+    // lib/*.check.ts run directly via `node --experimental-strip-types`, which
+    // requires explicit .ts import specifiers. Metro/Expo code never uses them.
+    "allowImportingTsExtensions": true
   },
   "include": [
     "**/*.ts",
