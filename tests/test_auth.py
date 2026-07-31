@@ -15,7 +15,7 @@ import uuid
 
 
 def _throwaway_email() -> str:
-    return f"test_{uuid.uuid4().hex[:8]}@example-test-only.invalid"
+    return f"test_{uuid.uuid4().hex[:8]}@landhere-tests.example.com"
 
 
 # ── Register ──────────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ def test_login_wrong_password_returns_401(client):
 def test_login_nonexistent_email_returns_401(client):
     response = client.post(
         "/auth/login",
-        json={"email": "nobody@example-test-only.invalid", "password": "doesnotmatter"},
+        json={"email": "nobody@landhere-tests.example.com", "password": "doesnotmatter"},
     )
     assert response.status_code == 401
 

@@ -59,30 +59,42 @@ def _client_ip(request: Request) -> str:
     return "unknown"
 
 
+def enforce_limit(key: str, *, limit: int, window_seconds: int) -> None:
+    """Sliding-window check for an arbitrary key (e.g. per-account buckets).
+
+    Raises 429 when over limit; fail-open on internal errors. The window check
+    and the append happen under one lock, so there is no read-then-write race.
+    """
+    try:
+        now = time.monotonic()
+        cutoff = now - window_seconds
+        with _lock:
+            timestamps = _hits[key]
+            # Drop entries outside the current window.
+            timestamps[:] = [t for t in timestamps if t > cutoff]
+            if len(timestamps) >= limit:
+                retry = int(window_seconds - (now - timestamps[0])) + 1
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Too many requests. Please try again shortly.",
+                    headers={"Retry-After": str(max(retry, 1))},
+                )
+            timestamps.append(now)
+    except HTTPException:
+        raise
+    except Exception:
+        # Fail open: never block a legitimate request on a limiter bug.
+        return
+
+
 def rate_limiter(bucket: str, *, limit: int, window_seconds: int):
-    """Return a FastAPI dependency enforcing `limit` requests per window."""
+    """Return a FastAPI dependency enforcing `limit` requests per window per IP."""
 
     def dependency(request: Request) -> None:
         try:
             key = f"{bucket}:{_client_ip(request)}"
-            now = time.monotonic()
-            cutoff = now - window_seconds
-            with _lock:
-                timestamps = _hits[key]
-                # Drop entries outside the current window.
-                timestamps[:] = [t for t in timestamps if t > cutoff]
-                if len(timestamps) >= limit:
-                    retry = int(window_seconds - (now - timestamps[0])) + 1
-                    raise HTTPException(
-                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail="Too many requests. Please try again shortly.",
-                        headers={"Retry-After": str(max(retry, 1))},
-                    )
-                timestamps.append(now)
-        except HTTPException:
-            raise
         except Exception:
-            # Fail open: never block a legitimate request on a limiter bug.
             return
+        enforce_limit(key, limit=limit, window_seconds=window_seconds)
 
     return dependency

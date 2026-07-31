@@ -59,6 +59,15 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    """Clear the in-memory rate limiter before each test so hits accumulated by
+    one test (all tests share one client IP) never 429 an unrelated test."""
+    import app.core.rate_limit as _rl
+
+    _rl._hits.clear()
+    yield
+
 @pytest.fixture(scope="session", autouse=True)
 def create_tables():
     """Create all tables once for the whole test session."""
