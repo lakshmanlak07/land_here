@@ -1,226 +1,199 @@
 # LandHere — Project Status
 
-_Honest snapshot as of 2026-06-16. Written by reading the codebase, not from memory._
+_Honest snapshot as of **2026-08-01**, describing **v0.1.0-rc.3**._
+_Written by reading the codebase, running the test suites, and executing the
+migrations — not from memory. Supersedes the 2026-06-16 snapshot, which predates
+the rankings fixes, the onboarding redesign, both security hardening rounds, and
+the decision to ship free._
 
-LandHere is an information-first mobile companion for international students: it walks a
-student from accepting an offer, through the visa process and departure, to settling in
-after arrival — always in plain English, always linking the official source. It
-deliberately gives **no** legal or immigration advice; every content row carries an
-`official_source_url` and an `is_verified` flag so the team can track what a human has
-actually checked.
+LandHere is an information-first mobile companion for international students: it
+walks a student from accepting an offer, through the visa process and departure,
+to settling in after arrival — in plain English, always linking the official
+source. It gives **no** legal or immigration advice; every content row carries an
+`official_source_url` and an `is_verified` flag so the team can track what a
+human has actually checked.
 
-Stack: **FastAPI + PostgreSQL + SQLAlchemy/Alembic** backend; **Expo SDK 54 / React
-Native 0.81 / TypeScript** mobile app (Expo Router v6, Zustand for auth, TanStack Query
-for server state, Axios HTTP).
+Stack: **FastAPI + PostgreSQL + SQLAlchemy/Alembic** backend; **Expo SDK 54 /
+React Native 0.81 / TypeScript** mobile app (Expo Router v6, Zustand for auth,
+TanStack Query for server state, Axios).
 
-> See also `README.md`, `ARCHITECTURE.md`, and `RUNNING.md`. Those were written ~Jun 12
-> and predate the rankings feature, the necessities screen, and the splash screen — this
-> file is the current superset.
+> **This is a free app.** No purchase, no Pro tier, no subscription, no price
+> anywhere. Every user gets the full content set.
+
+> **Where to look next:** `LAUNCH/APP_STORE_SUBMISSION_CHECKLIST.md` is the
+> ordered task list. `LAUNCH/LAUNCH_RUNBOOK.md` has the commands, deployment,
+> and rollback procedures. `LAUNCH/RC3_VERIFICATION.md` is the evidence.
+> `README.md`, `ARCHITECTURE.md`, and `RUNNING.md` date from ~Jun 12 and are
+> substantially out of date.
 
 ---
 
-## 1. What's BUILT and working
+## 1. Release state
 
-### Backend (FastAPI / Postgres / auth)
-- **App factory** `app/main.py` with CORS, registering five routers: `auth`,
-  `countries`, `info`, `guides`, `universities`. Health check at `GET /`.
-- **Auth**: JWT (python-jose) + bcrypt (passlib). `POST /auth/register`,
-  `POST /auth/login`, `GET /auth/me`. Config via pydantic-settings reading `.env`;
-  token expiry 10080 min (7 days).
+**Tag `v0.1.0-rc.3` on branch `release/rc3-prep`** (cut from `v0.1.0-rc.2` on
+`integrate/hardening-round2`).
+
+- Not merged to `main`, not pushed
+- Not deployed anywhere
+- **Never run on a physical device or through TestFlight**
+
+The repo *does* have a remote (`origin` → `github.com/lakshmanlak07/land_here`),
+contrary to older notes in this file claiming it was not a git repo at all.
+
+---
+
+## 2. What's built and verified
+
+Full evidence in `LAUNCH/RC3_VERIFICATION.md`.
+
+### Backend
+- App factory with CORS, GZip, generic 500 handler, and routers for `auth`,
+  `account`, `countries`, `info`, `guides`, `universities`, `images`.
+  Liveness/readiness split at `/health/live` and `/health/ready`.
+- **Auth**: JWT access (60 min) + refresh (30 day) with server-side `jti`
+  records, replay-safe rotation, family revocation on replay, per-email login
+  throttle, timing equalisation, email normalisation.
+- **Account deletion**: auth-gated, password-confirmed, rate-limited, cascades
+  refresh tokens, and `/auth/refresh` re-checks the user exists so a deleted
+  account cannot be resurrected.
 - **Data model** (SQLAlchemy 2, UUID PKs): `Country`, `User`, `InfoStep`,
-  `CountryGuide`, `University`. Alembic migrations in `alembic/`.
-- **Countries**: list / destinations / origins / by-code endpoints. 22 countries
-  seeded (16 destinations, 6 origin-only) via `app/core/seed.py`.
-- **Info-booth / journey**: `InfoStep` model scoped by corridor (`origin_code` +
-  `destination_code`) across 5 phases. `GET /info/journey`, `/info/corridors`,
-  `/info/phases`. Every step has source name, source URL, and `is_verified`.
-- **Country guides**: `GET /guides/{country_code}` with optional `?section=` filter.
+  `CountryGuide`, `University`, `RefreshToken`. 9 Alembic revisions, linear chain.
+- **Production fails closed**: boot raises on placeholder `SECRET_KEY`, wildcard
+  or empty `CORS_ALLOW_ORIGINS`, placeholder/localhost `DATABASE_URL`, or
+  inconsistent proxy-trust settings. `/docs` disabled in production.
+- **Rate limiting**: Redis sliding-window when `REDIS_URL` is set, per-process
+  in-memory otherwise — and `start.sh` forces a single worker in that case so
+  published limits stay true.
 
-### Info-booth content
-- **One corridor fully seeded: India → United States (IN→US)** — 15 InfoSteps across
-  4 phases (after_acceptance, visa_process, before_departure, after_arrival).
-- Draft journey content for **IN→UK** and **IN→Canada** exists as markdown in
-  `mobile/content/drafts/` (not yet in the DB).
+### Content — three verified corridors
+IN→US, IN→UK, IN→CA journey content seeded and human-verified against official
+sources (see the `VERIFY_*.md` files). Scholarships link only to official
+sources. Work rules carry dated "last reviewed" stamps.
 
-### Rankings (500 US schools, scored)
-- **Ingestion pipeline** (all runnable as `python -m app.core.<module>`):
-  - `ingest_scorecard.py` — pulls ~500 largest US 4-year universities from the
-    **College Scorecard API** (net price, out-of-state/intl tuition, 10-yr median
-    earnings, completion rate, median debt).
-  - `ingest_openalex.py` — matches each school to **OpenAlex** for research metrics
-    (citations, works count, mean citedness), recording `match_confidence`
-    (high/low/none). Uses `institution_overrides.py` (76 manual overrides) and
-    normalization; only 'high' matches keep research metrics.
-  - `compute_scores.py` — percentile-ranks 5 metrics and combines them into the
-    **LandHere Score** (0–100) using `ranking_config.SCORING_WEIGHTS`: research
-    impact 0.30, research output 0.20, earnings 0.20, affordability 0.15, graduation
-    0.15. Affordability is scored on **out-of-state/intl tuition** (what our users
-    actually pay), not in-state net price. Sets `has_full_score`.
-- **Endpoints**: `GET /universities` (filter by `search`, `max_tuition`, `state`;
-  `limit`/`offset`; ordered by score desc; only `has_full_score == True`) and
-  `GET /universities/{id}` (full breakdown).
-- **Screens**: `app/(tabs)/rankings.tsx` (search + budget chips + infinite list) and
-  `app/university/[id].tsx` (detail). **Methodology** screen at `app/methodology.tsx`,
-  linked from the rankings header and a reusable `Disclaimer` component.
+### Rankings
+Scorecard → OpenAlex → score pipeline; ~500 US schools; LandHere Score from five
+percentile-ranked metrics (research impact 0.30, research output 0.20, earnings
+0.20, affordability 0.15, graduation 0.15), affordability scored on
+out-of-state/international tuition. Bounded query params. List, detail, and
+methodology screens. The rc.1-era `rank`/`international_tuition` and
+`page/page_size` vs `limit/offset` mismatches are resolved.
 
-### Mobile app (screens & redesign)
-- **Auth flows**: register (origin + destination selection), login, JWT persisted in
-  `expo-secure-store`; `lib/store.ts` (Zustand) hydrates on launch via `GET /auth/me`;
-  `lib/api.ts` Axios interceptor injects the bearer token.
-- **Tab bar** (`app/(tabs)/_layout.tsx`): Home, Journey, Explore, **Rankings**,
-  Profile — themed, redirects to login when unauthenticated.
-- **Home** (`index.tsx`): journey progress, fun-fact card, destination browser.
-- **Journey** (`journey.tsx`): phased step list with read/unread tracking.
-- **Explore** (`explore.tsx`): destination country list.
-- **Profile** (`profile.tsx`): user details, country preferences, logout.
-- **Country detail** (`app/country/[code].tsx`): country info + city image.
-- Centralized theme in `context/ThemeContext.tsx` (light palette, spacing, radius,
-  typography, phase colors) consumed via `useTheme()`.
+### Mobile
+9-screen onboarding with persistence and merged signup; Home / Journey / Explore
+/ Rankings / Profile tabs; money, scholarships, work-hours, necessities,
+methodology screens; dark mode following device appearance; central motion config
+with reduced-motion support; accessibility labels; lazy-loaded, right-sized,
+persisted images.
 
-### Necessities
-- **Screen** `app/necessities.tsx` — two tiers, "Mandatories" (ordered, primary
-  accent) and "Necessities" (unordered), each item with plain-English explanation,
-  optional caveat note, and an official-source link button. Country-scoped.
-- **Content** `constants/necessities.ts` — structured US data condensed from the
-  drafted markdown (`content/mandatories_us.md`, `necessities_us.md`).
-- Draft markdown for **UK** and **Canada** mandatories/necessities now also exists in
-  `mobile/content/` (not yet wired into `constants/necessities.ts`).
+Build-time safety: `lib/urlPolicy.ts` + `lib/config.ts` validate the four public
+URLs, and `lib/checkBuildEnv.ts` runs as `eas-build-pre-install` so a
+misconfigured EAS build **fails on the build machine** rather than shipping.
 
-### Splash screen, fun facts, rotating images
-- **Splash**: `components/SplashScreen.tsx` — standalone animated intro (wordmark fade
-  + scale, tagline, pulsing loading dots, `useNativeDriver`). **Built but not yet
-  wired into app launch** — see `INTEGRATION_NOTE_splash.md`.
-- **Fun facts**: `seed_facts.py` backend data + `constants/funFacts.ts` and
-  `components/RotatingFacts.tsx` on the home screen.
-- **Rotating images**: `components/RotatingImage.tsx` + `CityImage.tsx` (`lib/images.ts`),
-  backed by the Unsplash key in `mobile/.env`.
-- **Tests**: `tests/` (pytest, SQLite in-memory — no real DB needed).
+### Verification actually run for rc.3
+
+| Check | Result |
+|---|---|
+| `pytest tests -q` | **67 passed** |
+| `pytest tests/test_security.py -q` | **37 passed** |
+| `alembic upgrade head` on empty PostgreSQL 16.2 | **exit 0**, 9 revisions |
+| `downgrade base` → `upgrade head` → seed | **exit 0** (broken before rc.3) |
+| `npx tsc --noEmit` | clean |
+| `npm run lint` | **0 errors**, 63 warnings (ESLint never ran before rc.3) |
+| `npm run check` | **23/23** |
+| iOS + Android production exports | both succeed |
+| Bundle scans, both platforms | **CLEAN**, mutation-tested |
 
 ---
 
-## 2. What's BUILT BUT UNVERIFIED
+## 3. What changed in rc.3
 
-### Content marked DRAFT / `is_verified = false` (needs the verification pass)
-Every InfoStep ships with `is_verified = false` by default and must be human-checked
-before it is treated as authoritative. Outstanding:
-- **IN→US visa steps (15 links)** — enumerated with checkboxes in
-  `mobile/content/CONTENT_TODO.md` (sourced from `app/core/seed.py` `IN_US_STEPS`).
-- **US necessities/mandatories** content links.
-- **All UK and Canada drafts** — `mobile/content/drafts/in_uk_journey_draft.md`,
-  `in_ca_journey_draft.md`, and `mandatories_uk.md` / `necessities_uk.md` /
-  `mandatories_canada.md` / `necessities_canada.md`, all headed `DRAFT — UNVERIFIED`.
-- **City guides** — `content/*_guide_draft.md` (Boston, London, Toronto, Sydney,
-  Berlin, Manchester, Vancouver, Melbourne) — drafted, not in the DB, unverified.
-- A consolidated **`mobile/content/verification_checklist.md`** now lists every
-  official link across the IN→US steps + necessities for systematic checking before
-  flipping any `is_verified` to true. **Known fragile links**: `ustraveldocs.com`
-  step paths, `studyinthestates.dhs.gov` deep links, the UK BRP→eVisa transition, and
-  Canada's province-by-province health pages.
-
-### Features built but not yet checked on a physical device
-- **Rankings screens** — list + detail + methodology are coded but have **not been run
-  against the live API on device**. Two concrete things to verify (found while reading
-  the code):
-  1. The list screen renders `item.rank` and `item.international_tuition`, but the API
-     `UniversityListItem` schema returns neither — it returns `tuition_out_of_state`
-     and no rank field. Rows may show a blank rank and missing tuition until this is
-     reconciled.
-  2. The screen sends `page` / `page_size` query params, but `GET /universities`
-     accepts `limit` / `offset` (default limit 50). Pagination/infinite-scroll likely
-     won't page correctly until the params line up.
-- **Necessities screen** — coded and theme-wired, but **not yet verified on device**
-  (rendering, source links opening, country scoping for non-US users).
-- **Splash screen** — built and standalone but **not wired in** and therefore never
-  seen in the running app yet.
+1. **`react-native-iap` fully removed** — from `package.json` **and** from the
+   `app.json` plugins array. Until now the Expo config plugin was still
+   registered, which injects StoreKit (iOS) and `com.android.vending.BILLING`
+   (Android) into the native projects. rc.2's bundle scan could not see this,
+   because nothing imported the SDK in JavaScript. A regression check now fails
+   if either returns.
+2. **ESLint made runnable and green.** `react-dom@19.2.8` arrives transitively
+   via `expo-router` and peers on `react@^19.2.8` against the pinned
+   `react@19.1.0`. Resolved with `"overrides": {"react-dom": "19.1.0"}` — not
+   `--force`, not `--legacy-peer-deps`. `future/` is excluded from lint and
+   TypeScript because it references the removed IAP dependency.
+3. **Migration rollback fixed.** `ix_info_steps_origin_code` is created by the
+   initial migration but was dropped by two separate downgrades, so
+   `alembic downgrade base` died partway and left the database partially torn
+   down — dangerous, given the container runs `upgrade head` at boot.
+4. **Regression test for orphaned refresh tokens after account deletion.** The
+   `refresh_tokens` table postdates the deletion endpoint and is cleaned only by
+   an `ON DELETE CASCADE`; the privacy policy promises complete deletion.
+5. **`scripts/scan-bundle.sh`** — a bundle scan that tests the real risk instead
+   of substring-matching the validator's own rule table.
+6. **Docs reconciled** — this file, the runbook, a consolidated submission
+   checklist, App Store metadata with the $1.99 copy removed, and a verification
+   record.
 
 ---
 
-## 3. What's NEXT, in order
+## 4. What is NOT done
 
-1. **Verify Rankings on the phone** — run the ingestion (Scorecard → OpenAlex →
-   compute_scores), then exercise the live list/detail/methodology screens on device;
-   fix the `rank` / `international_tuition` field mismatch and the `page/page_size`
-   vs `limit/offset` mismatch.
-2. **Verify Necessities on the phone** — rendering, links, country scoping.
-3. **Dark mode** — palette already exists in `ThemeContext` (`darkPalette`); wire the
-   `isDark` toggle through and audit every screen.
-4. **Polish pass** — splash wire-in, spacing/typography, empty/error states, motion.
-5. **Cost predictor** — estimate total cost of attendance per school/corridor.
-6. **Scholarships** — surface relevant funding.
-7. **Visa verification** — complete the human verification pass and flip `is_verified`.
-8. **Housing** — accommodation search/guidance (its own feature).
-9. **Community chat** — student-to-student.
-10. **H1B version** — post-graduation / work-visa companion (later).
+- **Nothing is deployed.** The whole stack runs on one laptop.
+- **Nothing has run on real hardware.** No `.ipa` has ever been built.
+- **No hosted privacy policy, terms, or support page.**
+- **No legal review.** Minimum age, parental consent, governing law, and
+  liability wording are all open — and the audience plausibly includes under-18s.
+- **Apple Developer enrolment / App Store Connect record** — status unknown to
+  this document; `ascAppId` and `appleTeamId` are still placeholders.
+- **`UNSPLASH_ACCESS_KEY` is not set anywhere**, so `GET /images/city` returns
+  503 and city images do not load. The old client-side key must also be rotated.
+- **Android** — no build, no Play Console.
+- **Unverified content stays excluded**: AU / IE / NL / NZ / FR / SG work rules,
+  and the city-guide drafts.
 
 ---
 
-## 4. KEY THINGS TO REMEMBER
+## 5. Open risks
 
-### Cold-start commands (full detail in `RUNNING.md`)
-1. `ipconfig` → note Wi-Fi IPv4; if changed, update `EXPO_PUBLIC_API_URL` in
-   `mobile/.env`.
-2. Backend (from `land_here/` root, venv active):
-   - Activate: `.venv\Scripts\Activate.ps1` (PowerShell)
-   - Run: `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`
-   - First run only — seed: `python -m app.core.seed`
-   - Rankings data (as needed): `python -m app.core.ingest_scorecard` →
-     `python -m app.core.ingest_openalex` → `python -m app.core.compute_scores`
-3. Mobile (from `mobile/`): `npx expo start --clear`, then force-close Expo Go and
+- **Never tested on real hardware.** Export success is not device success. Expect
+  to find real issues in the first TestFlight pass — plan for it rather than
+  treating submission as the finish line.
+- **Legal position unsettled**, and it gates submission.
+- **`LAUNCH/APP_STORE_LISTING.md` still contains rc.1 paid copy** advertising a
+  "$1.99 one-time unlock". Pasting it into App Store Connect would describe a
+  purchase the app does not contain. Use `LAUNCH/APP_STORE_METADATA.md`.
+- **Backup and rollback are documented but unrehearsed** — there is no
+  infrastructure to rehearse them on yet. Do it before you have users.
+- **Content decay.** Government sources change without notice; the 90-day
+  re-verification cadence is a real operational commitment.
+- **Single maintainer, and the rc.3 tag exists only locally.**
+- **Rankings data freshness** depends on external APIs; only `has_full_score`
+  schools appear, and a prior OpenAlex ingest hit rate-limit retries.
+
+---
+
+## 6. Cold-start commands
+
+Full detail in `RUNNING.md` and `LAUNCH/LAUNCH_RUNBOOK.md`.
+
+1. `ipconfig` → note the Wi-Fi IPv4; update `EXPO_PUBLIC_API_URL` in
+   `mobile/.env` if it changed.
+2. Backend, from repo root with the venv active:
+   `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload`
+   First run only: `python -m app.core.seed`.
+   Rankings data as needed: `python -m app.core.ingest_scorecard` →
+   `ingest_openalex` → `compute_scores`.
+3. Mobile, from `mobile/`: `npx expo start --clear`, then force-close Expo Go and
    rescan the QR.
 
-### Folder structure
-- **Backend lives in `land_here/`** (the repo root): `app/` (FastAPI), `alembic/`,
-  `tests/`, `requirements*.txt`, `alembic.ini`.
-- **Frontend lives in `land_here/mobile/`**: `app/` (Expo Router screens),
-  `components/`, `constants/`, `context/`, `lib/`, `content/` (draft markdown).
+A LAN address in `EXPO_PUBLIC_API_URL` is correct for development and is
+**rejected by the production build gate** — that is the gate working.
 
-### The IP-in-`.env` note
-The phone reaches the backend over the LAN, so `EXPO_PUBLIC_API_URL` in `mobile/.env`
-**must be the laptop's current Wi-Fi IPv4** (e.g. `http://192.168.0.113:8000`) — not
-`localhost`. The IP changes when you switch networks/reboot; update it and restart Expo
-with `--clear`. Port 8000 must be allowed through Windows Firewall on private networks.
-
-### Secrets / `.env`
-- Backend secrets live in **`land_here/.env`**; mobile public config in
-  **`mobile/.env`**. **These files must never be committed to git.**
-- ⚠️ As of now `land_here/` is **not a git repo at all** (no `.git`, no `.gitignore`),
-  so there is no ignore rule protecting the backend `.env` yet — add a `.gitignore`
-  ignoring `.env`, `.venv/`, `__pycache__/`, and logs *before* the root is ever
-  initialized/pushed. The `mobile/` folder is a git repo; confirm its `.gitignore`
-  excludes `.env`.
-
-### API keys in use (names only — values are in the `.env` files, never here)
-- `SCORECARD_API_KEY` — College Scorecard / data.gov (backend `.env`).
-- `OPENALEX_API_KEY` — OpenAlex polite/authenticated pool (backend `.env`).
-- `SECRET_KEY` — JWT signing (backend `.env`; currently a dev placeholder — rotate to a
-  strong secret before any real deployment).
-- `DATABASE_URL` — Postgres connection incl. DB password (backend `.env`).
-- `UNSPLASH_ACCESS_KEY` — Unsplash images (backend `.env`, server-side only).
-  Was previously `EXPO_PUBLIC_UNSPLASH_KEY` in the mobile `.env`; moved because
-  `EXPO_PUBLIC_*` vars are bundled into the client and are not secret-grade.
-  The mobile app now calls `GET /images/city` instead of Unsplash directly.
+### Secrets
+Backend secrets in the root `.env`; mobile public config in `mobile/.env`. Both
+gitignored. Names only: `SECRET_KEY`, `DATABASE_URL`, `SCORECARD_API_KEY`,
+`OPENALEX_API_KEY`, `UNSPLASH_ACCESS_KEY` (server-side only), `REDIS_URL`.
+`EXPO_PUBLIC_UNSPLASH_KEY` has been removed from `mobile/.env` and must be
+rotated.
 
 ---
 
-## 5. OPEN RISKS
-
-- **Not on GitHub yet (URGENT).** The backend root `land_here/` isn't even a git repo.
-  No remote backup, no history, no `.gitignore` guarding `.env`. Initialize, add a
-  proper `.gitignore` (so secrets/venv/caches never get staged), and push to a
-  **private** remote. Rotate any key that has ever been shared in plaintext.
-- **Security pass still pending.** Before any real users: rotate `SECRET_KEY` off the
-  dev placeholder, lock down CORS (currently `allow_origins=["*"]`), add rate limiting
-  on auth, review password/JWT handling, and confirm no secrets are logged.
-- **Hosting eventually needed.** Everything runs locally today (laptop Postgres +
-  uvicorn + LAN IP). Production needs managed Postgres, a hosted API (HTTPS, stable
-  domain), env-var secret management, and a real build/distribution path for the Expo
-  app (EAS).
-- **Rankings data freshness/coverage.** Scores depend on external APIs (Scorecard,
-  OpenAlex) and only `has_full_score` schools appear; the last OpenAlex ingest hit
-  rate-limit retries (see `ingest_run.log`). Re-running and confirming match coverage
-  is part of the rankings verification step.
-
----
-
-_This document is a status snapshot only. No code, schema, database, or running process
-was changed to produce it._
+_This document is a status snapshot. The only files changed to produce it are
+listed in `LAUNCH/RC3_VERIFICATION.md`._

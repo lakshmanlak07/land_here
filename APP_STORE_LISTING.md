@@ -1,3 +1,14 @@
+> # ⚠️ SUPERSEDED — DO NOT USE FOR SUBMISSION
+>
+> This file is **rc.1-era copy for a paid app**. It advertises a
+> "FREE TO START · ONE-TIME UNLOCK / One payment of $1.99", and that product does
+> not exist in this build: LandHere ships free, with no in-app purchase.
+> Pasting this into App Store Connect would describe a purchase the app does not
+> contain, which is a likely rejection.
+>
+> **Use `LAUNCH/APP_STORE_METADATA.md` instead.**
+> Kept only as a record of the earlier positioning.
+
 # App Store Listing — LandHere
 _Draft for review. You do the Apple enrollment + upload + submit._
 
