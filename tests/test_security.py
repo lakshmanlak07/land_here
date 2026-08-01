@@ -433,6 +433,65 @@ def test_account_deletion_removes_the_account(client):
     assert again.status_code == 201
 
 
+def test_account_deletion_leaves_no_orphaned_refresh_tokens(client):
+    """Deletion must remove the user's refresh-token rows, not just make them
+    unusable.
+
+    /auth/refresh already refuses a deleted user's token by re-checking that the
+    User row exists, so the *auth* property is covered by
+    test_account_deletion_removes_the_account. This test covers the *data*
+    property instead: the privacy policy and ACCOUNT_DELETION.md both promise
+    that deletion removes all data tied to the account, and refresh_tokens is a
+    per-user table that was added (migration d4e6f8a0b2c4) after the deletion
+    endpoint was written. Nothing in the endpoint deletes those rows explicitly
+    — it relies on the ON DELETE CASCADE on refresh_tokens.user_id. If that
+    constraint were ever dropped or recreated without the cascade, deletion
+    would silently start leaving per-user rows behind and no other test would
+    notice.
+    """
+    from sqlalchemy import select
+
+    from app.models.refresh_token import RefreshToken
+    from app.models.user import User
+    from tests.conftest import TestingSessionLocal
+
+    email = _email()
+    r = client.post("/auth/register", json={"email": email, "password": "TestPass123!"})
+    assert r.status_code == 201
+    tokens = r.json()
+    auth = {"Authorization": f"Bearer {tokens['access_token']}"}
+
+    # Rotate once so the account owns more than one refresh-token row.
+    rotated = client.post(
+        "/auth/refresh", json={"refresh_token": tokens["refresh_token"]}
+    )
+    assert rotated.status_code == 200
+
+    db = TestingSessionLocal()
+    try:
+        user_id = db.execute(select(User.id).where(User.email == email)).scalar_one()
+        before = db.execute(
+            select(RefreshToken).where(RefreshToken.user_id == user_id)
+        ).all()
+        assert len(before) >= 2, "expected the issued and the rotated token rows"
+    finally:
+        db.close()
+
+    gone = client.request(
+        "DELETE", "/account", headers=auth, json={"password": "TestPass123!"}
+    )
+    assert gone.status_code == 204
+
+    db = TestingSessionLocal()
+    try:
+        remaining = db.execute(
+            select(RefreshToken).where(RefreshToken.user_id == user_id)
+        ).all()
+        assert remaining == [], "refresh_tokens rows survived account deletion"
+    finally:
+        db.close()
+
+
 def test_account_deletion_requires_authentication(client):
     r = client.request("DELETE", "/account", json={"password": "whatever"})
     assert r.status_code == 401

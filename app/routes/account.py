@@ -8,12 +8,20 @@ single place a user's account is destroyed, so it is intentionally strict:
   * Confirmation — requires re-entering the account password.
   * Complete     — removes ALL data tied to the user (see ACCOUNT_DELETION.md).
 
-Data model note: nothing in the schema has a foreign key TO `users` (the User
-row only references shared `countries` reference data, never the reverse), and
-auth uses stateless JWTs with no server-side session/refresh table. So deleting
-the single `users` row removes everything user-owned, leaves no orphaned rows,
-and immediately invalidates the user's token — `get_current_user` looks the user
-up by id on every request and returns 401 once the row is gone.
+Data model note: one table references `users` — `refresh_tokens.user_id`, added
+later by migration d4e6f8a0b2c4 for replay-safe refresh rotation. It is declared
+ON DELETE CASCADE, so deleting the `users` row removes that user's token rows
+with it and leaves nothing orphaned; the cascade is the only thing doing this,
+which is why it is covered by
+tests/test_security.py::test_account_deletion_leaves_no_orphaned_refresh_tokens.
+Everything else the User row touches is shared `countries` reference data, which
+is never user-owned.
+
+Deletion also invalidates the user's credentials immediately and from both
+directions: `get_current_user` looks the user up by id on every request and
+returns 401 once the row is gone, and POST /auth/refresh re-checks that the User
+row still exists before minting a new pair, so an outstanding refresh token
+cannot resurrect a deleted account.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
