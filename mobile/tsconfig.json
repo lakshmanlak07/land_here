@@ -6,6 +6,14 @@
     // requires explicit .ts import specifiers. Metro/Expo code never uses them.
     "allowImportingTsExtensions": true
   },
+  // future/ holds the parked paywall screen, which imports react-native-iap.
+  // That dependency is removed from package.json for the free-only release, so
+  // the file cannot type-check until the paid tier is restored. Metro never
+  // bundles it — nothing under app/ imports it. See future/README.md.
+  "exclude": [
+    "node_modules",
+    "future"
+  ],
   "include": [
     "**/*.ts",
     "**/*.tsx",

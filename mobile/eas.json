@@ -13,18 +13,24 @@
       "ios": { "simulator": false }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "SET_IN_EAS_DASHBOARD",
+        "EXPO_PUBLIC_PRIVACY_POLICY_URL": "SET_IN_EAS_DASHBOARD",
+        "EXPO_PUBLIC_TERMS_URL": "SET_IN_EAS_DASHBOARD",
+        "EXPO_PUBLIC_SUPPORT_URL": "SET_IN_EAS_DASHBOARD"
+      }
     }
   },
   "submit": {
     "production": {
       "ios": {
         "appleId": "lakshmanlak07@gmail.com",
-        "ascAppId": "",
-        "appleTeamId": ""
+        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
+        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
       },
       "android": {
-        "serviceAccountKeyPath": ""
+        "serviceAccountKeyPath": "REPLACE_WHEN_ANDROID_SHIPS"
       }
     }
   }
