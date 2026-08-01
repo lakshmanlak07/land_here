@@ -79,6 +79,12 @@ def downgrade() -> None:
     _drop_if_present("ix_users_destination_country_code", "users")
     _drop_if_present("ix_users_origin_country_code", "users")
     _drop_if_present("ix_info_steps_destination_phase_step", "info_steps")
-    _drop_if_present("ix_info_steps_origin_code", "info_steps")
-    # Deliberately NOT dropped: it belongs to the initial schema, whose own
-    # downgrade removes it.
+    # Deliberately NOT dropped here: ix_info_steps_destination_code AND
+    # ix_info_steps_origin_code are both created by the initial schema
+    # (5a2934344d6f, lines 72-73), whose own downgrade drops them. This
+    # migration's upgrade() only creates them "if missing", which on any real
+    # database is a no-op — so dropping them here would be removing something
+    # this revision never created. Doing so broke `alembic downgrade base`:
+    # this downgrade dropped ix_info_steps_origin_code, and the initial
+    # schema's downgrade then failed with UndefinedObject trying to drop it
+    # again, leaving the database partially torn down.
