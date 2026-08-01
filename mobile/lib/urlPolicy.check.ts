@@ -178,6 +178,20 @@ check('no shipped code imports react-native-iap', () => {
   assert.deepEqual(offenders, []);
 });
 
+check('react-native-iap is not a dependency at all', () => {
+  // Not importing the module is not enough. While react-native-iap stays in
+  // package.json, Expo autolinking still links StoreKit into the native iOS
+  // target, so a free app ships purchase machinery it cannot use and declares a
+  // capability it does not need. Removing the dependency is what actually keeps
+  // it out of the binary. Restoring the paid tier means adding it back.
+  const pkg = JSON.parse(readFileSync(join(MOBILE, 'package.json'), 'utf8'));
+  const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+  assert.ok(
+    !('react-native-iap' in deps),
+    'react-native-iap must not be listed in package.json for the free-only release',
+  );
+});
+
 check('no price or subscription claims in shipped screens', () => {
   const offenders: string[] = [];
   const visit = (rel: string, code: string) => {
