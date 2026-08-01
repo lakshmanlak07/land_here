@@ -92,14 +92,20 @@ app.include_router(guides.router)
 app.include_router(universities.router)
 app.include_router(images.router)
 
-if settings.ENV.lower() == "production":
-    # The rate limiter is in-memory and per-process; with multiple workers or
-    # instances the effective limit multiplies and resets on restart. Loud
-    # warning until a shared (Redis) backend exists — see PRE_LAUNCH_SECURITY.md #5.
+if settings.is_production and not settings.REDIS_URL:
+    # Without REDIS_URL the rate limiter is in-memory and per-process: with
+    # multiple workers or instances the effective limit multiplies and resets on
+    # restart. start.sh forces --workers 1 in exactly this case, so the published
+    # limits stay true, but scaling out needs Redis first.
+    # See PRE_LAUNCH_SECURITY.md #5.
+    #
+    # Previously this warned on every production boot regardless of REDIS_URL,
+    # which told an operator who HAD provisioned Redis that their limiter was
+    # per-process. The condition now matches what is actually true.
     logger.warning(
-        "ENV=production with in-memory rate limiting: limits are per-process "
-        "only. Run a single worker or add a shared rate-limit store before "
-        "scaling out."
+        "ENV=production with no REDIS_URL: rate limiting is per-process only. "
+        "start.sh will force a single worker. Provision Redis and set REDIS_URL "
+        "before scaling out."
     )
 
 
