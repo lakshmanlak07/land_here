@@ -1,8 +1,7 @@
 # LandHere — Launch Runbook
 
-_Rewritten 2026-08-01 for **v0.1.0-rc.3**._
-_Supersedes the July 2 version, which described a $1.99 in-app purchase that no
-longer exists anywhere in the codebase._
+_Rewritten 2026-08-01 for v0.1.0-rc.3; revised 2026-08-16 for **`feat/pro-iap`**,
+which restores the $1.99 LandHere Pro purchase with server-side entitlement._
 
 The ordered task list is **`LAUNCH/APP_STORE_SUBMISSION_CHECKLIST.md`**.
 This runbook explains the release, the commands, and what to do when something
@@ -12,36 +11,53 @@ goes wrong.
 
 ## 1. What this release is
 
-**LandHere v1.0.0 is a free app.** No purchase, no Pro tier, no subscription, no
-price shown anywhere. Every user gets the full content set: the complete journey,
-all rankings, scholarships, work rules, necessities, and the money screens.
+**LandHere v1.0.0 is a free app with one optional in-app purchase.** iOS only.
 
-Release state: branch `release/rc3-prep`, tag `v0.1.0-rc.3`.
+| | |
+|---|---|
+| App bundle id | `com.landhere.app` |
+| IAP product id | `com.landhere.app.pro` (**not** the bundle id) |
+| Type | One-time **non-consumable** |
+| Price | US $1.99, set in App Store Connect |
+| Subscriptions | none, and none may be created |
+
+**Free without paying:** journey phases 1–2, the top 25 ranked universities, the
+complete scholarship directory, the complete work-hour rules, the scoring
+methodology, country guides, arrival necessities, money tools.
+
+**LandHere Pro adds:** the remaining journey phases, ranked universities beyond
+the top 25, and university detail pages.
+
+Release state: branch `feat/pro-iap`.
 **Not merged to main. Not pushed. Not deployed. Never run on a physical device.**
 
-### How the paid tier was removed, and what it takes to bring back
+### How the paid tier was restored
+
+The free-only build (rc.2/rc.3) stripped purchases entirely. Bringing them back
+required more than reverting that, because the *original* paid tier was unsafe:
+it gated content with an AsyncStorage boolean any user could set.
 
 | Layer | State |
 |---|---|
-| Paywall screen | Moved to `mobile/future/paywall.tsx` — no route, no `landhere://paywall` deep link |
-| Feature flag | `PURCHASES_ENABLED = false` in `mobile/lib/features.ts` |
-| Purchase store | `purchaseStore.ts` is inert: reads no storage, imports no SDK, cannot unlock |
-| Content gating | Removed from every screen |
-| **npm dependency** | `react-native-iap` **removed from `package.json`** (rc.3) |
-| **Native capability** | `react-native-iap` **removed from `app.json` plugins** (rc.3) |
+| Paywall screen | `mobile/app/paywall.tsx` — a real route again |
+| Feature flag | `PURCHASES_ENABLED = true` in `mobile/lib/features.ts` |
+| Purchase store | `purchaseStore.ts` reads entitlement from the server; **persists nothing** |
+| StoreKit library | `expo-iap`, in `package.json` **and** in the `app.json` plugins array |
+| Server verification | `app/core/appstore.py` — Apple's JWS chain, fails closed |
+| Entitlement store | `purchases` table, UNIQUE on `original_transaction_id` |
+| Content gating | `require_pro` + pre-serialisation trimming in the API |
 
-The last two mattered more than they look. Until rc.3, no JavaScript imported the
-SDK — so the bundle scan passed — but the Expo **config plugin** was still
-registered, which injects StoreKit on iOS and `com.android.vending.BILLING` on
-Android into the generated native projects. A free app would have shipped
-declaring purchase capability it never uses. `npm run check` now fails if either
-returns.
+Two details worth keeping in mind:
 
-Restoring the paid tier needs **server-side entitlements** (StoreKit 2
-signed-transaction verification, a verified-purchase table, a `require_pro`
-dependency on premium routes), not just moving a file. See
-`mobile/future/README.md`. `future/` is excluded from `tsconfig.json` and from
-ESLint precisely because it references the removed dependency.
+- **The `app.json` plugin entry matters as much as the dependency.** Without it
+  the native StoreKit capability is never generated and purchases fail silently
+  on device — and an `expo export` succeeds either way, so only the policy suite
+  catches it.
+- **`expo-iap` cannot run in Expo Go.** Any purchase testing needs a development
+  build or TestFlight.
+
+`npm run check` asserts both halves, that entitlement is never read from device
+storage, and that no Apple credential appears in the mobile source.
 
 ---
 
@@ -257,16 +273,27 @@ never hand-edit them. Bump `version` in `app.json` for a user-visible release.
 
 ## 6. Do NOT ship
 
-- **Any purchase, price, or "unlock" surface.** The scan proving their absence is
-  a release gate.
+- **A subscription of any kind.** LandHere Pro is non-consumable and one-time.
+  Do not create a subscription product in App Store Connect, and do not let any
+  copy describe it as recurring. `npm run check` fails on recurring-billing
+  language in shipped screens.
+- **A build where the purchase is unverified.** If `APPLE_ROOT_CA_DIR` and
+  `APPLE_APP_APPLE_ID` are not set on the server, `/purchases/verify` returns 503
+  and nobody can buy anything. That is the fail-closed behaviour working, but it
+  must be configured before launch, not discovered after.
+- **Any Apple private key, `.p8`, or shared secret in the app bundle.** None is
+  needed; verification uses Apple's public roots. The bundle scan enforces this.
 - **Android.** No Android build exists. India is Android-heavy, so this is the
   obvious next milestone — but it is a separate release with its own Play Console
   account, and the `serviceAccountKeyPath` in `eas.json` is a placeholder.
 - **Any corridor beyond IN→US, IN→CA, IN→UK.** The picker is already restricted.
 - **A "verified" badge on anything a human has not checked.** AU / IE / NL / NZ /
   FR / SG work rules remain unverified and are excluded.
-- **`LAUNCH/APP_STORE_LISTING.md` as listing copy** — it still advertises $1.99.
-  Use `LAUNCH/APP_STORE_METADATA.md`.
+- **Anything from `LAUNCH/archive/` as listing copy.** Those files advertise the
+  wrong free/paid split. Use `LAUNCH/APP_STORE_METADATA.md`.
+- **Any legal document as published copy** until a qualified lawyer has reviewed
+  it. `LAUNCH/PRIVACY_POLICY.md` and `LAUNCH/TERMS_OF_SERVICE.md` are drafts and
+  say so at the top.
 
 ---
 
@@ -276,7 +303,15 @@ never hand-edit them. Bump `version` in `app.json` for a user-visible release.
   a generic message, but a 400 is still a signal. Email verification is the real
   fix and is deferred.
 - **Rate limiting is single-worker** unless Redis is provisioned.
-- **No server-side entitlements.** Fine for a free app; the blocker to a paid tier.
+- **Refunds are only noticed on re-verification.** App Store Server Notifications
+  are not wired up, so a refund reaches us when Apple reports a `revocationDate`
+  on a transaction we re-check — which happens on restore, not immediately. Until
+  that is built, a refunded user may keep Pro access for a while.
+- **One purchase entitles one account, with no self-service move.** A user who
+  deletes their account and makes a new one currently needs manual help to
+  re-attach their purchase.
+- **The whole purchase flow is untested against real StoreKit.** No build has run
+  on a device; `expo-iap` cannot run in Expo Go.
 - **No analytics.** You are blind on onboarding drop-off. Note the store listing
   promises no third-party analytics — adding any is a listing and
   nutrition-label change in the same release.

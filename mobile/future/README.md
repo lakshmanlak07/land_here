@@ -24,6 +24,12 @@ listed here for its return have been met:
    `getAvailablePurchases()` — both buy and restore submit the signed
    transaction to `POST /purchases/verify`.
 
+Note the free/Pro split settled on is narrower than the one this screen
+originally sold: **scholarships, work-hour rules and the scoring methodology are
+free**, because their content ships inside the bundle (so a gate there could
+never be enforcement) and because gating the methodology would hide the reasoning
+behind the rankings being sold.
+
 Still outstanding, tracked rather than done:
 
 - **App Store Server Notifications** for refunds and revocations. Today a refund

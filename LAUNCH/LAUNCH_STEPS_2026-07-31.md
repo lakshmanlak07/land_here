@@ -1,5 +1,14 @@
 # LandHere — Launch Steps
 
+> **HISTORICAL RECORD — do not follow as instructions.**
+> This file describes a past release and is kept unedited as history. Two things
+> in it are now wrong: the product model (LandHere ships free with an optional
+> $1.99 one-time non-consumable, `com.landhere.app.pro` — no subscription), and
+> some file paths (superseded listing and legal drafts moved to
+> `LAUNCH/archive/`). Current documents: `LAUNCH/APP_STORE_METADATA.md`,
+> `LAUNCH/APP_STORE_SUBMISSION_CHECKLIST.md`, `LAUNCH/ATTORNEY_REVIEW_PACKET.md`.
+
+
 _Written 2026-07-31. Supersedes the timeline in `LAUNCH_RUNBOOK.md` (July 2)._
 
 Legend: **[YOU]** = only you can do this (accounts, payment, identity, legal).

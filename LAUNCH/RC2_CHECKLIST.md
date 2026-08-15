@@ -1,5 +1,14 @@
 # Release Candidate v0.1.0-rc.2 — free-only launch candidate
 
+> **HISTORICAL RECORD — do not follow as instructions.**
+> This file describes a past release and is kept unedited as history. Two things
+> in it are now wrong: the product model (LandHere ships free with an optional
+> $1.99 one-time non-consumable, `com.landhere.app.pro` — no subscription), and
+> some file paths (superseded listing and legal drafts moved to
+> `LAUNCH/archive/`). Current documents: `LAUNCH/APP_STORE_METADATA.md`,
+> `LAUNCH/APP_STORE_SUBMISSION_CHECKLIST.md`, `LAUNCH/ATTORNEY_REVIEW_PACKET.md`.
+
+
 Branch `integrate/hardening-round2`, tag `v0.1.0-rc.2`.
 Not merged to main, not pushed, not deployed.
 

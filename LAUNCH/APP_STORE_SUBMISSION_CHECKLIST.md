@@ -3,8 +3,19 @@
 _Single source of truth for what remains before submission._
 _Generated 2026-08-01 against tag `v0.1.0-rc.3` (branch `release/rc3-prep`)._
 
-**LandHere ships as a FREE app.** No purchase, no subscription, no price anywhere.
-Every user gets the full content set.
+**LandHere ships free to download, with ONE optional in-app purchase.**
+LandHere Pro · product id `com.landhere.app.pro` · US $1.99 · one-time
+**non-consumable** · **no subscription**. The app bundle id is
+`com.landhere.app` — a different identifier, entered in a different place.
+
+Free without paying: journey phases 1–2, top 25 ranked universities, the full
+scholarship directory, the full work-hour rules, the scoring methodology, country
+guides, necessities, money tools. Pro adds the later journey phases, rankings
+beyond the top 25, and university detail pages.
+
+_Sections A and the rc.3 defect notes below describe the free-only build and are
+kept as history; the purchase has since been restored with server-side
+entitlement._
 
 Legend for who/what each item needs:
 
@@ -131,18 +142,34 @@ Nothing here blocks on an external party — but most needs values from section 
       parental-consent position, governing law, and liability wording. This
       matters more than usual because the app's audience plausibly includes
       under-18 students. Send `LAUNCH/PRIVACY_POLICY.md`,
-      `LAUNCH/TERMS_OF_SERVICE.md`, and `LAUNCH/ATTORNEY_BRIEF.md`.
+      **`LAUNCH/ATTORNEY_REVIEW_PACKET.md`** (start here — it has the ordered
+      decision list and a ready-to-send covering email), plus
+      `LAUNCH/ATTORNEY_BRIEF.md`, `LAUNCH/PRIVACY_POLICY.md`,
+      `LAUNCH/TERMS_OF_SERVICE.md`, `DATA_PRACTICES_FINDINGS.md`, and
+      `LAUNCH/APP_STORE_METADATA.md`. Send nothing from `LAUNCH/archive/`.
 - [ ] 🧑 **Apple Developer Program enrolment** — $99/yr, identity check takes
       1–3 days. Nothing ships without it.
 - [ ] 🧑 Create the **App Store Connect app record** (bundle ID must match
       `app.json` exactly).
-- [ ] 🧑 Set the app price to **Free**.
-- [ ] 🧑 Do **not** create any in-app purchase product. Answer "No" to the IAP
-      question. The build contains no purchase code.
+- [ ] 🧑 Set the **app price to Free**. The app itself is free; the $1.99 is the
+      in-app purchase, configured separately below.
+- [ ] 🧑 **Create the in-app purchase**: reference name "LandHere Pro", product id
+      **`com.landhere.app.pro`**, type **Non-Consumable**, price **US $1.99**.
+      Answer **"Yes"** to the IAP question — the build contains purchase code.
+      ⚠️ The product id is **not** the bundle id. Entering `com.landhere.app`
+      here makes the product fail to load in the app with no obvious error.
+- [ ] 🧑 Leave **Family Sharing off** for the IAP. The entitlement is one
+      purchase to one LandHere account; Family Sharing would contradict that.
+- [ ] 🧑 Do **not** create a subscription product of any kind.
+- [ ] 🧑 Complete the **Paid Applications agreement** plus tax and banking
+      details. Until that is active, in-app purchases do not load **even in
+      sandbox** — this blocks TestFlight purchase testing, not just revenue.
+- [ ] 🧑 Create a **sandbox tester** account (Users and Access → Sandbox Testers)
+      for purchase and restore testing on device.
 - [ ] 🧑 Paste listing metadata from **`LAUNCH/APP_STORE_METADATA.md`**.
-      ⚠️ The older `LAUNCH/APP_STORE_LISTING.md` still contains rc.1 copy
-      advertising a "$1.99 one-time unlock". **Do not paste it** — describing a
-      purchase the app does not contain is a likely rejection.
+      ⚠️ Superseded listing files are in `LAUNCH/archive/` and advertise the wrong
+      free/paid split — they sell scholarships and work rules, which are free.
+      **Do not paste anything from there.**
 - [ ] 🧑 Complete the **privacy nutrition label** using the data inventory in
       `APP_STORE_METADATA.md`.
 - [ ] 🧑 Set the **age rating** using the notes in `APP_STORE_METADATA.md`.

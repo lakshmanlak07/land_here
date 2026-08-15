@@ -6,6 +6,34 @@ The app deliberately does not give legal or immigration advice. Every piece of i
 
 ---
 
+## Product model
+
+LandHere is **free to download and free to use**, with one optional in-app
+purchase. iOS only; there is no Android release.
+
+| | |
+|---|---|
+| App bundle id | `com.landhere.app` |
+| IAP product id | `com.landhere.app.pro` — a **different** identifier from the bundle id |
+| Type | One-time **non-consumable**. No subscription, ever. |
+| Price | US $1.99, set in App Store Connect |
+
+**Free for everyone:** journey phases 1–2, the top 25 ranked universities, the
+complete scholarship directory, the complete student work-hour rules, the scoring
+methodology, country guides, arrival necessities, and the currency/cost tools.
+
+**LandHere Pro adds:** journey phases 3–5 (visa process, before departure, after
+arrival), ranked universities beyond the top 25, and university detail pages.
+
+The gate is **enforced by the API**, not by the app — withheld content is never
+sent to a free user's device. See `ARCHITECTURE.md` § "Purchases and entitlement".
+
+> Legal documents in `LAUNCH/` are **drafts awaiting review by a qualified
+> lawyer**. Nothing in this repository has legal sign-off, and no compliance
+> claim is made anywhere in it.
+
+---
+
 ## Tech stack
 
 | Layer | Technology |

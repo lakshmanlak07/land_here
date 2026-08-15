@@ -1,8 +1,16 @@
 # LandHere — Attorney Brief
 
-_Prepared 2026-07-31 for Lakshman. Send this file plus the four documents listed in
-§1 to a qualified lawyer. **This brief is not legal advice and does not clear the
-legal pack — it exists to make the lawyer's job fast and cheap.**_
+> **DRAFT FOR LEGAL REVIEW — NOT APPROVED.** Nothing in this brief or the
+> documents it accompanies has been reviewed by a lawyer, and nothing here
+> asserts legal compliance.
+
+_Prepared 2026-07-31, revised 2026-08-16 for the restored LandHere Pro purchase.
+Send this file plus the documents listed in §1 to a qualified lawyer.
+**This brief is not legal advice and does not clear the legal pack — it exists to
+make the lawyer's job fast and cheap.**_
+
+_The ordered decision checklist and the covering email live in
+`LAUNCH/ATTORNEY_REVIEW_PACKET.md`._
 
 ---
 
@@ -21,10 +29,14 @@ within days, so a scoped review — not a rewrite — is what we're asking for.
 
 | File | Status |
 |---|---|
-| `LAUNCH/PRIVACY_POLICY.md` | Final draft v3. Two placeholders flagged inline. |
-| `LAUNCH/TERMS_OF_SERVICE.md` | Final draft v2. Four placeholders flagged inline. |
+| `LAUNCH/ATTORNEY_REVIEW_PACKET.md` | **Start here.** Ordered decision checklist + covering email. |
+| `LAUNCH/PRIVACY_POLICY.md` | Draft for legal review. Placeholders flagged inline. |
+| `LAUNCH/TERMS_OF_SERVICE.md` | Draft for legal review. Placeholders flagged inline. |
 | `DATA_PRACTICES_FINDINGS.md` | Code audit — what the app *actually* does. |
-| `LAUNCH/APP_STORE_LISTING.md` | Apple privacy nutrition label as we intend to file it. |
+| `LAUNCH/APP_STORE_METADATA.md` | Apple privacy nutrition label as we intend to file it. |
+
+⚠️ `LAUNCH/APP_STORE_LISTING.md` was previously listed here. It has been moved to
+`LAUNCH/archive/` as superseded — see that folder's README.
 
 `DATA_PRACTICES_FINDINGS.md` is the important one: it was produced by reading the
 codebase, not by describing intentions, so the privacy policy can be checked against
@@ -34,9 +46,26 @@ ground truth rather than taken on trust.
 
 ## 2. Factual basis (verified against code, 2026-06-20 audit + 2026-07-31 re-check)
 
-**Personal data stored** (`users` table, the only table holding user data):
-email, bcrypt password hash, optional full name, optional origin country code,
-optional destination country code, created-at timestamp, random UUID primary key.
+**Personal data stored** (`users` table): email, bcrypt password hash, optional
+full name, optional origin country code, optional destination country code,
+onboarding answers, created-at timestamp, random UUID primary key.
+
+**Also stored, and new since the 2026-07-31 version of this brief** — the
+`users` table is no longer the only table holding user-linked data:
+
+| Table | Contents | Linked to user |
+|---|---|---|
+| `refresh_tokens` | session token ids (`jti`), family id, issue/expiry/revoke times. **Never the token itself.** | yes, `ON DELETE CASCADE` |
+| `purchases` | Apple's `originalTransactionId` and `transactionId`, product id, sandbox/production flag, purchase date, verify date, revoke date | yes, `ON DELETE CASCADE` |
+
+Both cascade on account deletion, so the "we delete everything" position in the
+privacy policy still holds. Apple's transaction identifiers are Apple-issued
+opaque identifiers, **not** payment instrument data — we never receive a card
+number, billing address, or payer name.
+
+`purchases.original_transaction_id` is **UNIQUE**, which is the technical reason
+one Apple purchase can entitle only one LandHere account. That constraint has a
+legal edge worth your view (§3.7).
 
 **Explicitly NOT collected anywhere in the codebase:** date of birth, age, phone
 number, postal address, profile photo, gender, government ID or passport number,
@@ -51,8 +80,23 @@ Frankfurter / European Central Bank (currency rates, no user data), U.S. College
 Scorecard and OpenAlex (public university data, ingested server-side ahead of time,
 no user data). Payments are handled entirely by Apple; we never see card data.
 
-**Payments:** one non-consumable in-app purchase, `com.landhere.app.pro`, USD $1.99,
-no subscription. Refunds are requested from and decided by Apple.
+**Payments:** the app is free to download. One optional non-consumable in-app
+purchase, product id `com.landhere.app.pro` (distinct from the app's bundle id,
+`com.landhere.app`), USD $1.99 set in App Store Connect, **no subscription**.
+Refunds are requested from and decided by Apple. A visible "Restore Purchases"
+action exists both on the purchase screen and in Settings.
+
+**What the purchase gates.** Free users keep a genuinely usable app: journey
+phases 1–2, the top 25 ranked universities, and the whole of the scholarship
+directory, the student work-hour rules, the scoring methodology, country guides
+and arrival necessities. Pro adds the remaining journey phases, ranked
+universities beyond the top 25, and university detail pages. The gate is enforced
+**server-side** — withheld content is never transmitted to a free user's device —
+which matters for any representation about what a purchaser receives.
+
+**Verification.** Apple's signed receipt is verified on our server against
+Apple's public root certificates using Apple's own library. We hold no Apple
+private key or shared secret, and none ships in the app.
 
 **Hosting:** Render (US region), managed PostgreSQL, TLS terminated at the platform.
 _This resolves the "hosting provider" placeholder in the privacy policy — please
@@ -92,12 +136,39 @@ The app shows a verified badge where a human has checked content against the off
 source, with a dated last-reviewed stamp. We want to be sure this reads as
 *provenance*, not as a warranty of accuracy or fitness.
 
+### 3.7 One purchase, one account — and what deletion does to it
+A purchase is recorded against a LandHere account under a UNIQUE constraint on
+Apple's `originalTransactionId`, so the same purchase cannot entitle a second
+account. Two consequences we need wording for:
+
+- A user who deletes their LandHere account has the purchase record deleted with
+  it (that is what the deletion promise requires), but the Apple purchase still
+  exists. Restoring it onto a newly created account currently needs manual help.
+- A household sharing one Apple ID gets one entitlement. Apple Family Sharing is
+  **not** enabled for this product.
+
+**Needed:** whether the current wording in ToS §3 and §5 is adequate, and whether
+"permanent access" claims are safe given the deletion interaction.
+
+### 3.8 Cross-border data handling
+Origin corridor is India; destinations are the US, Canada and the UK; hosting is
+US-region. So personal data of Indian (and possibly EEA/UK) users is stored in
+the US. **Needed:** what transfer mechanism or notice is required under the DPDP
+Act and, for any EEA/UK users, under GDPR — and whether the app's audience makes
+GDPR applicable at all.
+
+### 3.9 Data retention period
+We currently keep account data "for as long as your account exists", with no
+fixed retention or inactivity-deletion period, and we have not yet confirmed how
+long the hosting provider's backups persist after deletion. **Needed:** whether a
+defined retention period is required, and what the policy may say about backups.
+
 ---
 
 ## 4. What we are NOT asking for
 
 Trademark, entity formation, employment, or tax questions. Scope this to the two
-documents and the six decisions above.
+documents and the decisions above.
 
 ---
 

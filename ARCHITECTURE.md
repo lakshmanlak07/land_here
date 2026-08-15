@@ -129,6 +129,64 @@ This three-part model ensures LandHere never makes legal or immigration claims �
 | GET | `/info/corridors` | — | All (origin, destination) pairs that have content |
 | GET | `/info/journey` | — | Steps for a corridor, grouped by phase |
 | GET | `/guides/{country_code}` | — | Country guide sections (optional `?section=` filter) |
+| GET | `/universities` | optional | Ranked list. **Free callers are clamped to the top 25.** |
+| GET | `/universities/{id}` | Bearer JWT + Pro | University detail. **LandHere Pro only.** |
+| POST | `/purchases/verify` | Bearer JWT | Verify an Apple-signed transaction and record the entitlement |
+| GET | `/purchases/entitlements` | Bearer JWT | What this account owns |
+
+`GET /info/journey` also takes optional auth: a free or anonymous caller receives
+only the free phases.
+
+---
+
+## Purchases and entitlement
+
+LandHere sells one non-consumable in-app purchase, `com.landhere.app.pro`
+(distinct from the app bundle id `com.landhere.app`). The governing rule is that
+**the device never decides whether a user owns Pro.**
+
+```
+StoreKit ──► purchase.purchaseToken (iOS: Apple's JWS)
+          └► POST /purchases/verify   (mobile/lib/purchaseStore.ts)
+                 │
+                 ├─ app/core/appstore.py  verify the JWS against Apple's
+                 │                        public root CAs, check bundle id,
+                 │                        product id, type, revocation
+                 │
+                 └─ app/models/purchase.py  insert, UNIQUE on
+                                            original_transaction_id
+```
+
+- **No Apple secret is involved.** Verification uses Apple's *public* root
+  certificates, so there is no `.p8`, no issuer id, and no shared secret — not on
+  the server and certainly not in the bundle.
+- **Fails closed.** With no root certificates configured the endpoint returns
+  503 rather than trusting a payload it cannot check.
+- **`purchases.original_transaction_id` is UNIQUE.** That constraint *is* the
+  entitlement model: one Apple purchase entitles exactly one LandHere account, so
+  a restore presented on a second account collides (409) instead of cloning Pro.
+- **Buying and restoring are the same path.** Restore is not a second, weaker
+  route to entitlement; both submit a signed transaction to the same endpoint.
+- **Rows cascade with the user**, so account deletion removes the purchase record
+  along with everything else.
+
+### Where the gate is enforced
+
+| Surface | Free | Enforced in |
+|---|---|---|
+| Journey | Phases 1–2 only | `app/routes/info.py` — later phases are dropped **before serialisation** |
+| Rankings list | Top 25 | `app/routes/universities.py` — applied to the SQL window |
+| University detail | — | `app/routes/universities.py` via `require_pro` |
+| Scholarships, work rules, methodology, guides, necessities, money tools | Everything | not gated |
+
+Withheld content is never transmitted, so it cannot be recovered from a response
+body, the JS bundle, or a cached payload. Journey and rankings responses are
+`private, no-store` precisely because they now vary by entitlement — a shared
+cache would otherwise be able to hand a Pro response to a free user.
+
+`mobile/lib/purchaseStore.ts` holds no persisted entitlement flag at all. An
+earlier release kept `landhere_purchased` in AsyncStorage, which any user with
+device access could set; that is the mistake this design exists to prevent.
 
 ---
 

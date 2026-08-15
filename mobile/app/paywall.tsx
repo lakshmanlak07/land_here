@@ -44,14 +44,16 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
  * app/routes/info.py and app/routes/universities.py — advertising anything the
  * API does not gate would be a false claim in a paid listing.
  *
- * Scholarships, work-hour rules and the arrival checklist are FREE and are
- * deliberately absent from this list.
+ * Scholarships, work-hour rules, the arrival checklist and the scoring
+ * methodology are FREE and are deliberately absent from this list. The
+ * methodology in particular stays free on purpose: it is the explanation of how
+ * the rankings are calculated, and putting the reasoning behind a paywall while
+ * selling the rankings would undercut the transparency the product rests on.
  */
 const FEATURES: { icon: IoniconName; label: string; sub: string }[] = [
   { icon: 'trail-sign-outline', label: 'The rest of your journey', sub: 'Visa process, departure and arrival — every step' },
   { icon: 'trophy-outline', label: 'All 500+ ranked universities', sub: 'Free shows the top 25' },
   { icon: 'school-outline', label: 'University detail pages', sub: 'Cost, outcomes, research and intl. student mix' },
-  { icon: 'stats-chart-outline', label: 'Scoring methodology', sub: 'Exactly how the LandHere Score is built' },
 ];
 
 const GHOST_ROWS = [
@@ -317,8 +319,8 @@ export default function PaywallScreen() {
           </Text>
           <Text style={[st.heroSub, { color: colors.textSecondary }]}>
             Every journey phase, all 500+ ranked universities and their detail pages —{' '}
-            {displayPrice} once, no subscription. Scholarships, work-hour rules and the
-            arrival checklist stay free.
+            {displayPrice} once, no subscription. Scholarships, work-hour rules, the
+            arrival checklist and our scoring methodology stay free.
           </Text>
         </View>
 

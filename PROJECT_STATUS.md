@@ -17,8 +17,14 @@ Stack: **FastAPI + PostgreSQL + SQLAlchemy/Alembic** backend; **Expo SDK 54 /
 React Native 0.81 / TypeScript** mobile app (Expo Router v6, Zustand for auth,
 TanStack Query for server state, Axios).
 
-> **This is a free app.** No purchase, no Pro tier, no subscription, no price
-> anywhere. Every user gets the full content set.
+> **This is a free app with one optional in-app purchase.** LandHere Pro,
+> product id `com.landhere.app.pro`, US $1.99, one-time non-consumable.
+> **No subscription.** Free users keep journey phases 1–2, the top 25 ranked
+> universities, and the whole of scholarships, work rules and the methodology;
+> Pro adds the later journey phases, the full rankings, and university detail
+> pages. The gate is enforced server-side.
+>
+> _This supersedes the free-only position described in rc.2/rc.3 below._
 
 > **Where to look next:** `LAUNCH/APP_STORE_SUBMISSION_CHECKLIST.md` is the
 > ordered task list. `LAUNCH/LAUNCH_RUNBOOK.md` has the commands, deployment,
@@ -156,9 +162,13 @@ misconfigured EAS build **fails on the build machine** rather than shipping.
   to find real issues in the first TestFlight pass — plan for it rather than
   treating submission as the finish line.
 - **Legal position unsettled**, and it gates submission.
-- **`LAUNCH/APP_STORE_LISTING.md` still contains rc.1 paid copy** advertising a
-  "$1.99 one-time unlock". Pasting it into App Store Connect would describe a
-  purchase the app does not contain. Use `LAUNCH/APP_STORE_METADATA.md`.
+- **Superseded listing and legal drafts have been moved to `LAUNCH/archive/`.**
+  Their free/paid split is wrong — they sell scholarships and work rules, which
+  are free. Use `LAUNCH/APP_STORE_METADATA.md` and nothing else.
+- **The legal pack is unreviewed.** `LAUNCH/PRIVACY_POLICY.md` and
+  `LAUNCH/TERMS_OF_SERVICE.md` are drafts marked for legal review. No compliance
+  claim is made. `LAUNCH/ATTORNEY_REVIEW_PACKET.md` is what goes to counsel.
+- **The purchase flow has never touched real StoreKit.** No device build exists.
 - **Backup and rollback are documented but unrehearsed** — there is no
   infrastructure to rehearse them on yet. Do it before you have users.
 - **Content decay.** Government sources change without notice; the 90-day

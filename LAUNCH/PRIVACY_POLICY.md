@@ -1,8 +1,17 @@
-**FINAL DRAFT (v3) — ready for lawyer sign-off. Two placeholders remain (minimum age, hosting provider) and are flagged inline. Do not publish until a qualified lawyer has reviewed this document.**
+> # DRAFT FOR LEGAL REVIEW — NOT APPROVED, DO NOT PUBLISH
+>
+> This document has **not** been reviewed by a qualified lawyer. It is a factual
+> description of what the code does, written to give counsel something concrete
+> to work from. It makes **no claim of legal compliance** with GDPR, COPPA,
+> India's DPDP Act, the CCPA, or any other law, and it must not be treated as
+> sufficient for publication or App Store submission.
+>
+> Open items for counsel are listed in `LAUNCH/ATTORNEY_REVIEW_PACKET.md`.
+> Placeholders remaining inline: minimum age, hosting provider, backup retention.
 
 # LandHere Privacy Policy
 
-_Last updated: July 2, 2026 · Contact: lakshmanlak07@gmail.com_
+_Draft revised: August 16, 2026 · Contact: lakshmanlak07@gmail.com_
 
 This policy describes how the LandHere app ("we", "us", "our") handles your
 information. It is written to reflect what the app actually does today, based on a
@@ -43,16 +52,42 @@ saved locally on your phone, not on our servers, and are cleared when you sign o
 
 ## Purchases
 
-LandHere offers a single, optional **one-time in-app purchase** (US $1.99, or the
-equivalent price your app store shows) that unlocks the full journey and premium
-features. The purchase is processed entirely by **Apple (App Store)** or **Google
-(Google Play)**:
+LandHere is free to download and free to use. It offers one optional **one-time,
+non-consumable in-app purchase** called **LandHere Pro** (product identifier
+`com.landhere.app.pro`), priced at **US $1.99** or the equivalent your app store
+shows in your country. **There is no subscription and no recurring charge.**
 
-- We never see or store your card number or payment details.
-- We do not link your purchase to your LandHere account on our servers; the unlock
-  status is stored on your device, and you can restore it on a new device through
-  your Apple ID / Google account ("Restore Purchases" in the app).
-- Refunds are handled by Apple or Google under their store policies.
+The payment itself is processed entirely by **Apple (App Store)**. We never see
+or store your card number, billing address, or any payment details.
+
+**We do record that your account owns Pro.** When you buy or restore Pro, the App
+Store gives the app a receipt signed by Apple. The app sends that receipt to our
+server, which checks Apple's signature and then stores:
+
+- Apple's transaction identifiers for that purchase (`originalTransactionId` and
+  `transactionId`) — random-looking identifiers issued by Apple, not payment data
+- the product identifier (`com.landhere.app.pro`)
+- whether the purchase came from Apple's production or sandbox environment
+- the purchase date, the date we verified it, and — if Apple later tells us the
+  purchase was refunded or revoked — that date
+
+This record is linked to your LandHere account. We need that link because Pro
+content is withheld by our server, not merely hidden in the app, so the server
+has to know which account is entitled. Apple's transaction identifier is stored
+**uniquely**, which means one purchase entitles one LandHere account.
+
+- **Restoring:** "Restore Purchases" (on the Pro screen and in Settings) asks
+  Apple for your past purchases and re-verifies them with our server.
+- **Refunds** are requested from and decided by **Apple**, under Apple's policies.
+  We cannot issue, approve, or refuse a refund.
+- **If you delete your account,** the purchase record above is deleted with it.
+  Your purchase still exists in your Apple account, and you can restore it — but
+  restoring it onto a *different* LandHere account is not possible while the
+  original record exists, because one purchase maps to one account.
+
+_[Lawyer to review: the deletion/restore interaction immediately above, and
+whether the one-purchase-one-account rule needs to be stated in the Terms as
+well as here.]_
 
 ## How we use your information
 
@@ -90,11 +125,23 @@ Our university and country information comes from public data sources (U.S. Coll
 Scorecard and OpenAlex), fetched in bulk on our side. These contain no user data —
 your information is never sent to them.
 
+**Apple.** When you buy or restore LandHere Pro, our server verifies Apple's
+signed receipt. That verification checks Apple's certificate chain and, as part
+of confirming the certificate has not been revoked, contacts Apple. We send Apple
+no account information of yours in that request.
+
 We also rely on infrastructure providers to operate the app:
 
 - **[Hosting provider — fill in once production host is chosen (e.g. Railway/Render)]**
   runs our API and hosts the PostgreSQL database where your account information is
   stored. **[Confirm region/location.]**
+
+**Cross-border transfer.** LandHere is aimed at students in India travelling to
+the United States, Canada and the United Kingdom, so users are very likely to be
+in a different country from where their data is stored. Once the hosting region
+is chosen it must be named above, and counsel must decide what transfer mechanism
+(if any) is required for users in the EEA/UK and under India's DPDP Act.
+_[Lawyer to determine — see the attorney review packet.]_
 
 ## How your information is stored and secured
 
@@ -116,10 +163,15 @@ We keep your account information for as long as your account exists.
 
 **You can delete your account from within the app** (Profile → Delete account, with
 password confirmation). Deleting your account permanently removes your account record
-from our database. _[Confirm any short-lived backup retention with your hosting
+from our database, together with your sign-in sessions and **your LandHere Pro
+purchase record**. _[Confirm any short-lived backup retention with your hosting
 provider before publishing.]_ You can also contact us at **lakshmanlak07@gmail.com**
 for help with access, correction, or deletion requests. We aim to respond within 30
 days.
+
+Deleting your LandHere account does **not** cancel or refund your Apple purchase,
+and does not delete anything held by Apple. See "Purchases" above for what that
+means if you later create a new account.
 
 ## Children
 
