@@ -141,33 +141,83 @@ function eachSource(dir: string, visit: (rel: string, code: string) => void) {
   }
 }
 
-check('purchases are disabled by the feature flag', () => {
-  assert.match(read('lib/features.ts'), /export const PURCHASES_ENABLED = false/);
+// ── LandHere Pro ──────────────────────────────────────────────────────────────
+// These checks used to assert that no purchase existed. The product now HAS a
+// one-time purchase, so they assert the opposite thing — that the purchase is
+// wired up the safe way. The risk moved; it did not go away. What matters now
+// is that the device cannot grant itself Pro and that no Apple credential is in
+// the bundle.
+
+check('purchases are enabled by the feature flag', () => {
+  assert.match(read('lib/features.ts'), /export const PURCHASES_ENABLED = true/);
 });
 
-check('the paywall route no longer exists under app/', () => {
-  assert.equal(existsSync(join(MOBILE, 'app/paywall.tsx')), false);
-  assert.equal(existsSync(join(MOBILE, 'future/paywall.tsx')), true);
+check('the paywall route exists under app/ and future/ no longer shadows it', () => {
+  assert.equal(existsSync(join(MOBILE, 'app/paywall.tsx')), true);
+  assert.equal(
+    existsSync(join(MOBILE, 'future/paywall.tsx')),
+    false,
+    'the old paywall copy must be gone so only one screen can drift',
+  );
 });
 
-check('no shipped screen navigates to /paywall', () => {
-  const offenders: string[] = [];
+check('a locked surface can reach the paywall', () => {
+  const referrers: string[] = [];
   const visit = (rel: string, code: string) => {
-    if (code.includes('/paywall')) offenders.push(rel);
+    if (rel !== 'app/paywall.tsx' && code.includes('/paywall')) referrers.push(rel);
   };
   eachSource('app', visit);
   eachSource('components', visit);
-  assert.deepEqual(offenders, []);
+  assert.ok(referrers.length > 0, 'nothing navigates to /paywall — the gate is unreachable');
 });
 
-check('the purchase store cannot unlock from device storage', () => {
+check('entitlement is never read from device storage', () => {
+  // The core invariant. A device-writable flag is not an entitlement: the
+  // previous release shipped `landhere_purchased` in AsyncStorage, which any
+  // user could set. Entitlement must come from the server, every time.
   const src = readCode('lib/purchaseStore.ts');
-  assert.ok(!src.includes('AsyncStorage'), 'purchaseStore must not read AsyncStorage');
-  assert.ok(!src.includes('landhere_purchased'), 'the old entitlement key must be gone');
-  assert.ok(!src.includes('getAvailablePurchases'), 'client-trusted restore must be gone');
+  assert.ok(!src.includes('AsyncStorage'), 'purchaseStore must not touch AsyncStorage');
+  assert.ok(!src.includes('SecureStore'), 'purchaseStore must not persist entitlement');
+  assert.ok(!src.includes('landhere_purchased'), 'the old entitlement key must stay gone');
 });
 
-check('no shipped code imports react-native-iap', () => {
+check('entitlement comes from the server endpoints', () => {
+  const src = readCode('lib/purchaseStore.ts');
+  assert.ok(src.includes('/purchases/entitlements'), 'entitlement lookup missing');
+  assert.ok(src.includes('/purchases/verify'), 'server verification call missing');
+});
+
+check('both buying and restoring go through server verification', () => {
+  // Restore must not be a second, weaker path to Pro. Every transaction —
+  // fresh or restored — is submitted to the same verify endpoint.
+  const src = readCode('app/paywall.tsx');
+  assert.ok(src.includes('verifySignedTransaction'), 'purchase path does not verify');
+  assert.ok(src.includes('restorePurchases'), 'restore action missing');
+  assert.ok(src.includes('submitToServer'), 'restore does not reach the server');
+});
+
+check('a visible Restore Purchases action is present', () => {
+  // Apple requires a restore mechanism for non-consumables.
+  assert.ok(readCode('app/paywall.tsx').includes('Restore Purchases'));
+});
+
+check('expo-iap is a dependency and a registered config plugin', () => {
+  // Both halves matter. Without the dependency there is no StoreKit; without
+  // the config-plugin entry the native capability is never generated, and the
+  // purchase silently fails on device — which an Expo export cannot reveal.
+  const pkg = JSON.parse(readFileSync(join(MOBILE, 'package.json'), 'utf8'));
+  const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+  assert.ok('expo-iap' in deps, 'expo-iap must be a dependency');
+
+  const appJson = JSON.parse(readFileSync(join(MOBILE, 'app.json'), 'utf8'));
+  const plugins: unknown[] = appJson?.expo?.plugins ?? [];
+  const names = plugins.map((p) => (Array.isArray(p) ? p[0] : p));
+  assert.ok(names.includes('expo-iap'), 'expo-iap must be in app.json plugins');
+});
+
+check('react-native-iap is not used alongside expo-iap', () => {
+  // Two StoreKit modules in one app is a native-linking conflict waiting to
+  // happen. expo-iap is the Expo-module choice; the other must stay out.
   const offenders: string[] = [];
   const visit = (rel: string, code: string) => {
     if (code.includes('react-native-iap')) offenders.push(rel);
@@ -176,26 +226,48 @@ check('no shipped code imports react-native-iap', () => {
   eachSource('components', visit);
   eachSource('lib', visit);
   assert.deepEqual(offenders, []);
-});
 
-check('react-native-iap is not a dependency at all', () => {
-  // Not importing the module is not enough. While react-native-iap stays in
-  // package.json, Expo autolinking still links StoreKit into the native iOS
-  // target, so a free app ships purchase machinery it cannot use and declares a
-  // capability it does not need. Removing the dependency is what actually keeps
-  // it out of the binary. Restoring the paid tier means adding it back.
   const pkg = JSON.parse(readFileSync(join(MOBILE, 'package.json'), 'utf8'));
   const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
-  assert.ok(
-    !('react-native-iap' in deps),
-    'react-native-iap must not be listed in package.json for the free-only release',
-  );
+  assert.ok(!('react-native-iap' in deps), 'react-native-iap must not be a dependency');
 });
 
-check('no price or subscription claims in shipped screens', () => {
+check('no Apple credential or private key is in the mobile source', () => {
+  // Verification is done server-side against Apple's PUBLIC root CAs. Nothing
+  // secret should ever be needed here — if one of these appears, someone has
+  // moved verification into the client.
   const offenders: string[] = [];
   const visit = (rel: string, code: string) => {
-    if (/\$1\.99|Restore Purchases|Unlock Everything/i.test(code)) offenders.push(rel);
+    if (/BEGIN PRIVATE KEY|\.p8\b|APPLE_ROOT_CA|issuerId|SharedSecret|APPLE_.*_KEY/i.test(code)) {
+      offenders.push(rel);
+    }
+  };
+  eachSource('app', visit);
+  eachSource('components', visit);
+  eachSource('lib', visit);
+  assert.deepEqual(offenders, []);
+});
+
+check('the product id is distinct from the bundle id', () => {
+  // com.landhere.app is the app; com.landhere.app.pro is the thing sold inside
+  // it. They are configured in different places in App Store Connect and
+  // conflating them is a common, silent setup failure.
+  const src = readCode('lib/purchaseStore.ts');
+  assert.ok(src.includes("'com.landhere.app.pro'"), 'product id missing');
+
+  const appJson = JSON.parse(readFileSync(join(MOBILE, 'app.json'), 'utf8'));
+  assert.equal(appJson?.expo?.ios?.bundleIdentifier, 'com.landhere.app');
+  assert.notEqual(appJson?.expo?.ios?.bundleIdentifier, 'com.landhere.app.pro');
+});
+
+check('no subscription or recurring-billing claims in shipped screens', () => {
+  // A one-time non-consumable must never be described as a subscription: that
+  // is both a false claim and an App Review rejection.
+  const offenders: string[] = [];
+  const visit = (rel: string, code: string) => {
+    if (/per month|\/month|per year|\/year|auto-renew|recurring charge[^s]|subscribe now/i.test(code)) {
+      offenders.push(rel);
+    }
   };
   eachSource('app', visit);
   eachSource('components', visit);

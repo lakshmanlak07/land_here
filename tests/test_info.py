@@ -1,9 +1,27 @@
 """
 Tests for the /info endpoints.
 All read-only — relies on the IN→US steps seeded in conftest.py.
+
+/info/journey became entitlement-aware with LandHere Pro: an anonymous or free
+caller receives only the free phases. The tests that assert the *complete*
+journey therefore authenticate as a Pro user. The free-tier shape is asserted in
+tests/test_purchases.py, so both sides stay covered.
 """
 
+import pytest
+
+from tests.test_purchases import _account, _buy, apply_apple_test_settings
+
 EXPECTED_PHASES = ["after_acceptance", "visa_process", "before_departure", "after_arrival"]
+
+
+@pytest.fixture
+def pro_headers(client, monkeypatch):
+    """An account that owns LandHere Pro, so it sees the whole journey."""
+    apply_apple_test_settings(monkeypatch)
+    _, headers, _ = _account(client)
+    assert _buy(client, headers).status_code == 200
+    return headers
 
 
 def test_list_phases(client):
@@ -32,8 +50,10 @@ def test_corridor_schema(client):
         assert "destination_code" in corridor
 
 
-def test_journey_in_us_returns_4_phases(client):
-    response = client.get("/info/journey", params={"origin": "IN", "destination": "US"})
+def test_journey_in_us_returns_4_phases(client, pro_headers):
+    response = client.get(
+        "/info/journey", params={"origin": "IN", "destination": "US"}, headers=pro_headers
+    )
     assert response.status_code == 200
     journey = response.json()
     phase_names = [p["phase"] for p in journey["phases"]]
@@ -42,16 +62,20 @@ def test_journey_in_us_returns_4_phases(client):
         assert name in phase_names
 
 
-def test_journey_in_us_phases_in_chronological_order(client):
+def test_journey_in_us_phases_in_chronological_order(client, pro_headers):
     """Phases must appear in the order defined by VALID_PHASES."""
-    response = client.get("/info/journey", params={"origin": "IN", "destination": "US"})
+    response = client.get(
+        "/info/journey", params={"origin": "IN", "destination": "US"}, headers=pro_headers
+    )
     assert response.status_code == 200
     phase_names = [p["phase"] for p in response.json()["phases"]]
     assert phase_names == EXPECTED_PHASES
 
 
-def test_journey_in_us_total_steps(client):
-    response = client.get("/info/journey", params={"origin": "IN", "destination": "US"})
+def test_journey_in_us_total_steps(client, pro_headers):
+    response = client.get(
+        "/info/journey", params={"origin": "IN", "destination": "US"}, headers=pro_headers
+    )
     assert response.status_code == 200
     journey = response.json()
     total = sum(len(p["steps"]) for p in journey["phases"])

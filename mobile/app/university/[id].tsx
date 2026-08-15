@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import axios from 'axios';
 import {
   View, Text, Pressable, StyleSheet, Linking, Share, ScrollView,
 } from 'react-native';
@@ -71,11 +72,22 @@ export default function UniversityDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { data, isLoading, isError, refetch } = useQuery<UniversityDetail>({
+  const { data, isLoading, isError, error, refetch } = useQuery<UniversityDetail>({
     queryKey: ['university', id],
     queryFn: async () => (await api.get(`/universities/${id}`)).data,
     enabled: !!id,
+    // A 403 here means "not Pro", which is a routing decision, not a transient
+    // failure — retrying it just delays the paywall.
+    retry: (failureCount, err) =>
+      axios.isAxiosError(err) && err.response?.status === 403 ? false : failureCount < 2,
   });
+
+  // Detail pages are Pro. The server withholds the body; this turns its 403
+  // into the upsell rather than a dead error screen.
+  const needsPro = axios.isAxiosError(error) && error.response?.status === 403;
+  useEffect(() => {
+    if (needsPro) router.replace('/paywall');
+  }, [needsPro, router]);
 
   // Derive country from data; all current universities are US-sourced,
   // but this makes it forward-compatible when non-US unis are added.

@@ -1,71 +1,125 @@
 /**
  * purchaseStore.ts
  *
- * Purchase state for the (currently disabled) Pro tier.
+ * LandHere Pro entitlement on the client.
  *
- * FREE-ONLY RELEASE: PURCHASES_ENABLED is false, so this store is inert —
- * hydrate() does not read the persisted flag and restorePurchases() does not
- * talk to the store. Content gating goes through useContentUnlocked() below,
- * which returns true for everyone while purchases are off.
+ * The rule this file exists to enforce: **the device never decides whether the
+ * user owns Pro.** StoreKit hands us a transaction signed by Apple; we forward
+ * it to the backend, the backend verifies the signature chain and records it,
+ * and the answer to "is this account Pro?" is always a server response.
  *
- * Why the AsyncStorage read is disabled rather than merely ignored: the old
- * `landhere_purchased` key is writable by anyone with device access, so
- * treating it as an entitlement is not something to leave live "just in case".
- * When the paid tier returns, the server is the source of truth and this store
- * becomes a cache of the server's answer — never the gate itself.
+ * There is deliberately no persisted entitlement flag. The previous release
+ * kept `landhere_purchased` in AsyncStorage, which anyone with device access
+ * could set. React Query's in-memory cache is the only thing holding the last
+ * known answer, and if it is wrong the API still refuses the content — the
+ * gates in app/routes/{info,universities}.py are the real enforcement.
+ *
+ * Purchase and restore share one path on purpose: both end in a signed
+ * transaction going to POST /purchases/verify. Restore is not a second, weaker
+ * way to become entitled.
  */
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 
+import api from './api';
 import { PURCHASES_ENABLED } from './features';
 
-// PRODUCT_ID intentionally lives with the disabled paywall (future/paywall.tsx),
-// not here — nothing in the shipped bundle should reference a product that
-// cannot be bought.
+/**
+ * The App Store product identifier for LandHere Pro.
+ *
+ * Not the same thing as the app's bundle identifier (`com.landhere.app`): the
+ * bundle id names the app, this names the one non-consumable product sold
+ * inside it. They look similar by convention and are configured in different
+ * places in App Store Connect.
+ */
+export const PRO_PRODUCT_ID = 'com.landhere.app.pro';
 
-interface PurchaseState {
-  purchased: boolean;
-  hydrated: boolean;
-  restoring: boolean;
-  restoreError: string | null;
-  hydrate: () => Promise<void>;
-  setPurchased: (value: boolean) => Promise<void>;
-  restorePurchases: () => Promise<void>;
+export const ENTITLEMENT_QUERY_KEY = ['entitlements'] as const;
+
+export interface Entitlement {
+  pro: boolean;
+  product_id?: string | null;
+  environment?: string | null;
+  purchased_at?: string | null;
 }
 
-export const usePurchaseStore = create<PurchaseState>((set) => ({
-  purchased: false,
-  hydrated: false,
-  restoring: false,
-  restoreError: null,
-
-  hydrate: async () => {
-    // No persisted entitlement is read while purchases are disabled — there is
-    // deliberately no code path from device storage to unlocked content.
-    set({ hydrated: true });
-  },
-
-  setPurchased: async (value: boolean) => {
-    if (!PURCHASES_ENABLED) return;
-    set({ purchased: value });
-  },
-
-  restorePurchases: async () => {
-    if (!PURCHASES_ENABLED) return;
-    // Restore is reimplemented against the backend when the paid tier returns;
-    // the old client-trusted getAvailablePurchases() flow was removed with the
-    // paywall screen (see future/paywall.tsx).
-  },
-}));
+export async function fetchEntitlement(): Promise<Entitlement> {
+  const { data } = await api.get<Entitlement>('/purchases/entitlements');
+  return data;
+}
 
 /**
- * Whether the caller should show full content.
+ * Send one Apple-signed transaction to the backend for verification.
  *
- * While purchases are disabled this is unconditionally true: v1 is free, every
- * user gets everything. Screens call this instead of reading `purchased`, so
- * re-enabling the paid tier is a change in one place rather than a hunt through
- * every screen.
+ * `purchaseToken` is expo-iap's unified field; on iOS it carries the StoreKit
+ * JWS representation. It is a signed assertion, not a secret of ours, and no
+ * Apple key or shared secret is involved on this side.
+ */
+export async function verifySignedTransaction(signedTransaction: string): Promise<Entitlement> {
+  const { data } = await api.post<Entitlement>('/purchases/verify', {
+    signed_transaction: signedTransaction,
+  });
+  return data;
+}
+
+// ── Flow state (UI only) ──────────────────────────────────────────────────────
+// Purchase/restore progress and the last error. None of this grants anything;
+// it exists so the paywall can render spinners and messages.
+
+interface PurchaseFlowState {
+  buying: boolean;
+  restoring: boolean;
+  error: string | null;
+  setBuying: (v: boolean) => void;
+  setRestoring: (v: boolean) => void;
+  setError: (message: string | null) => void;
+  reset: () => void;
+}
+
+export const usePurchaseFlow = create<PurchaseFlowState>((set) => ({
+  buying: false,
+  restoring: false,
+  error: null,
+  setBuying: (buying) => set({ buying }),
+  setRestoring: (restoring) => set({ restoring }),
+  setError: (error) => set({ error }),
+  reset: () => set({ buying: false, restoring: false, error: null }),
+}));
+
+// ── Entitlement ───────────────────────────────────────────────────────────────
+
+/**
+ * The server's answer to "does this account own Pro?".
+ *
+ * Disabled when the user is signed out — entitlement is a property of an
+ * account, not of a device, so there is nothing to ask about.
+ */
+export function useEntitlement(enabled = true) {
+  return useQuery({
+    queryKey: ENTITLEMENT_QUERY_KEY,
+    queryFn: fetchEntitlement,
+    enabled: PURCHASES_ENABLED && enabled,
+    // Short, because it changes the moment a purchase or refund lands.
+    staleTime: 60_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Whether the caller should show Pro content.
+ *
+ * Screens call this rather than reading entitlement directly, so the free/Pro
+ * split lives in one place. Returns false while loading: showing locked UI that
+ * then unlocks is recoverable, flashing paid content is not.
  */
 export function useContentUnlocked(): boolean {
-  const purchased = usePurchaseStore((s) => s.purchased);
-  return PURCHASES_ENABLED ? purchased : true;
+  const { data } = useEntitlement();
+  if (!PURCHASES_ENABLED) return true;
+  return data?.pro === true;
+}
+
+/** Refetch entitlement after a purchase, restore, sign-in or sign-out. */
+export function useRefreshEntitlement() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: ENTITLEMENT_QUERY_KEY });
 }

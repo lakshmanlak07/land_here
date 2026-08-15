@@ -15,6 +15,7 @@ import { SkeletonListRow } from '../../components/Skeleton';
 import { FadeInView } from '../../components/FadeInView';
 import { PressableScale } from '../../components/PressableScale';
 import { formatScore, formatCurrencyCompact, initials } from '../../lib/format';
+import { useContentUnlocked } from '../../lib/purchaseStore';
 import type { UniversityListItem, UniversityListPage } from '../../lib/types';
 
 const PAGE_SIZE = 20;
@@ -163,8 +164,12 @@ export default function RankingsScreen() {
   });
 
   const allRows = data?.pages.flatMap((p) => p.items) ?? [];
-  // Free-only release: the full ranked list, no preview cap.
+  // The API is what enforces the free cap — it stops sending rows past the top
+  // 25 and sets X-Pro-Required. This is only the UI reacting to that, so a
+  // tampered client gets a broken list, not free content.
   const rows = allRows;
+  const unlocked = useContentUnlocked();
+  const showProUpsell = !unlocked && !hasNextPage && allRows.length > 0;
   const s = useMemo(() => styles(colors, spacing, radius), [colors, spacing, radius]);
   const handleRowPress = useCallback(
     (id: string) => router.push({ pathname: '/university/[id]', params: { id } }),
@@ -314,6 +319,22 @@ export default function RankingsScreen() {
             ListFooterComponent={
               isFetchingNextPage ? (
                 <ActivityIndicator color={colors.primary} style={{ marginVertical: spacing.lg }} />
+              ) : showProUpsell ? (
+                <PressableScale
+                  onPress={() => router.push('/paywall')}
+                  style={[s.proUpsell, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="See all ranked universities with LandHere Pro"
+                >
+                  <Ionicons name="lock-closed" size={18} color={colors.primary} />
+                  <Text style={[s.proUpsellTitle, { color: colors.textPrimary }]}>
+                    See every ranked university
+                  </Text>
+                  <Text style={[s.proUpsellBody, { color: colors.textSecondary }]}>
+                    You&apos;re seeing the top {allRows.length}. LandHere Pro opens the full list and
+                    every detail page — one-time purchase.
+                  </Text>
+                </PressableScale>
               ) : null
             }
             renderItem={renderRow}
@@ -390,5 +411,15 @@ function styles(
     },
     score: { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
     scoreLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.4, marginTop: 1 },
+
+    // Shown at the end of the free window, where the API stops sending rows.
+    proUpsell: {
+      alignItems: 'center', gap: 6,
+      marginHorizontal: spacing.lg, marginVertical: spacing.lg,
+      paddingVertical: 20, paddingHorizontal: 18,
+      borderRadius: radius.card, borderWidth: 1,
+    },
+    proUpsellTitle: { fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
+    proUpsellBody: { fontSize: 12.5, lineHeight: 18, textAlign: 'center' },
   });
 }

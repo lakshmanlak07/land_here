@@ -6,18 +6,17 @@
  */
 
 /**
- * In-app purchases / Pro tier.
+ * In-app purchases / LandHere Pro.
  *
- * OFF for the free-only v1 launch. The entitlement was enforced only by an
- * AsyncStorage boolean on the device, which is not an entitlement at all: any
- * user could set it. Rather than ship a paid tier anyone can unlock, v1 gives
- * every user the full content set and hides all purchase surfaces.
+ * ON. The two conditions that had to be met first are met:
+ *   1. The server verifies Apple's signed transaction (app/core/appstore.py)
+ *      and records it in the `purchases` table; entitlement is read from that
+ *      table and nowhere else.
+ *   2. Premium content is withheld by the API itself — `require_pro` on
+ *      university detail, and phase/row trimming on journey and rankings — so
+ *      the client gate is presentation, not protection.
  *
- * Turning this back on is NOT just flipping this flag. It requires:
- *   1. Server-side receipt validation (StoreKit 2 signed transactions),
- *      a verified-purchase table, and a `require_pro` dependency on the
- *      premium API routes.
- *   2. Moving future/paywall.tsx back into app/ so the route exists again.
- * The client-side store below must never again be the sole gate.
+ * The old AsyncStorage `landhere_purchased` flag is gone and must never come
+ * back: a device-writable boolean is not an entitlement.
  */
-export const PURCHASES_ENABLED = false;
+export const PURCHASES_ENABLED = true;

@@ -34,17 +34,32 @@ fail=0
 note() { printf '  %s %s\n' "$1" "$2"; }
 
 # ── 1. Hard-forbidden literals ────────────────────────────────────────────────
-# Purchase machinery and the credential that used to ship in the client. None of
-# these has any legitimate reason to appear in a free-app bundle.
+# The app now sells a one-time purchase, so purchase machinery is EXPECTED in
+# the bundle and is checked for below instead. What must never appear is a
+# credential, a private key, or the old device-writable entitlement flag — that
+# flag returning would mean the client can grant itself Pro again.
 for pat in \
-  'react-native-iap' 'com.landhere.app.pro' 'landhere_purchased' \
-  'Restore Purchases' 'Unlock Everything' '/paywall' \
-  'EXPO_PUBLIC_UNSPLASH_KEY' 'api.unsplash.com' 'Client-ID'
+  'landhere_purchased' 'react-native-iap' \
+  'EXPO_PUBLIC_UNSPLASH_KEY' 'api.unsplash.com' 'Client-ID' \
+  'BEGIN PRIVATE KEY' '-----BEGIN' 'appstoreconnect-issuer' 'APPLE_ROOT_CA'
 do
   if echo "$FILES" | xargs grep -l -F -- "$pat" 2>/dev/null | grep -q .; then
     note "✖" "forbidden string present: $pat"; fail=1
   else
     note "✔" "absent: $pat"
+  fi
+done
+
+# ── 1b. Purchase machinery that MUST be present ───────────────────────────────
+# The mirror of the check above. A build that silently dropped the paywall or
+# the product id would ship a paid app with nothing to buy — and an export
+# succeeds either way, so only an explicit assertion catches it.
+for pat in 'com.landhere.app.pro' 'Restore Purchases' '/purchases/verify'
+do
+  if echo "$FILES" | xargs grep -l -F -- "$pat" 2>/dev/null | grep -q .; then
+    note "✔" "present: $pat"
+  else
+    note "✖" "purchase machinery MISSING from bundle: $pat"; fail=1
   fi
 done
 

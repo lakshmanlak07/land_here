@@ -20,6 +20,13 @@ export interface JourneyOut {
   origin: string | null;
   destination: string;
   phases: PhaseGroup[];
+  /**
+   * Phases the server withheld because this account is not Pro. Names only —
+   * the steps themselves are never sent, so this is what the UI has to render
+   * a locked row from.
+   */
+  locked_phases?: string[];
+  pro_required?: boolean;
 }
 
 export interface CountryOut {

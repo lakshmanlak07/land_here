@@ -6,7 +6,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
-from app.routes import account, auth, countries, images, info, guides, universities
+from app.routes import account, auth, countries, images, info, guides, purchases, universities
 
 logger = logging.getLogger("landhere")
 
@@ -91,6 +91,7 @@ app.include_router(info.router)
 app.include_router(guides.router)
 app.include_router(universities.router)
 app.include_router(images.router)
+app.include_router(purchases.router)
 
 if settings.is_production and not settings.REDIS_URL:
     # Without REDIS_URL the rate limiter is in-memory and per-process: with

@@ -54,6 +54,35 @@ class Settings(BaseSettings):
         origins = [o.strip() for o in self.CORS_ALLOW_ORIGINS.split(",") if o.strip()]
         return origins or ["*"]
 
+    # ── LandHere Pro (one-time non-consumable in-app purchase) ────────────────
+    # Apple's iOS bundle identifier. Every signed transaction we accept must
+    # carry this exact bundleId, otherwise a transaction signed for a different
+    # app would grant Pro here.
+    APPLE_BUNDLE_ID: str = "com.landhere.app"
+    # The IAP product identifier. Distinct from APPLE_BUNDLE_ID: the bundle ID
+    # identifies the app, the product ID identifies the thing being sold.
+    APPLE_PRO_PRODUCT_ID: str = "com.landhere.app.pro"
+    # Numeric App Store Connect app id ("apple-id"). Apple's verifier requires
+    # it to validate Production transactions. Not a secret — it appears in every
+    # App Store URL — but it is unknown until the ASC record exists.
+    APPLE_APP_APPLE_ID: int | None = None
+    # Directory holding Apple's PUBLIC root CA certificates (AppleRootCA-G3.cer
+    # and friends) from https://www.apple.com/certificateauthority/. These are
+    # public trust anchors, not credentials. Empty = purchase verification is
+    # not configured and /purchases/verify returns 503 rather than trusting
+    # anything it cannot check.
+    APPLE_ROOT_CA_DIR: str = ""
+    # Accept StoreKit Sandbox transactions. Required for TestFlight, where every
+    # purchase is a sandbox purchase. Defaults OFF so a public release does not
+    # silently hand out Pro to anyone with a sandbox Apple ID.
+    APPLE_ACCEPT_SANDBOX: bool = False
+    # OCSP revocation checking of Apple's certificate chain during verification.
+    # ON by default: it is the difference between "signed by a cert that chains
+    # to Apple" and "signed by a cert Apple has not revoked". Costs a network
+    # round trip per verification and fails closed if Apple's OCSP responder is
+    # unreachable. Tests turn it off to stay offline.
+    APPLE_ENABLE_ONLINE_CHECKS: bool = True
+
     # Redis connection URL for shared rate limiting across multiple workers.
     # Example: redis://localhost:6379/0  or  rediss://user:pass@host:6380/0 (TLS)
     # Leave empty ("") to use the in-memory fallback (development / single-process).

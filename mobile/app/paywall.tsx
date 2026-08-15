@@ -1,11 +1,17 @@
 /**
- * paywall.tsx — "Taste → Upgrade" paywall
+ * paywall.tsx — LandHere Pro
  *
- * Reached from locked feature screens (rankings, scholarships, work-hours, journey).
- * Shows ghost preview rows so the user can see real content behind the gate.
- * Back button always present — this is NOT a hard block.
+ * Reached from the locked surfaces: journey phases past acceptance, rankings
+ * past the top 25, and university detail. Shows ghost preview rows so the user
+ * can see real content behind the gate. The back button is always present —
+ * this is an upsell, not a wall.
  *
- * IAP: com.landhere.app.pro · Non-Consumable · $1.99
+ * Product: com.landhere.app.pro · Non-Consumable · one-time · $1.99
+ * (App Store Connect owns the price; `displayPrice` from StoreKit is what the
+ * user is shown, so a price change there needs no app release.)
+ *
+ * Nothing here grants access. Both the buy path and the restore path end at
+ * POST /purchases/verify, and the server decides.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -16,27 +22,38 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useIAP, finishTransaction, type Purchase } from 'react-native-iap';
-import { useTheme } from '../context/ThemeContext';
-import { usePurchaseStore } from '../lib/purchaseStore';
+// `finishTransaction` is taken from the root API rather than from the useIAP
+// destructuring: the success callback is defined inside the hook's own options
+// object, so referencing the hook's copy there is a use-before-declaration.
+import { ErrorCode, finishTransaction, useIAP, type Purchase } from 'expo-iap';
 
-// Product identifier for the (disabled) one-time Pro unlock. Kept here rather
-// than in lib/ so the shipped bundle contains no reference to it.
-const PRODUCT_ID = 'com.landhere.app.pro';
+import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from '../components/PressableScale';
+import { getErrorMessage } from '../lib/api';
+import {
+  PRO_PRODUCT_ID,
+  useContentUnlocked,
+  useRefreshEntitlement,
+  verifySignedTransaction,
+} from '../lib/purchaseStore';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
+/**
+ * What Pro actually unlocks. Kept in step with the server gates in
+ * app/routes/info.py and app/routes/universities.py — advertising anything the
+ * API does not gate would be a false claim in a paid listing.
+ *
+ * Scholarships, work-hour rules and the arrival checklist are FREE and are
+ * deliberately absent from this list.
+ */
 const FEATURES: { icon: IoniconName; label: string; sub: string }[] = [
-  { icon: 'trail-sign-outline', label: 'Full relocation journey', sub: 'All steps, all phases — nothing locked mid-flow' },
-  { icon: 'trophy-outline', label: 'University rankings', sub: '500+ schools scored for international students' },
-  { icon: 'briefcase-outline', label: 'Student work-hour rules', sub: 'Official limits for 9 countries' },
-  { icon: 'ribbon-outline', label: 'Scholarship directory', sub: 'Official sources, no spam' },
-  { icon: 'cash-outline', label: 'Currency & cost planning', sub: 'Live rates and cost-of-living guide' },
-  { icon: 'document-text-outline', label: 'Official visa guidance', sub: 'Human-verified steps, dated sources' },
+  { icon: 'trail-sign-outline', label: 'The rest of your journey', sub: 'Visa process, departure and arrival — every step' },
+  { icon: 'trophy-outline', label: 'All 500+ ranked universities', sub: 'Free shows the top 25' },
+  { icon: 'school-outline', label: 'University detail pages', sub: 'Cost, outcomes, research and intl. student mix' },
+  { icon: 'stats-chart-outline', label: 'Scoring methodology', sub: 'Exactly how the LandHere Score is built' },
 ];
 
-// Ghost rows that hint at premium rankings content behind the gate.
 const GHOST_ROWS = [
   { initials: 'MIT', score: '94', name: 'Massachusetts Institute of Technology', state: 'Cambridge, MA', tuition: '~$62k' },
   { initials: 'STA', score: '91', name: 'Stanford University', state: 'Stanford, CA', tuition: '~$65k' },
@@ -57,48 +74,96 @@ export default function PaywallScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { purchased, setPurchased } = usePurchaseStore();
+
+  const unlocked = useContentUnlocked();
+  const refreshEntitlement = useRefreshEntitlement();
 
   const [buying, setBuying] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [storeError, setStoreError] = useState<string | null>(null);
   const navigatedRef = useRef(false);
 
-  function goBack() {
+  const goBack = useCallback(() => {
     if (router.canGoBack()) router.back();
     else router.replace('/(tabs)');
-  }
+  }, [router]);
 
-  // Skip paywall if already purchased.
+  // Already entitled (bought elsewhere, or the server confirmed mid-flow).
   useEffect(() => {
-    if (purchased && !navigatedRef.current) {
+    if (unlocked && !navigatedRef.current) {
       navigatedRef.current = true;
       goBack();
     }
-  }, [purchased]);
+  }, [unlocked, goBack]);
 
-  // ── IAP hook ───────────────────────────────────────────────────────────────
+  /**
+   * The one place a transaction becomes an entitlement: hand the signed blob to
+   * the server and take its answer. Used by both buy and restore.
+   */
+  const submitToServer = useCallback(
+    async (purchase: Purchase): Promise<boolean> => {
+      const signed = purchase.purchaseToken;
+      if (!signed) {
+        setStoreError('The store did not return a verifiable receipt. Please try again.');
+        return false;
+      }
+      try {
+        const entitlement = await verifySignedTransaction(signed);
+        await refreshEntitlement();
+        if (!entitlement.pro) {
+          // Verified, but not entitling — a refunded or revoked purchase.
+          setStoreError('This purchase is no longer active on your account.');
+          return false;
+        }
+        return true;
+      } catch (e) {
+        setStoreError(getErrorMessage(e, 'We could not confirm your purchase. Please try again.'));
+        return false;
+      }
+    },
+    [refreshEntitlement],
+  );
+
+  // ── StoreKit ───────────────────────────────────────────────────────────────
 
   const {
     connected, products, availablePurchases,
     fetchProducts, requestPurchase, getAvailablePurchases,
+    restorePurchases,
   } = useIAP({
     onPurchaseSuccess: useCallback(
       async (purchase: Purchase) => {
-        if (navigatedRef.current) return;
-        navigatedRef.current = true;
-        try { await finishTransaction({ purchase, isConsumable: false }); } catch {}
-        await setPurchased(true);
+        const ok = await submitToServer(purchase);
+        // Finish the transaction only after the server has recorded it —
+        // finishing first would let a failed verification lose the receipt.
+        if (ok) {
+          try {
+            await finishTransaction({ purchase, isConsumable: false });
+          } catch {
+            // The entitlement is already recorded server-side; StoreKit will
+            // re-deliver an unfinished transaction on next launch.
+          }
+        }
         setBuying(false);
-        goBack();
+        if (ok && !navigatedRef.current) {
+          navigatedRef.current = true;
+          goBack();
+        }
       },
-      [setPurchased],
+      [submitToServer, goBack],
     ),
-    onPurchaseError: useCallback((error: { code?: string; message?: string }) => {
-      if (error.code !== 'E_USER_CANCELLED') {
-        setStoreError('Purchase could not be completed. Please try again.');
+    // Typed structurally rather than with the exported PurchaseError: expo-iap
+    // ships two shapes under that name and the hook expects the one whose
+    // `code` is optional.
+    onPurchaseError: useCallback((error: { code?: ErrorCode; message?: string }) => {
+      // Cancelling is a normal outcome, not an error to shout about.
+      if (error.code !== ErrorCode.UserCancelled) {
+        setStoreError(error.message || 'Purchase could not be completed. Please try again.');
       }
       setBuying(false);
+    }, []),
+    onError: useCallback((error: Error) => {
+      setStoreError(error.message || 'The store is unavailable right now.');
     }, []),
   });
 
@@ -106,21 +171,29 @@ export default function PaywallScreen() {
   useEffect(() => {
     if (!connected || connectedOnce.current) return;
     connectedOnce.current = true;
-    fetchProducts({ skus: [PRODUCT_ID], type: 'in-app' }).catch(() => {});
-    getAvailablePurchases().catch(() => {});
-  }, [connected]);
+    fetchProducts({ skus: [PRO_PRODUCT_ID], type: 'in-app' }).catch(() => {});
+  }, [connected, fetchProducts]);
 
+  // Restore: StoreKit repopulates availablePurchases, and each matching
+  // transaction goes through the same server verification as a fresh purchase.
   useEffect(() => {
-    if (navigatedRef.current || availablePurchases.length === 0) return;
-    const found = availablePurchases.some((p) => p.productId === PRODUCT_ID);
-    if (found) {
-      navigatedRef.current = true;
-      setPurchased(true).then(() => goBack()).catch(() => {});
-    } else if (restoring) {
+    if (!restoring || navigatedRef.current) return;
+    const found = availablePurchases.find((p) => p.productId === PRO_PRODUCT_ID);
+    if (!found) return;
+    let cancelled = false;
+    (async () => {
+      const ok = await submitToServer(found);
+      if (cancelled) return;
       setRestoring(false);
-      setStoreError(`No previous purchase found for this ${STORE_ACCOUNT}.`);
-    }
-  }, [availablePurchases]);
+      if (ok && !navigatedRef.current) {
+        navigatedRef.current = true;
+        goBack();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [availablePurchases, restoring, submitToServer, goBack]);
 
   async function handlePurchase() {
     if (buying || restoring || !connected) return;
@@ -129,12 +202,14 @@ export default function PaywallScreen() {
     try {
       await requestPurchase({
         request: {
-          apple: { sku: PRODUCT_ID },
-          google: { skus: [PRODUCT_ID] },
+          apple: { sku: PRO_PRODUCT_ID },
+          google: { skus: [PRO_PRODUCT_ID] },
         },
         type: 'in-app',
       });
     } catch {
+      // onPurchaseError reports the reason; this only clears the spinner for
+      // failures that never reach the listener.
       setBuying(false);
     }
   }
@@ -144,32 +219,34 @@ export default function PaywallScreen() {
     setRestoring(true);
     setStoreError(null);
     try {
+      await restorePurchases();
       await getAvailablePurchases();
-      // The useEffect above handles the happy path (purchase found) via
-      // availablePurchases state. This timeout only triggers the error message
-      // if nothing was found after the IAP response window.
-      // The useEffect on availablePurchases handles the happy-path (purchase found)
-      // and sets navigatedRef. This timeout fires only when nothing was found —
-      // checking navigatedRef avoids reading the stale availablePurchases closure.
+      // If nothing matching arrives, the effect above never fires; tell the
+      // user rather than leaving a spinner running forever.
       setTimeout(() => {
         if (!navigatedRef.current) {
-          setStoreError(`No previous purchase found for this ${STORE_ACCOUNT}.`);
-          setRestoring(false);
+          setRestoring((wasRestoring) => {
+            if (wasRestoring) {
+              setStoreError(`No previous LandHere Pro purchase found for this ${STORE_ACCOUNT}.`);
+            }
+            return false;
+          });
         }
-      }, 1500);
-    } catch {
-      setStoreError('Unable to reach the store. Please check your connection.');
+      }, 4000);
+    } catch (e) {
+      setStoreError(getErrorMessage(e, 'Unable to reach the store. Please check your connection.'));
       setRestoring(false);
     }
   }
 
-  const product = products.find((p) => p.id === PRODUCT_ID);
+  const product = products.find((p) => p.id === PRO_PRODUCT_ID);
+  // Falls back only if StoreKit has not answered yet; App Store Connect is the
+  // authority on price, including in other currencies and storefronts.
   const displayPrice = product?.displayPrice ?? '$1.99';
   const canBuy = connected && !buying && !restoring;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      {/* Back button */}
       <View style={[st.topBar, { paddingTop: insets.top + 6 }]}>
         <Pressable
           onPress={goBack}
@@ -187,12 +264,10 @@ export default function PaywallScreen() {
         bounces={false}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Sneak peek — ghost ranking rows ── */}
-        <View style={st.sneakOuter}>
+        <View style={st.sneakOuter} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {GHOST_ROWS.map((row, i) => (
             <View
               key={row.initials}
-              aria-hidden={true}
               style={[
                 st.ghostRow,
                 {
@@ -221,35 +296,32 @@ export default function PaywallScreen() {
               </View>
             </View>
           ))}
-          {/* Gradient fade-out */}
           <LinearGradient
             colors={['transparent', colors.bg] as [string, string]}
             locations={[0, 1]}
             style={st.sneakFade}
             pointerEvents="none"
           />
-          {/* Lock pill */}
           <View style={[st.lockPill, { backgroundColor: colors.surface }]}>
             <Ionicons name="lock-closed" size={16} color={colors.primary} />
             <Text style={[st.lockPillText, { color: colors.textPrimary }]}>Unlock everything for {displayPrice}</Text>
           </View>
         </View>
 
-        {/* ── Hero ── */}
         <View style={st.hero}>
           <View style={[st.logoWrap, { backgroundColor: colors.primary + '18' }]}>
             <Ionicons name="airplane" size={32} color={colors.primary} />
           </View>
-          <Text style={[st.heroTitle, { color: colors.textPrimary }]}>
-            One unlock.{'\n'}Everything you need.
+          <Text style={[st.heroTitle, { color: colors.textPrimary }]} accessibilityRole="header">
+            One unlock.{'\n'}The whole journey.
           </Text>
           <Text style={[st.heroSub, { color: colors.textSecondary }]}>
-            Full journey, rankings, work rules, scholarships, and visa tools —{' '}
-            {displayPrice} once, no subscription.
+            Every journey phase, all 500+ ranked universities and their detail pages —{' '}
+            {displayPrice} once, no subscription. Scholarships, work-hour rules and the
+            arrival checklist stay free.
           </Text>
         </View>
 
-        {/* ── Feature list ── */}
         <View style={[st.featureCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {FEATURES.map((f, i) => (
             <View
@@ -258,6 +330,7 @@ export default function PaywallScreen() {
                 st.featureRow,
                 i < FEATURES.length - 1 && { borderBottomWidth: 0.5, borderBottomColor: colors.border + '60' },
               ]}
+              accessibilityLabel={`${f.label}. ${f.sub}`}
             >
               <View style={[st.featureIcon, { backgroundColor: colors.primary + '15' }]}>
                 <Ionicons name={f.icon} size={18} color={colors.primary} />
@@ -271,31 +344,32 @@ export default function PaywallScreen() {
           ))}
         </View>
 
-        {/* Store offline notice */}
-        {!connected && (
-          <View style={st.offlineRow}>
+        {!connected ? (
+          <View style={st.offlineRow} accessibilityLiveRegion="polite">
             <Ionicons name="cloud-offline-outline" size={14} color={colors.textSecondary} />
             <Text style={[st.offlineText, { color: colors.textSecondary }]}>Connecting to store…</Text>
           </View>
-        )}
+        ) : null}
 
-        {/* Error */}
         {storeError ? (
-          <View style={[st.errorBox, { backgroundColor: colors.danger + '1A' }]}>
+          <View
+            style={[st.errorBox, { backgroundColor: colors.danger + '1A' }]}
+            accessibilityLiveRegion="assertive"
+          >
             <Text style={[st.errorText, { color: colors.danger }]}>{storeError}</Text>
           </View>
         ) : null}
 
-        {/* CTA */}
         <PressableScale
           onPress={handlePurchase}
           disabled={!canBuy}
           style={[st.ctaBtn, { backgroundColor: colors.primary }, !canBuy && st.ctaDisabled]}
           accessibilityRole="button"
-          accessibilityLabel={`Unlock LandHere for ${displayPrice}`}
+          accessibilityLabel={`Buy LandHere Pro for ${displayPrice}, one-time purchase`}
+          accessibilityState={{ disabled: !canBuy, busy: buying }}
         >
           {buying ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#fff" accessibilityLabel="Completing your purchase" />
           ) : (
             <Text style={st.ctaText}>Unlock Everything — {displayPrice}</Text>
           )}
@@ -305,19 +379,19 @@ export default function PaywallScreen() {
           One-time payment · No subscription
         </Text>
 
-        {/* Restore */}
         <PressableScale
           onPress={handleRestore}
           disabled={restoring || buying}
           style={st.restoreBtn}
           accessibilityRole="button"
-          accessibilityLabel="Restore previous purchase"
+          accessibilityLabel="Restore a previous LandHere Pro purchase"
+          accessibilityState={{ disabled: restoring || buying, busy: restoring }}
         >
           {restoring ? (
-            <ActivityIndicator size="small" color={colors.textSecondary} />
+            <ActivityIndicator size="small" color={colors.textSecondary} accessibilityLabel="Restoring your purchase" />
           ) : (
             <Text style={[st.restoreText, { color: colors.textSecondary }]}>
-              Restore previous purchase
+              Restore Purchases
             </Text>
           )}
         </PressableScale>
@@ -325,7 +399,8 @@ export default function PaywallScreen() {
         <Text style={[st.terms, { color: colors.textTertiary }]}>
           Payment charged to your{' '}
           {Platform.OS === 'ios' ? 'Apple ID' : 'Google Play account'} at confirmation.
-          One-time purchase — no recurring charges.
+          One-time purchase — no recurring charges. Refunds are handled by{' '}
+          {Platform.OS === 'ios' ? 'Apple' : 'Google'}.
         </Text>
       </ScrollView>
     </View>
@@ -340,7 +415,6 @@ const st = StyleSheet.create({
   },
   container: { paddingHorizontal: 24, alignItems: 'center' },
 
-  // Sneak peek
   sneakOuter: { width: '100%', marginBottom: 20, position: 'relative', paddingTop: 4 },
   ghostRow: {
     flexDirection: 'row', alignItems: 'center',
@@ -365,7 +439,6 @@ const st = StyleSheet.create({
   },
   lockPillText: { fontSize: 14, fontWeight: '800' },
 
-  // Hero
   hero: { alignItems: 'center', marginBottom: 24 },
   logoWrap: {
     width: 62, height: 62, borderRadius: 18,
@@ -377,7 +450,6 @@ const st = StyleSheet.create({
   },
   heroSub: { fontSize: 15, textAlign: 'center', lineHeight: 22, maxWidth: 300 },
 
-  // Features
   featureCard: {
     width: '100%', borderRadius: 16,
     paddingVertical: 4, paddingHorizontal: 16,

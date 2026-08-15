@@ -12,3 +12,8 @@ python-dotenv
 pydantic-settings
 pydantic[email]
 redis  # Redis client for shared rate limiting (optional; falls back to in-memory)
+# Apple's own App Store Server library. Used ONLY to verify the signature chain
+# on StoreKit transactions (app/core/appstore.py). Needs no Apple credentials:
+# the trust anchors are Apple's public root CAs. Pulls cryptography>=43 —
+# verified against the existing suite at cryptography 50.0.0.
+app-store-server-library>=3.1,<4
