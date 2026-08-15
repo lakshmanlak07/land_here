@@ -16,6 +16,68 @@ import {
 } from '../constants/workRules';
 
 
+/**
+ * Work hours — student work limits by destination country.
+ *
+ * A glanceable guide pulling its data from the canonical WORK_RULES_BY_COUNTRY
+ * (verified official sources). Each card links out to that country's official
+ * immigration page so the user can confirm current limits.
+ *
+ * FREE for everyone. This screen was behind the old paid tier (FREE_COUNT = 0,
+ * i.e. entirely locked); under the current product split work-hour rules are
+ * free and there is no gate here at all. The content is bundled in
+ * constants/workRules.ts, so a gate here could never have been more than
+ * cosmetic anyway.
+ */
+export default function WorkHoursScreen() {
+  const { colors, spacing, isDark, toggleTheme } = useTheme();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <LinearGradient
+        colors={(isDark ? ['#A4133C', '#5E0C26', colors.bg] : ['#A4133C', '#981236', colors.bg]) as [string, string, string]}
+        locations={[0, 0.62, 1]}
+        style={[s.hero, { paddingTop: insets.top + 12 }]}
+      >
+        <View style={s.heroTop}>
+          <Pressable
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+            hitSlop={10}
+            style={s.glassBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="chevron-back" size={18} color="#fff" />
+          </Pressable>
+          <Pressable
+            onPress={toggleTheme}
+            hitSlop={10}
+            style={s.glassBtn}
+            accessibilityRole="button"
+            accessibilityLabel={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            <Ionicons name={isDark ? 'sunny' : 'moon'} size={18} color="#fff" />
+          </Pressable>
+        </View>
+        <Text style={s.heroTitle}>Work hours</Text>
+        <Text style={s.heroSub}>Student work limits by country</Text>
+      </LinearGradient>
+
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxl }}
+        showsVerticalScrollIndicator={false}
+      >
+        {WORK_HOURS_COUNTRIES.map((entry) => (
+          <CountryCard key={entry.code} entry={entry} />
+        ))}
+        <Text style={[s.footer, { color: colors.textTertiary }]}>{WORK_HOURS_FOOTER}</Text>
+      </ScrollView>
+    </View>
+  );
+}
+
 function CountryCard({ entry }: { entry: WorkHoursEntry }) {
   const { colors, spacing, isDark } = useTheme();
   const rule = getWorkRule(entry.code);

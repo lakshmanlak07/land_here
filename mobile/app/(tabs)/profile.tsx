@@ -20,6 +20,13 @@ import { duration } from '../../lib/motion';
 import api, { getErrorMessage } from '../../lib/api';
 import { PRIVACY_POLICY_URL, SUPPORT_URL, TERMS_URL } from '../../lib/config';
 import { getCountryName } from '../../constants/countries';
+import { getAvailablePurchases, restorePurchases } from 'expo-iap';
+import {
+  PRO_PRODUCT_ID,
+  useContentUnlocked,
+  useRefreshEntitlement,
+  verifySignedTransaction,
+} from '../../lib/purchaseStore';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -50,6 +57,10 @@ export default function ProfileScreen() {
   const user = useAuthStore((st) => st.user);
   const logout = useAuthStore((st) => st.logout);
   const router = useRouter();
+
+  const isPro = useContentUnlocked();
+  const refreshEntitlement = useRefreshEntitlement();
+  const [restoring, setRestoring] = useState(false);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [password, setPassword] = useState('');
@@ -99,6 +110,43 @@ export default function ProfileScreen() {
       await Linking.openURL(url);
     } catch {
       Alert.alert(`Couldn't open ${label}`, url);
+    }
+  }
+
+  /**
+   * Restore a previous LandHere Pro purchase.
+   *
+   * Asks StoreKit for this Apple ID's past transactions, then submits each
+   * matching one to the server for verification — the same endpoint a fresh
+   * purchase uses. Nothing is granted locally, so a restore that the server
+   * rejects leaves the account unentitled, which is the correct outcome.
+   */
+  async function handleRestorePurchases() {
+    if (restoring) return;
+    setRestoring(true);
+    try {
+      await restorePurchases();
+      const owned = await getAvailablePurchases();
+      const match = (owned ?? []).find((p) => p.productId === PRO_PRODUCT_ID);
+      if (!match?.purchaseToken) {
+        Alert.alert(
+          'No purchase found',
+          `We couldn't find a LandHere Pro purchase for this ${Platform.OS === 'ios' ? 'Apple ID' : 'Google account'}.`,
+        );
+        return;
+      }
+      const entitlement = await verifySignedTransaction(match.purchaseToken);
+      await refreshEntitlement();
+      Alert.alert(
+        entitlement.pro ? 'LandHere Pro restored' : 'Purchase not active',
+        entitlement.pro
+          ? 'Your purchase is active on this account.'
+          : 'That purchase is no longer active. If you believe this is wrong, contact support.',
+      );
+    } catch (e) {
+      Alert.alert('Restore failed', getErrorMessage(e, 'We could not reach the store. Please try again.'));
+    } finally {
+      setRestoring(false);
     }
   }
 
@@ -210,6 +258,56 @@ export default function ProfileScreen() {
                 <IconBadge icon="bug-outline" color={colors.after_acceptance} tone="soft" size={34} style={{ marginRight: spacing.md }} />
                 <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Report a bug</Text>
                 <Ionicons name="open-outline" size={18} color={colors.textTertiary} />
+              </PressableScale>
+            </View>
+          </FadeInView>
+
+          {/* LandHere Pro — Apple requires a restore path for non-consumables
+              that is reachable without buying anything, so it lives here as
+              well as on the paywall. Restore submits Apple's signed
+              transaction to the server; the device never grants Pro itself. */}
+          <FadeInView delay={duration.fast * 2.625}>
+            <Text style={[s.sectionLabel, { color: colors.textTertiary }]}>LANDHERE PRO</Text>
+            <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <View style={[s.row, { borderBottomColor: colors.border }]}>
+                <IconBadge
+                  icon={isPro ? 'checkmark-circle-outline' : 'lock-closed-outline'}
+                  color={colors.primary}
+                  tone="soft"
+                  size={34}
+                  style={{ marginRight: spacing.md }}
+                />
+                <Text style={[s.rowLabel, { color: colors.textPrimary }]}>
+                  {isPro ? 'LandHere Pro active' : 'LandHere Pro'}
+                </Text>
+              </View>
+              {!isPro ? (
+                <PressableScale
+                  style={[s.row, { borderBottomColor: colors.border }]}
+                  onPress={() => router.push('/paywall')}
+                  accessibilityRole="button"
+                  accessibilityLabel="See what LandHere Pro unlocks"
+                >
+                  <IconBadge icon="sparkles-outline" color={colors.primary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
+                  <Text style={[s.rowLabel, { color: colors.textPrimary }]}>See what Pro unlocks</Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                </PressableScale>
+              ) : null}
+              <PressableScale
+                style={[s.row, { borderBottomWidth: 0 }]}
+                onPress={handleRestorePurchases}
+                disabled={restoring}
+                accessibilityRole="button"
+                accessibilityLabel="Restore a previous LandHere Pro purchase"
+                accessibilityState={{ disabled: restoring, busy: restoring }}
+              >
+                <IconBadge icon="refresh-outline" color={colors.primary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
+                <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Restore Purchases</Text>
+                {restoring ? (
+                  <ActivityIndicator size="small" color={colors.textTertiary} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                )}
               </PressableScale>
             </View>
           </FadeInView>
