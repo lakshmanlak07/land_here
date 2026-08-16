@@ -70,6 +70,21 @@ class VerifiedTransaction:
     revoked_at: datetime | None
 
 
+@dataclass(frozen=True)
+class VerifiedNotification:
+    """An App Store Server Notification we have proved came from Apple.
+
+    `transaction` is None for notification types that carry no transaction —
+    notably TEST, which Apple sends when you use "Request a Test Notification"
+    in App Store Connect.
+    """
+
+    notification_type: str
+    subtype: str | None
+    notification_uuid: str
+    transaction: VerifiedTransaction | None
+
+
 def _load_root_certificates() -> list[bytes]:
     directory = settings.APPLE_ROOT_CA_DIR.strip()
     if not directory:
@@ -180,4 +195,69 @@ def verify_signed_transaction(signed_transaction: str) -> VerifiedTransaction:
         environment=environment,
         purchased_at=purchased_at,
         revoked_at=_ms_to_datetime(payload.revocationDate),
+    )
+
+
+def verify_signed_notification(signed_payload: str) -> VerifiedNotification:
+    """Verify an App Store Server Notification (V2) and return its trusted fields.
+
+    Same trust model as `verify_signed_transaction`, deliberately: the endpoint
+    that receives these is unauthenticated, because Apple calls it and cannot
+    hold a credential of ours. **Apple's signature is the entire authentication.**
+    So this must fail closed exactly as hard — an unverifiable payload is
+    rejected outright rather than being treated as a hint worth acting on.
+
+    That matters more here than for a purchase. A forged notification would be an
+    unauthenticated request that revokes a paying user's access, so accepting one
+    optimistically would hand anyone a denial-of-service against our customers.
+    """
+    verifiers = _build_verifiers()
+    if not verifiers:
+        raise VerificationUnavailable(
+            "App Store verification is not configured on this server."
+        )
+
+    payload = None
+    for verifier in verifiers:
+        try:
+            payload = verifier.verify_and_decode_notification(signed_payload)
+            break
+        except VerificationException:
+            continue  # wrong environment for this blob; try the next verifier
+    if payload is None:
+        raise PurchaseVerificationError("Notification could not be verified.")
+
+    notification_type = (
+        payload.notificationType.value
+        if payload.notificationType is not None
+        else str(payload.rawNotificationType or "")
+    )
+    subtype = (
+        payload.subtype.value
+        if payload.subtype is not None
+        else (str(payload.rawSubtype) if payload.rawSubtype else None)
+    )
+    if not payload.notificationUUID:
+        # Without it we cannot deduplicate, and Apple retries notifications.
+        raise PurchaseVerificationError("Notification is missing its UUID.")
+
+    # The inner transaction is itself a separately-signed JWS. Verify it in its
+    # own right rather than trusting it because the envelope was valid.
+    transaction = None
+    signed_transaction = getattr(payload.data, "signedTransactionInfo", None)
+    if signed_transaction:
+        try:
+            transaction = verify_signed_transaction(signed_transaction)
+        except PurchaseVerificationError:
+            # A genuine Apple notification about some other product of ours (or
+            # a product we no longer sell) is not an error worth 400-ing over —
+            # Apple would just retry it forever. Record the envelope, act on
+            # nothing.
+            transaction = None
+
+    return VerifiedNotification(
+        notification_type=notification_type,
+        subtype=subtype,
+        notification_uuid=payload.notificationUUID,
+        transaction=transaction,
     )

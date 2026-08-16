@@ -184,6 +184,40 @@ def _signed(pki: _PKI = _PKI_MAIN, **kwargs) -> str:
     return pki.sign(_transaction(**kwargs))
 
 
+def _signed_notification(
+    notification_type: str,
+    *,
+    pki: _PKI = _PKI_MAIN,
+    notification_uuid: str | None = None,
+    subtype: str | None = None,
+    transaction: dict | None = None,
+    include_transaction: bool = True,
+) -> str:
+    """Build an App Store Server Notification (V2) envelope.
+
+    The envelope and the transaction inside it are signed separately, exactly as
+    Apple does it — which is what lets the tests below forge one without the
+    other.
+    """
+    data: dict = {"bundleId": BUNDLE_ID, "environment": "Sandbox"}
+    if include_transaction:
+        data["signedTransactionInfo"] = pki.sign(transaction or _transaction())
+    return pki.sign(
+        {
+            "notificationType": notification_type,
+            "subtype": subtype,
+            "notificationUUID": notification_uuid or str(uuid.uuid4()),
+            "data": data,
+            "version": "2.0",
+            "signedDate": _now_ms(),
+        }
+    )
+
+
+def _notify(client, signed_payload: str):
+    return client.post("/purchases/notifications", json={"signedPayload": signed_payload})
+
+
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
 def apply_apple_test_settings(monkeypatch) -> None:
@@ -232,11 +266,16 @@ def _buy(client, headers, **kwargs):
     )
 
 
-def _add_universities(count: int, prefix: str) -> str:
+def _add_universities(count: int, prefix: str, base_score: float = 1000.0) -> str:
     """Insert scored universities and return the id of the first one.
 
     scorecard_id is UNIQUE NOT NULL, so each row needs its own; the prefix keeps
     tests from colliding in the session-scoped database.
+
+    `base_score` matters more than it looks: the database is session-scoped, so
+    every test's rows compete in one global ranking. A fixture that wants to sit
+    *below* the free top-25 cut has to say so explicitly rather than reusing the
+    default band.
     """
     from app.models.university import University
     from tests.conftest import TestingSessionLocal
@@ -251,7 +290,7 @@ def _add_universities(count: int, prefix: str) -> str:
                 name=f"{prefix} University {i}",
                 country_code="US",
                 has_full_score=True,
-                landhere_score=float(1000 - i),
+                landhere_score=base_score - i,
             )
             db.add(u)
             if first_id is None:
@@ -438,6 +477,200 @@ def test_deleting_the_account_removes_the_purchase(client):
     assert remaining == 0
 
 
+# ── App Store Server Notifications ─────────────────────────────────────────────
+#
+# This endpoint is unauthenticated because Apple calls it, so Apple's signature
+# is the only thing standing between a stranger and a paying user's entitlement.
+# These tests are about that boundary.
+
+def _buy_with(client, headers, original: str):
+    return _buy(client, headers, original_transaction_id=original)
+
+
+def test_refund_notification_revokes_entitlement(client):
+    _, headers, _ = _account(client)
+    original = str(uuid.uuid4().int)[:16]
+    assert _buy_with(client, headers, original).status_code == 200
+    assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is True
+
+    r = _notify(
+        client,
+        _signed_notification(
+            "REFUND",
+            transaction=_transaction(
+                original_transaction_id=original, revocation_date=_now_ms()
+            ),
+        ),
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["action"] == "revoked"
+    assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is False
+
+
+def test_revoke_notification_revokes_entitlement(client):
+    """REVOKE is the Family Sharing withdrawal case; same outcome as a refund."""
+    _, headers, _ = _account(client)
+    original = str(uuid.uuid4().int)[:16]
+    assert _buy_with(client, headers, original).status_code == 200
+
+    r = _notify(
+        client,
+        _signed_notification(
+            "REVOKE", transaction=_transaction(original_transaction_id=original)
+        ),
+    )
+    assert r.status_code == 200
+    assert r.json()["action"] == "revoked"
+    assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is False
+
+
+def test_forged_notification_cannot_revoke_entitlement(client):
+    """The denial-of-service case: a stranger revoking a paying user's access."""
+    _, headers, _ = _account(client)
+    original = str(uuid.uuid4().int)[:16]
+    assert _buy_with(client, headers, original).status_code == 200
+
+    forged = _signed_notification(
+        "REFUND",
+        pki=_PKI_ROGUE,
+        transaction=_transaction(original_transaction_id=original),
+    )
+    r = _notify(client, forged)
+    assert r.status_code == 400
+    assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is True
+
+
+def test_tampered_notification_envelope_is_rejected(client):
+    """Re-encoding the envelope without re-signing must not be accepted."""
+    _, headers, _ = _account(client)
+    original = str(uuid.uuid4().int)[:16]
+    assert _buy_with(client, headers, original).status_code == 200
+
+    good = _signed_notification(
+        "TEST", transaction=_transaction(original_transaction_id=original)
+    )
+    header_b64, payload_b64, signature = good.split(".")
+    payload = json.loads(jwt.utils.base64url_decode(payload_b64))
+    payload["notificationType"] = "REFUND"  # escalate TEST into a revocation
+    forged_payload = jwt.utils.base64url_encode(json.dumps(payload).encode()).decode()
+
+    r = _notify(client, f"{header_b64}.{forged_payload}.{signature}")
+    assert r.status_code == 400
+    assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is True
+
+
+def test_duplicate_notification_is_idempotent(client):
+    """Apple retries until it gets a 2xx, so duplicates are ordinary traffic."""
+    _, headers, _ = _account(client)
+    original = str(uuid.uuid4().int)[:16]
+    assert _buy_with(client, headers, original).status_code == 200
+
+    payload = _signed_notification(
+        "REFUND",
+        notification_uuid="fixed-uuid-for-duplicate-test",
+        transaction=_transaction(original_transaction_id=original),
+    )
+    first = _notify(client, payload)
+    second = _notify(client, payload)
+
+    assert first.status_code == 200 and first.json()["duplicate"] is False
+    assert second.status_code == 200 and second.json()["duplicate"] is True
+    assert second.json()["action"] == "none"
+    assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is False
+
+    from app.models.purchase import PurchaseNotification
+    from tests.conftest import TestingSessionLocal
+
+    db = TestingSessionLocal()
+    try:
+        rows = (
+            db.query(PurchaseNotification)
+            .filter(
+                PurchaseNotification.notification_uuid
+                == "fixed-uuid-for-duplicate-test"
+            )
+            .count()
+        )
+    finally:
+        db.close()
+    assert rows == 1
+
+
+def test_refund_reversed_restores_entitlement(client):
+    _, headers, _ = _account(client)
+    original = str(uuid.uuid4().int)[:16]
+    assert _buy_with(client, headers, original).status_code == 200
+
+    _notify(
+        client,
+        _signed_notification(
+            "REFUND", transaction=_transaction(original_transaction_id=original)
+        ),
+    )
+    assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is False
+
+    r = _notify(
+        client,
+        _signed_notification(
+            "REFUND_REVERSED",
+            transaction=_transaction(original_transaction_id=original),
+        ),
+    )
+    assert r.status_code == 200
+    assert r.json()["action"] == "restored"
+    assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is True
+
+
+def test_test_notification_is_accepted_without_acting(client):
+    """App Store Connect's "Request a Test Notification" carries no transaction."""
+    r = _notify(client, _signed_notification("TEST", include_transaction=False))
+    assert r.status_code == 200
+    assert r.json() == {"received": True, "duplicate": False, "action": "none"}
+
+
+def test_notification_for_unknown_transaction_is_accepted(client):
+    """200, so Apple stops retrying — but nothing to act on."""
+    r = _notify(
+        client,
+        _signed_notification(
+            "REFUND",
+            transaction=_transaction(original_transaction_id="9999999999999999"),
+        ),
+    )
+    assert r.status_code == 200
+    assert r.json()["action"] == "none"
+
+
+def test_revoked_purchase_loses_the_pro_gates(client):
+    """Entitlement is one decision, so a refund must close every gate at once."""
+    _, headers, _ = _account(client)
+    original = str(uuid.uuid4().int)[:16]
+    assert _buy_with(client, headers, original).status_code == 200
+    uni_id = _add_universities(1, f"revoke-gate-{uuid.uuid4().hex[:6]}")
+    assert client.get(f"/universities/{uni_id}", headers=headers).status_code == 200
+
+    _notify(
+        client,
+        _signed_notification(
+            "REFUND", transaction=_transaction(original_transaction_id=original)
+        ),
+    )
+
+    assert client.get(f"/universities/{uni_id}", headers=headers).status_code == 403
+    journey = client.get(
+        "/info/journey", params={"destination": "US", "origin": "IN"}, headers=headers
+    ).json()
+    assert journey["pro_required"] is True
+    assert {p["phase"] for p in journey["phases"]} <= FREE_PHASES
+
+
+def test_notification_verification_unavailable_returns_503(client, monkeypatch):
+    """Never drop a refund silently — 503 so Apple retries once configured."""
+    monkeypatch.setattr(settings, "APPLE_ROOT_CA_DIR", "")
+    r = _notify(client, _signed_notification("REFUND"))
+    assert r.status_code == 503
+
+
 # ── Server-enforced Pro gates ──────────────────────────────────────────────────
 
 FREE_PHASES = {"before_applying", "after_acceptance"}
@@ -516,3 +749,40 @@ def test_rankings_list_is_clamped_for_free_users(client):
     )
     assert len(paid.json()) > 25
     assert "X-Pro-Required" not in paid.headers
+
+
+def test_free_search_cannot_reach_a_university_outside_the_global_top_25(client):
+    """The free tier is the top 25 universities — not the top 25 of any query.
+
+    Capping the paginated window caps the *filtered* result set, so a free
+    caller could name a low-ranked school with ?search= and receive its row,
+    or walk the whole table one ?state= at a time. The cap has to be applied to
+    the global ranking before the caller's filters, and this proves it is.
+    """
+    run = uuid.uuid4().hex[:6]
+    # Fill the free window with a high-scoring set, then add the ones under test
+    # in a low band. Doing both here keeps the test independent of run order —
+    # the database is session-scoped, and on its own the low set would *be* the
+    # global top 25.
+    _add_universities(30, f"topband-{run}", base_score=100_000.0)
+    prefix = f"deepcut-{run}"
+    _add_universities(60, prefix, base_score=10.0)
+
+    deep_name = f"{prefix} University 59"
+
+    free = client.get("/universities", params={"search": deep_name, "limit": 200})
+    assert free.status_code == 200
+    assert free.json() == [], "a free caller reached a university past the free window"
+
+    # A broad filter must not become its own ranking either: searching the
+    # shared prefix matches all 60 rows, and a free caller must still see none
+    # of them, because none is in the global top 25.
+    broad = client.get("/universities", params={"search": prefix, "limit": 200})
+    assert broad.json() == [], "a broad filter produced its own top-25 window"
+
+    _, pro_headers, _ = _account(client)
+    assert _buy(client, pro_headers).status_code == 200
+    paid = client.get(
+        "/universities", params={"search": deep_name, "limit": 200}, headers=pro_headers
+    )
+    assert [u["name"] for u in paid.json()] == [deep_name]

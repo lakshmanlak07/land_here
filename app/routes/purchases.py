@@ -17,7 +17,7 @@ entitled, and it goes through Apple's signature.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
@@ -26,12 +26,13 @@ from sqlalchemy.orm import Session
 from app.core.appstore import (
     PurchaseVerificationError,
     VerificationUnavailable,
+    verify_signed_notification,
     verify_signed_transaction,
 )
 from app.core.database import get_db
 from app.core.deps import get_current_user, user_has_pro
 from app.core.rate_limit import rate_limiter
-from app.models.purchase import Purchase
+from app.models.purchase import Purchase, PurchaseNotification
 from app.models.user import User
 
 router = APIRouter(prefix="/purchases", tags=["purchases"])
@@ -147,6 +148,117 @@ def verify_purchase(
     db.refresh(existing)
 
     return _entitlement_for(db, current_user)
+
+
+class NotificationIn(BaseModel):
+    # Apple posts {"signedPayload": "<JWS>"}. Bounded so an oversized body never
+    # reaches the crypto path.
+    signedPayload: str = Field(..., min_length=1, max_length=100_000)
+
+
+class NotificationAck(BaseModel):
+    received: bool
+    duplicate: bool = False
+    action: str = "none"
+
+
+# Apple retries aggressively; this bound is generous enough for legitimate
+# retries and still caps someone spraying candidate payloads at the endpoint.
+_notify_limit = rate_limiter("purchases_notify", limit=120, window_seconds=60)
+
+# Apple tells us a purchase is gone in one of these two ways. REVOKE covers
+# Family Sharing withdrawal; REFUND covers a refund Apple granted.
+_REVOKING_TYPES = {"REFUND", "REVOKE"}
+# ...and takes it back with this one, when a refund is reversed on appeal.
+_RESTORING_TYPES = {"REFUND_REVERSED"}
+
+
+@router.post(
+    "/notifications",
+    response_model=NotificationAck,
+    dependencies=[Depends(_notify_limit)],
+)
+def app_store_notification(
+    body: NotificationIn,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Receive an App Store Server Notification (V2).
+
+    **Unauthenticated on purpose** — Apple calls this and holds no credential of
+    ours. Apple's signature over the payload *is* the authentication, which is
+    why verification here fails closed exactly as hard as it does for a purchase:
+    a forged notification would be an unauthenticated way to revoke a paying
+    user's access.
+
+    Returns 200 for anything we successfully verified, including types we do not
+    act on, so Apple stops retrying. A 4xx is reserved for payloads we could not
+    verify, and a 5xx for our own failure — both of which we *want* Apple to
+    retry.
+
+    Configure the URL in App Store Connect under App Information → App Store
+    Server Notifications (production and sandbox URLs are set separately).
+    """
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        notification = verify_signed_notification(body.signedPayload)
+    except VerificationUnavailable:
+        # Our misconfiguration. 503 so Apple retries once we are configured,
+        # rather than us silently dropping a refund.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Notification verification is not available.",
+        )
+    except PurchaseVerificationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    transaction = notification.transaction
+
+    # Idempotency. Apple retries until it gets a 2xx, so the same notification
+    # arriving twice is ordinary traffic, not an attack.
+    already = (
+        db.query(PurchaseNotification)
+        .filter(PurchaseNotification.notification_uuid == notification.notification_uuid)
+        .first()
+    )
+    if already is not None:
+        return NotificationAck(received=True, duplicate=True, action="none")
+
+    db.add(
+        PurchaseNotification(
+            id=uuid.uuid4(),
+            notification_uuid=notification.notification_uuid,
+            notification_type=notification.notification_type,
+            subtype=notification.subtype,
+            original_transaction_id=(
+                transaction.original_transaction_id if transaction else None
+            ),
+        )
+    )
+
+    action = "none"
+    if transaction is not None:
+        purchase = (
+            db.query(Purchase)
+            .filter(
+                Purchase.original_transaction_id == transaction.original_transaction_id
+            )
+            .first()
+        )
+        if purchase is not None:
+            if notification.notification_type in _REVOKING_TYPES:
+                # Apple's own revocationDate if it gave us one; otherwise now.
+                purchase.revoked_at = transaction.revoked_at or datetime.now(
+                    timezone.utc
+                )
+                action = "revoked"
+            elif notification.notification_type in _RESTORING_TYPES:
+                purchase.revoked_at = None
+                action = "restored"
+
+    db.commit()
+    return NotificationAck(received=True, duplicate=False, action=action)
 
 
 __all__ = ["router", "user_has_pro"]

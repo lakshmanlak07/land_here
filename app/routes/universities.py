@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -34,7 +35,33 @@ def list_universities(
 ):
     response.headers["Cache-Control"] = _CACHE
     is_pro = user_has_pro(db, current_user)
-    query = db.query(University).filter(University.has_full_score == True)
+    scored = db.query(University).filter(University.has_full_score == True)
+
+    # The true, unfiltered population — what the upsell is selling. Safe to
+    # expose: a count leaks nothing about the withheld rows.
+    total = scored.count()
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["Access-Control-Expose-Headers"] = "X-Total-Count, X-Pro-Required"
+
+    query = scored
+    if not is_pro:
+        # Restrict to the GLOBAL top 25 *before* the caller's filters apply.
+        #
+        # Capping the paginated window instead — which is what this did
+        # originally — caps the filtered result set, not the ranking. A free
+        # caller could then reach any school in the table with ?search=,
+        # ?state= or ?max_tuition=, since each filter produces its own "top 25".
+        # Iterating filters enumerated the whole list. The free tier is the top
+        # 25 *universities*, not the top 25 of any query the caller invents.
+        top_ids = (
+            select(University.id)
+            .where(University.has_full_score == True)
+            .order_by(University.landhere_score.desc())
+            .limit(FREE_RANKING_ROWS)
+        )
+        query = query.filter(University.id.in_(top_ids))
+        if total > FREE_RANKING_ROWS:
+            response.headers["X-Pro-Required"] = "1"
 
     if search:
         query = query.filter(University.name.ilike(f"%{search}%"))
@@ -43,22 +70,8 @@ def list_universities(
     if state:
         query = query.filter(University.state.ilike(state))
 
-    total = query.count()
-    # Expose total so the client knows when all pages are loaded. Free callers
-    # still get the true total: the count is what the upsell is selling, and it
-    # leaks nothing about the withheld rows.
-    response.headers["X-Total-Count"] = str(total)
-    response.headers["Access-Control-Expose-Headers"] = "X-Total-Count, X-Pro-Required"
-
-    if not is_pro:
-        if offset >= FREE_RANKING_ROWS:
-            # Entirely past the free window — nothing to serve.
-            response.headers["X-Pro-Required"] = "1"
-            return []
-        # Trim the page so it stops at the free boundary.
-        limit = min(limit, FREE_RANKING_ROWS - offset)
-        if total > FREE_RANKING_ROWS:
-            response.headers["X-Pro-Required"] = "1"
+    if not is_pro and offset >= FREE_RANKING_ROWS:
+        return []
 
     return (
         query.order_by(University.landhere_score.desc())

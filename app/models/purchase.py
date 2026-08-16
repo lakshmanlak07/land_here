@@ -52,3 +52,35 @@ class Purchase(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (Index("ix_purchases_user_id", "user_id"),)
+
+
+class PurchaseNotification(Base):
+    """One row per App Store Server Notification we have accepted.
+
+    Exists for exactly one reason: Apple retries notifications until it gets a
+    2xx, so the same notification arrives more than once as a matter of course.
+    `notification_uuid` is UNIQUE, which turns "handle this twice" into a no-op
+    instead of a second state change. Without it, a retried REFUND followed by a
+    retried REFUND_REVERSED could land out of order and leave the entitlement
+    wrong.
+
+    Deliberately NOT linked to a user: it is a log of what Apple told us, and it
+    must survive account deletion so a replayed notification for a deleted
+    account is still recognised as already-seen. It holds no personal data —
+    Apple's opaque identifiers only.
+    """
+
+    __tablename__ = "purchase_notifications"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    notification_uuid: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True
+    )
+    notification_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    subtype: Mapped[str | None] = mapped_column(String(64))
+    # Which purchase it referred to, when it referred to one. Not a foreign key:
+    # a notification can arrive for a transaction we have no row for.
+    original_transaction_id: Mapped[str | None] = mapped_column(String(64))
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

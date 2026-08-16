@@ -25,7 +25,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 // `finishTransaction` is taken from the root API rather than from the useIAP
 // destructuring: the success callback is defined inside the hook's own options
 // object, so referencing the hook's copy there is a use-before-declaration.
-import { ErrorCode, finishTransaction, useIAP, type Purchase } from 'expo-iap';
+import {
+  ErrorCode,
+  finishTransaction,
+  getAvailablePurchases,
+  restorePurchases,
+  useIAP,
+  type Purchase,
+} from 'expo-iap';
 
 import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from '../components/PressableScale';
@@ -83,7 +90,15 @@ export default function PaywallScreen() {
   const [buying, setBuying] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [storeError, setStoreError] = useState<string | null>(null);
+  // Non-error status: "waiting for approval", "restoring", "restored". Kept
+  // separate from storeError so a pending purchase does not read as a failure.
+  const [storeNotice, setStoreNotice] = useState<string | null>(null);
   const navigatedRef = useRef(false);
+  // The purchase-error callback needs to kick off a restore, but handleRestore
+  // is redeclared every render — listing it as a dependency would rebuild the
+  // StoreKit listener on every render. A latest-value ref keeps the listener
+  // stable without capturing a stale closure.
+  const restoreRef = useRef<() => void>(() => {});
 
   const goBack = useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -129,9 +144,8 @@ export default function PaywallScreen() {
   // ── StoreKit ───────────────────────────────────────────────────────────────
 
   const {
-    connected, products, availablePurchases,
-    fetchProducts, requestPurchase, getAvailablePurchases,
-    restorePurchases,
+    connected, products,
+    fetchProducts, requestPurchase,
   } = useIAP({
     onPurchaseSuccess: useCallback(
       async (purchase: Purchase) => {
@@ -158,11 +172,38 @@ export default function PaywallScreen() {
     // ships two shapes under that name and the hook expects the one whose
     // `code` is optional.
     onPurchaseError: useCallback((error: { code?: ErrorCode; message?: string }) => {
-      // Cancelling is a normal outcome, not an error to shout about.
-      if (error.code !== ErrorCode.UserCancelled) {
-        setStoreError(error.message || 'Purchase could not be completed. Please try again.');
-      }
       setBuying(false);
+      switch (error.code) {
+        case ErrorCode.UserCancelled:
+          // A normal outcome, not a failure. Say nothing.
+          setStoreError(null);
+          setStoreNotice(null);
+          return;
+        case ErrorCode.AlreadyOwned:
+          // StoreKit knows this Apple ID already bought Pro, but our server has
+          // no record for this account — the usual cause is a reinstall or a
+          // second LandHere account. Restoring is the fix, so do it rather than
+          // showing a dead end.
+          setStoreNotice('You already own LandHere Pro. Restoring it now…');
+          restoreRef.current();
+          return;
+        case ErrorCode.DeferredPayment:
+        case ErrorCode.Pending:
+          // "Ask to Buy" and similar: the purchase is real but not approved
+          // yet. It must not read as an error, and must not look complete.
+          setStoreNotice(
+            'Your purchase is waiting for approval. Pro unlocks automatically once it is approved.',
+          );
+          return;
+        case ErrorCode.NetworkError:
+          setStoreError('The App Store could not be reached. Check your connection and try again.');
+          return;
+        case ErrorCode.ItemUnavailable:
+          setStoreError('LandHere Pro is not available on this account or in this region right now.');
+          return;
+        default:
+          setStoreError(error.message || 'Purchase could not be completed. Please try again.');
+      }
     }, []),
     onError: useCallback((error: Error) => {
       setStoreError(error.message || 'The store is unavailable right now.');
@@ -176,31 +217,11 @@ export default function PaywallScreen() {
     fetchProducts({ skus: [PRO_PRODUCT_ID], type: 'in-app' }).catch(() => {});
   }, [connected, fetchProducts]);
 
-  // Restore: StoreKit repopulates availablePurchases, and each matching
-  // transaction goes through the same server verification as a fresh purchase.
-  useEffect(() => {
-    if (!restoring || navigatedRef.current) return;
-    const found = availablePurchases.find((p) => p.productId === PRO_PRODUCT_ID);
-    if (!found) return;
-    let cancelled = false;
-    (async () => {
-      const ok = await submitToServer(found);
-      if (cancelled) return;
-      setRestoring(false);
-      if (ok && !navigatedRef.current) {
-        navigatedRef.current = true;
-        goBack();
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [availablePurchases, restoring, submitToServer, goBack]);
-
   async function handlePurchase() {
     if (buying || restoring || !connected) return;
     setBuying(true);
     setStoreError(null);
+    setStoreNotice(null);
     try {
       await requestPurchase({
         request: {
@@ -216,30 +237,51 @@ export default function PaywallScreen() {
     }
   }
 
+  /**
+   * Restore a previous purchase.
+   *
+   * Uses the root `getAvailablePurchases`, which RESOLVES with the list, rather
+   * than the hook method, which returns void and updates state asynchronously.
+   * The hook version forced a "wait and see if state changed" timer, and a
+   * timer racing StoreKit is how you get a spinner that never stops or a
+   * "nothing found" message that arrives just before the purchase does.
+   */
   async function handleRestore() {
     if (restoring || buying) return;
     setRestoring(true);
     setStoreError(null);
+    setStoreNotice('Checking your Apple account…');
     try {
       await restorePurchases();
-      await getAvailablePurchases();
-      // If nothing matching arrives, the effect above never fires; tell the
-      // user rather than leaving a spinner running forever.
-      setTimeout(() => {
-        if (!navigatedRef.current) {
-          setRestoring((wasRestoring) => {
-            if (wasRestoring) {
-              setStoreError(`No previous LandHere Pro purchase found for this ${STORE_ACCOUNT}.`);
-            }
-            return false;
-          });
-        }
-      }, 4000);
+      const owned = await getAvailablePurchases();
+      const match = (owned ?? []).find((p) => p.productId === PRO_PRODUCT_ID);
+      if (!match) {
+        setStoreNotice(null);
+        setStoreError(`No previous LandHere Pro purchase found for this ${STORE_ACCOUNT}.`);
+        return;
+      }
+      const ok = await submitToServer(match);
+      if (!ok) {
+        setStoreNotice(null);
+        return; // submitToServer has already set a specific message
+      }
+      setStoreNotice('LandHere Pro restored.');
+      if (!navigatedRef.current) {
+        navigatedRef.current = true;
+        goBack();
+      }
     } catch (e) {
+      setStoreNotice(null);
       setStoreError(getErrorMessage(e, 'Unable to reach the store. Please check your connection.'));
+    } finally {
       setRestoring(false);
     }
   }
+
+  // Keep the ref pointing at the current closure (see restoreRef above).
+  useEffect(() => {
+    restoreRef.current = handleRestore;
+  });
 
   const product = products.find((p) => p.id === PRO_PRODUCT_ID);
   // Falls back only if StoreKit has not answered yet; App Store Connect is the
@@ -350,6 +392,15 @@ export default function PaywallScreen() {
           <View style={st.offlineRow} accessibilityLiveRegion="polite">
             <Ionicons name="cloud-offline-outline" size={14} color={colors.textSecondary} />
             <Text style={[st.offlineText, { color: colors.textSecondary }]}>Connecting to store…</Text>
+          </View>
+        ) : null}
+
+        {storeNotice ? (
+          <View
+            style={[st.errorBox, { backgroundColor: colors.primary + '14' }]}
+            accessibilityLiveRegion="polite"
+          >
+            <Text style={[st.errorText, { color: colors.textPrimary }]}>{storeNotice}</Text>
           </View>
         ) : null}
 
