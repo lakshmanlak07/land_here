@@ -57,9 +57,11 @@ onboarding answers, created-at timestamp, random UUID primary key.
 |---|---|---|
 | `refresh_tokens` | session token ids (`jti`), family id, issue/expiry/revoke times. **Never the token itself.** | yes, `ON DELETE CASCADE` |
 | `purchases` | Apple's `originalTransactionId` and `transactionId`, product id, sandbox/production flag, purchase date, verify date, revoke date | yes, `ON DELETE CASCADE` |
+| `purchase_notifications` | Apple's notification UUID, notification type/subtype, `originalTransactionId`, received-at | **no — see §3.10** |
 
-Both cascade on account deletion, so the "we delete everything" position in the
-privacy policy still holds. Apple's transaction identifiers are Apple-issued
+The first two cascade on account deletion. **`purchase_notifications` does
+not**, and that is a deliberate exception to the deletion promise which needs
+your view — §3.10. Apple's transaction identifiers are Apple-issued
 opaque identifiers, **not** payment instrument data — we never receive a card
 number, billing address, or payer name.
 
@@ -156,6 +158,24 @@ US-region. So personal data of Indian (and possibly EEA/UK) users is stored in
 the US. **Needed:** what transfer mechanism or notice is required under the DPDP
 Act and, for any EEA/UK users, under GDPR — and whether the app's audience makes
 GDPR applicable at all.
+
+### 3.10 The one exception to "we delete everything"
+Apple sends server-to-server notifications about purchases (refunds, revocations).
+Apple **re-sends** each one until our server confirms receipt, so we keep a log
+of notification identifiers we have already processed; without it a re-sent
+refund could be applied twice, or a re-sent refund arriving after a
+refund-reversal could leave a paying user locked out.
+
+That log is **not** deleted with the account. What survives is Apple's
+notification UUID, the notification type, Apple's `originalTransactionId`, and a
+timestamp. Once the account and its purchase row are gone, the retained
+identifier points at nothing we hold.
+
+**Needed:** whether retaining it is acceptable; whether it must be time-limited
+(e.g. purged after Apple's retry window closes); and whether an Apple-issued
+transaction identifier is still personal data once the account it referred to has
+been deleted. This is the only place our deletion promise is qualified, and we
+would rather over-disclose it than have you discover it.
 
 ### 3.9 Data retention period
 We currently keep account data "for as long as your account exists", with no

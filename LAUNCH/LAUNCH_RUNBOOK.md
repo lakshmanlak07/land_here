@@ -4,6 +4,8 @@ _Rewritten 2026-08-01 for v0.1.0-rc.3; revised 2026-08-16 for **`feat/pro-iap`**
 which restores the $1.99 LandHere Pro purchase with server-side entitlement._
 
 The ordered task list is **`LAUNCH/APP_STORE_SUBMISSION_CHECKLIST.md`**.
+Backend provisioning, migration, backup/restore and rollback now live in
+**`LAUNCH/DEPLOYMENT_RUNBOOK.md`**.
 This runbook explains the release, the commands, and what to do when something
 goes wrong.
 
@@ -303,10 +305,11 @@ never hand-edit them. Bump `version` in `app.json` for a user-visible release.
   a generic message, but a 400 is still a signal. Email verification is the real
   fix and is deferred.
 - **Rate limiting is single-worker** unless Redis is provisioned.
-- **Refunds are only noticed on re-verification.** App Store Server Notifications
-  are not wired up, so a refund reaches us when Apple reports a `revocationDate`
-  on a transaction we re-check — which happens on restore, not immediately. Until
-  that is built, a refunded user may keep Pro access for a while.
+- **Refunds are handled automatically once the notification URL is configured**
+  (`POST /purchases/notifications`, set in App Store Connect — see
+  `LAUNCH/DEPLOYMENT_RUNBOOK.md` §6). Until it is set, a refund only reaches us
+  when the user next restores, so a refunded user keeps Pro access in the
+  meantime.
 - **One purchase entitles one account, with no self-service move.** A user who
   deletes their account and makes a new one currently needs manual help to
   re-attach their purchase.

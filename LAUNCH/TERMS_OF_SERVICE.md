@@ -67,6 +67,9 @@ Other terms of the purchase:
   Apple. **Refunds are requested from and decided by Apple** under Apple's
   policies, not by us. We cannot issue, approve, or refuse a refund. Apple's
   refund request page is `reportaproblem.apple.com`.
+- **If Apple grants a refund, your Pro access ends.** Apple notifies us, and
+  LandHere Pro features stop being available on your account at that point. If
+  Apple later reverses the refund, access is restored.
 - Pro is a **permanent, one-time** purchase for that Apple account. You can
   reinstall the app or change device without paying again.
 - **Restore Purchases** is available both on the Pro screen and in

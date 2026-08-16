@@ -133,6 +133,7 @@ This three-part model ensures LandHere never makes legal or immigration claims �
 | GET | `/universities/{id}` | Bearer JWT + Pro | University detail. **LandHere Pro only.** |
 | POST | `/purchases/verify` | Bearer JWT | Verify an Apple-signed transaction and record the entitlement |
 | GET | `/purchases/entitlements` | Bearer JWT | What this account owns |
+| POST | `/purchases/notifications` | **none — Apple's signature** | App Store Server Notifications V2 (refunds, revocations) |
 
 `GET /info/journey` also takes optional auth: a free or anonymous caller receives
 only the free phases.
@@ -169,6 +170,36 @@ StoreKit ──► purchase.purchaseToken (iOS: Apple's JWS)
   route to entitlement; both submit a signed transaction to the same endpoint.
 - **Rows cascade with the user**, so account deletion removes the purchase record
   along with everything else.
+
+### Refunds and revocations
+
+`POST /purchases/notifications` receives App Store Server Notifications V2.
+
+It is **unauthenticated**, because Apple calls it and holds no credential of
+ours — Apple's signature over the payload *is* the authentication. That makes
+fail-closed verification more important here than on the purchase path, not
+less: a forged notification would be an unauthenticated way to revoke a paying
+user's access. The envelope is verified, and the transaction inside it is
+verified separately rather than trusted because the envelope was valid.
+
+| Notification | Effect |
+|---|---|
+| `REFUND`, `REVOKE` | sets `revoked_at` — closes every gate at once |
+| `REFUND_REVERSED` | clears `revoked_at` |
+| `TEST` | accepted, acts on nothing |
+| anything else | accepted, acts on nothing |
+
+Status codes are chosen around Apple's retry behaviour: **200** for anything
+verified (so Apple stops retrying), **4xx** only for payloads we could not
+verify, **503** for our own misconfiguration — the last two being cases where a
+retry is what we want rather than a silently dropped refund.
+
+`purchase_notifications` is UNIQUE on `notification_uuid`. Apple re-sends until
+it gets a 2xx, so duplicates are ordinary traffic; without the constraint a
+re-sent `REFUND` landing after a `REFUND_REVERSED` would leave the entitlement
+wrong. The table is deliberately not linked to a user and does not cascade — it
+must outlive the account so a replayed notification is still recognised. This is
+the one documented exception to the deletion promise; see the privacy policy.
 
 ### Where the gate is enforced
 

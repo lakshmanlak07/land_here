@@ -30,10 +30,14 @@ free**, because their content ships inside the bundle (so a gate there could
 never be enforcement) and because gating the methodology would hide the reasoning
 behind the rankings being sold.
 
+5. **App Store Server Notifications** are handled at
+   `POST /purchases/notifications`, so a refund or revocation ends access
+   automatically rather than waiting for the user's next restore. The URL still
+   has to be set in App Store Connect for any of it to fire.
+
 Still outstanding, tracked rather than done:
 
-- **App Store Server Notifications** for refunds and revocations. Today a refund
-  is only noticed if Apple reports a `revocationDate` on a transaction we
-  re-verify, which happens on restore rather than immediately.
-- Nothing in the purchase flow has run against real StoreKit. It cannot, until
-  an Apple Developer account and a device build exist.
+- Nothing in the purchase flow has run against real StoreKit, and no real Apple
+  notification has been received — the endpoint is tested against a synthetic
+  certificate chain. Neither can change until an Apple Developer account and a
+  device build exist.

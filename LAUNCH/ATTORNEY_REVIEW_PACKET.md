@@ -53,6 +53,7 @@ retained only as history and contains outdated descriptions of the product.
 | Subscriptions | **None.** No recurring charge of any kind. |
 | Restore Purchases | Available on the purchase screen **and** in Settings |
 | Seller of record | Apple. Refunds decided by Apple. |
+| Refund handling | Apple notifies our server; Pro access ends automatically at that point |
 | Free without purchase | Journey phases 1–2; top 25 ranked universities; **the entire scholarship directory**; **the entire student work-hour rules section**; **the scoring methodology**; country guides; arrival necessities; currency and cost tools |
 | Pro unlocks | Journey phases 3–5 (visa process, before departure, after arrival); ranked universities beyond the top 25; university detail pages |
 | Gate enforcement | **Server-side.** Withheld content is never sent to a free user's device. |
@@ -132,13 +133,30 @@ provider's backups persist after deletion.
 **We need:** whether a defined retention period is required, and what we may say
 about backups.
 
-### 4.11 Cross-border data handling
+### 4.11 The one exception to our deletion promise
+Apple re-sends purchase notifications (refunds, revocations) until our server
+confirms receipt, so we keep a log of which notifications we have already
+handled. Without it, a re-sent refund could be applied twice, or a re-sent refund
+arriving after a refund-reversal could leave a paying user locked out.
+
+That log is **not** deleted when a user deletes their account. What survives is
+Apple's notification identifier, the notification type, Apple's transaction
+identifier, and a timestamp — nothing that links back to the person once their
+account and purchase row are gone.
+
+**We need:** whether retaining it is acceptable; whether it should be purged
+after Apple's retry window; and whether an Apple transaction identifier remains
+personal data once the account it referred to has been deleted. Everything else
+we hold is deleted on request — this is the single qualification, and we would
+rather flag it than have you find it.
+
+### 4.12 Cross-border data handling
 Users are expected to be in India, the US, Canada and the UK; hosting is planned
 in a US region. **We need:** what transfer mechanism or notice is required under
 the DPDP Act, whether GDPR applies given the audience, and what the policy must
 say.
 
-### 4.12 "Verified" badge wording
+### 4.13 "Verified" badge wording
 The app marks content a human has checked against the official source, with a
 dated last-reviewed stamp. **We need:** confirmation this reads as *provenance*
 rather than as a warranty of accuracy or fitness.
@@ -184,7 +202,7 @@ Nothing is published, and no submission is made, until you have signed off.
 > intentions, so they should be checkable against something concrete rather than
 > taken on trust.
 >
-> There are twelve open decisions I don't think I can responsibly make myself.
+> There are thirteen open decisions I don't think I can responsibly make myself.
 > They're listed and explained in the packet. The ones I'd flag as most important:
 >
 > - **Minimum age and parental consent.** My users are university applicants, so
@@ -196,7 +214,9 @@ Nothing is published, and no submission is made, until you have signed off.
 > - **Governing law, venue, and the limitation of liability**, which are blank.
 > - **Cross-border data handling** — Indian users, US hosting.
 > - **Refunds and purchases by minors**, given Apple is the seller of record.
-> - **Data retention**, where I currently have no defined period.
+> - **Data retention**, where I currently have no defined period — and one
+>   deliberate exception to my "delete everything" promise, which I've written up
+>   rather than left for you to find.
 >
 > **Timing.** Apple requires a publicly hosted privacy policy URL before
 > submission, so this is on my critical path — but I'd rather it be right than

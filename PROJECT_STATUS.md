@@ -168,7 +168,13 @@ misconfigured EAS build **fails on the build machine** rather than shipping.
 - **The legal pack is unreviewed.** `LAUNCH/PRIVACY_POLICY.md` and
   `LAUNCH/TERMS_OF_SERVICE.md` are drafts marked for legal review. No compliance
   claim is made. `LAUNCH/ATTORNEY_REVIEW_PACKET.md` is what goes to counsel.
-- **The purchase flow has never touched real StoreKit.** No device build exists.
+- **The purchase flow has never touched real StoreKit.** No device build exists,
+  and no real App Store notification has ever been received — the notification
+  endpoint is tested only against a synthetic certificate chain.
+- **Nothing is deployed.** `LAUNCH/DEPLOYMENT_RUNBOOK.md` is a procedure, not a
+  record: no infrastructure exists and no account has been created.
+- **`vendor/apple-root-ca/` is empty.** Apple's public root certificate must be
+  downloaded into it, or purchase verification returns 503 and nobody can buy.
 - **Backup and rollback are documented but unrehearsed** — there is no
   infrastructure to rehearse them on yet. Do it before you have users.
 - **Content decay.** Government sources change without notice; the 90-day

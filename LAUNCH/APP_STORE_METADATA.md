@@ -242,6 +242,12 @@ pass. 🔎 VERIFY each line if you change what the app collects.
 | Onboarding answers | Usage Data → Product Interaction | App Functionality | Personalises the journey plan |
 | Purchase record | **Purchases → Purchase History** | App Functionality | Apple's transaction identifiers for LandHere Pro, stored against the account so the server can serve entitled content. **No payment method, card number, or billing detail is received or stored.** |
 
+A separate server-side log records which App Store notifications (refunds,
+revocations) have already been processed. It is **not linked to a user** — it
+holds Apple's identifiers only — so it is not declared as linked data. ⚖️ CONFIRM
+with counsel; it is also flagged in the privacy policy and the attorney packet
+because it is the one thing not deleted with an account.
+
 ⚠️ The Purchase History row is **new**. An earlier revision of this file declared
 no purchase history because the build had no purchases. Declaring "not collected"
 while the server stores a purchase record would be an inaccurate nutrition label.

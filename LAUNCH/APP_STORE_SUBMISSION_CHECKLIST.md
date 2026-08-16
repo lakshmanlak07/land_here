@@ -166,6 +166,14 @@ Nothing here blocks on an external party — but most needs values from section 
       sandbox** — this blocks TestFlight purchase testing, not just revenue.
 - [ ] 🧑 Create a **sandbox tester** account (Users and Access → Sandbox Testers)
       for purchase and restore testing on device.
+- [ ] ☁️ 🧑 Set the **App Store Server Notifications V2** URLs (App Information →
+      App Store Server Notifications): production and sandbox both point at
+      `https://YOUR-API-ORIGIN/purchases/notifications`. Use "Request a Test
+      Notification" to confirm delivery — a 200 proves both the URL and the
+      signature verification work.
+      ⚠️ Until this is set, a refunded user keeps Pro access until they next
+      restore. It is not a submission blocker, but it is a revenue-and-support
+      one.
 - [ ] 🧑 Paste listing metadata from **`LAUNCH/APP_STORE_METADATA.md`**.
       ⚠️ Superseded listing files are in `LAUNCH/archive/` and advertise the wrong
       free/paid split — they sell scholarships and work rules, which are free.

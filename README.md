@@ -26,7 +26,9 @@ methodology, country guides, arrival necessities, and the currency/cost tools.
 arrival), ranked universities beyond the top 25, and university detail pages.
 
 The gate is **enforced by the API**, not by the app — withheld content is never
-sent to a free user's device. See `ARCHITECTURE.md` § "Purchases and entitlement".
+sent to a free user's device. Refunds and revocations arrive as App Store Server
+Notifications and end access automatically. See `ARCHITECTURE.md` § "Purchases
+and entitlement", and `LAUNCH/DEPLOYMENT_RUNBOOK.md` for provisioning.
 
 > Legal documents in `LAUNCH/` are **drafts awaiting review by a qualified
 > lawyer**. Nothing in this repository has legal sign-off, and no compliance

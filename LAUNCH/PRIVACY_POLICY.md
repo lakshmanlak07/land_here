@@ -79,7 +79,21 @@ has to know which account is entitled. Apple's transaction identifier is stored
 - **Restoring:** "Restore Purchases" (on the Pro screen and in Settings) asks
   Apple for your past purchases and re-verifies them with our server.
 - **Refunds** are requested from and decided by **Apple**, under Apple's policies.
-  We cannot issue, approve, or refuse a refund.
+  We cannot issue, approve, or refuse a refund. Apple notifies our server when a
+  refund is granted, and Pro access ends at that point.
+
+**We also keep a short log of the messages Apple sends us** about purchases —
+for example, that a particular purchase was refunded. Each entry holds Apple's
+message identifier, the type of message, Apple's transaction identifier, and the
+time we received it. It contains no name, email, or payment information.
+
+⚠️ _[Lawyer to review — this is the one place our deletion promise is
+incomplete.]_ That log is intentionally **not** deleted when you delete your
+account. It exists so that if Apple re-sends the same message (which Apple does
+until it receives a confirmation), we recognise it as one we have already
+handled. After your account is deleted the entry is an orphan: Apple's
+transaction identifier with nothing left to connect it to you. We keep it
+because deleting it would mean a re-sent message could be processed twice.
 - **If you delete your account,** the purchase record above is deleted with it.
   Your purchase still exists in your Apple account, and you can restore it — but
   restoring it onto a *different* LandHere account is not possible while the
@@ -172,6 +186,13 @@ days.
 Deleting your LandHere account does **not** cancel or refund your Apple purchase,
 and does not delete anything held by Apple. See "Purchases" above for what that
 means if you later create a new account.
+
+**One exception to the deletion above,** stated plainly rather than buried: the
+log of messages Apple has sent us about purchases is not deleted. It keeps
+Apple's transaction identifier but nothing that links it to you once your account
+is gone. "Purchases" above explains why. ⚖️ _Lawyer to confirm whether this is
+acceptable, whether it must be time-limited, and whether the retained identifier
+counts as personal data once the account it referred to no longer exists._
 
 ## Children
 
