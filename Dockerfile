@@ -14,6 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Includes vendor/apple-root-ca/, which must contain Apple's PUBLIC root
+# certificates for App Store verification. If that directory holds no
+# certificate, /purchases/verify and /purchases/notifications return 503 —
+# fail-closed by design, and a launch blocker. See its README.
 COPY . .
 
 # Migrate + start. Worker count is decided in start.sh, which refuses to run

@@ -176,6 +176,30 @@ check('every Expo Router route file has a default export', () => {
   );
 });
 
+check('every tab declared in the tab layout has a screen file that renders', () => {
+  // The tab bar is declared in one file and the screens live in another. A
+  // <Tabs.Screen name="journey"> pointing at a journey.tsx with no component
+  // gives a tab you can press that shows nothing — which is exactly what
+  // shipped in rc.2 and rc.3.
+  const layout = readCode('app/(tabs)/_layout.tsx');
+  const declared = [...layout.matchAll(/<Tabs\.Screen\s[^>]*name=["']([^"']+)["']/g)]
+    .map((m) => m[1]);
+  assert.ok(declared.length >= 5, `expected 5 tabs, parsed ${declared.length}`);
+
+  const broken: string[] = [];
+  for (const name of declared) {
+    const rel = `app/(tabs)/${name}.tsx`;
+    if (!existsSync(join(MOBILE, rel))) {
+      broken.push(`${rel} (missing)`);
+      continue;
+    }
+    if (!/export\s+default\s+function\s+\w+/.test(readCode(rel))) {
+      broken.push(`${rel} (no default component)`);
+    }
+  }
+  assert.deepEqual(broken, [], `tabs that would render nothing: ${broken.join(', ')}`);
+});
+
 check('the three routes lost in rc.2 render again', () => {
   // Named explicitly as well as covered by the sweep above: these are the
   // regression, and naming them makes a re-break say so directly.

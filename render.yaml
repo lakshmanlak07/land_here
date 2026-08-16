@@ -3,6 +3,7 @@ services:
     name: landhere-api
     runtime: docker
     dockerfilePath: ./Dockerfile
+    healthCheckPath: /health/ready
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -10,20 +11,25 @@ services:
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
-      # Set this to the real Render URL after the first deploy, e.g.
-      # https://landhere-api.onrender.com  — do NOT leave it as "*" in production.
+      # Set this to the real origin(s) after the first deploy, e.g.
+      # https://api.landhere.app — production REFUSES to boot on "*" or empty.
       - key: CORS_ALLOW_ORIGINS
         sync: false
-      # Required. Production refuses to boot with ENV=production unless CORS,
-      # DATABASE_URL, and SECRET_KEY are real values (app/core/config.py).
+      # Production fails closed on a placeholder SECRET_KEY, wildcard CORS, a
+      # localhost DATABASE_URL, or TRUST_PROXY_HEADERS without hops
+      # (app/core/config.py). A crashed deploy is recoverable; a live service
+      # with wildcard CORS is not.
       - key: ENV
         value: production
-      # Shared rate-limit backend. Without it the app runs a SINGLE worker
-      # (start.sh) because in-memory limits don't coordinate across processes.
-      # Provision: Render Dashboard → New → Key Value, then paste its internal
-      # connection URL here.
+      # Shared rate-limit backend, from the Key Value instance declared below.
+      # Without it start.sh forces --workers 1, because in-memory limits do not
+      # coordinate across processes and N workers would multiply every published
+      # limit by N.
       - key: REDIS_URL
-        sync: false
+        fromService:
+          type: keyvalue
+          name: landhere-cache
+          property: connectionString
       - key: TRUST_PROXY_HEADERS
         value: "true"
       - key: TRUSTED_PROXY_HOPS
@@ -35,9 +41,40 @@ services:
       # Server-side Unsplash key for GET /images/city. Never an EXPO_PUBLIC_ var.
       - key: UNSPLASH_ACCESS_KEY
         sync: false
-    healthCheckPath: /health/ready
+
+      # ── LandHere Pro / App Store verification ─────────────────────────────
+      # None of these is a secret; see .env.example. No Apple private key,
+      # .p8, or shared secret is used anywhere in this project.
+      - key: APPLE_BUNDLE_ID
+        value: com.landhere.app
+      - key: APPLE_PRO_PRODUCT_ID
+        value: com.landhere.app.pro
+      # Numeric App Store Connect app id. REQUIRED for Production verification —
+      # without it /purchases/verify returns 503 and nobody can buy anything.
+      # Unknown until the App Store Connect record exists.
+      - key: APPLE_APP_APPLE_ID
+        sync: false
+      # Baked into the image by the Dockerfile from vendor/apple-root-ca/.
+      - key: APPLE_ROOT_CA_DIR
+        value: /app/vendor/apple-root-ca
+      # TRUE only while testing through TestFlight (sandbox purchases).
+      # MUST be false for the public release.
+      - key: APPLE_ACCEPT_SANDBOX
+        sync: false
+      - key: APPLE_ENABLE_ONLINE_CHECKS
+        value: "true"
+
+  # Shared rate-limit backend. Required to run more than one web worker.
+  - type: keyvalue
+    name: landhere-cache
+    plan: starter
+    ipAllowList: []   # internal connections only — never expose this publicly
 
 databases:
   - name: landhere-db
-    plan: free
     databaseName: landhere
+    # ⚠️ DELIBERATELY NOT "free". Render's free PostgreSQL instances are deleted
+    # after a fixed trial window, which would take the production database with
+    # them. Confirm the current plan names and terms on Render's pricing page
+    # before deploying — this file cannot keep itself up to date.
+    plan: basic-256mb

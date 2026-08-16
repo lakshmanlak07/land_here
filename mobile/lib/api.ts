@@ -1,4 +1,7 @@
-import axios, { type InternalAxiosRequestConfig } from 'axios';
+// `isAxiosError` and `create` are imported by name rather than reached through
+// the default export: axios exposes both ways, and the named form is what the
+// import/no-named-as-default-member rule expects. Behaviour is identical.
+import { create as createAxios, isAxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from './store';
 import type { TokenOut } from './types';
 
@@ -11,7 +14,7 @@ import { API_URL } from './config';
 
 export { API_URL };
 
-const api = axios.create({
+const api = createAxios({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
   // Fail fast instead of hanging on the OS-level TCP timeout when the
@@ -71,8 +74,8 @@ async function performRefresh(): Promise<string | null> {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const original = axios.isAxiosError(error) ? error.config : undefined;
-    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    const original = isAxiosError(error) ? error.config : undefined;
+    const status = isAxiosError(error) ? error.response?.status : undefined;
 
     // Only attempt recovery for 401s on a real request config.
     if (status !== 401 || !original) {
@@ -115,7 +118,7 @@ export function getErrorMessage(
   e: unknown,
   fallback = 'Something went wrong. Please try again.'
 ): string {
-  if (axios.isAxiosError(e)) {
+  if (isAxiosError(e)) {
     if (e.code === 'ECONNABORTED' || /timeout/i.test(e.message)) {
       return 'The server took too long to respond. Check that the backend is running and reachable, then try again.';
     }
