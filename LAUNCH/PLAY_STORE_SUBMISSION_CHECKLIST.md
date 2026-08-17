@@ -28,7 +28,9 @@ deployed backend · 📱 needs a real Android device · 🔐 is a secret
 - ✅ Fail-closed with no credentials: 503, never a grant
 - ✅ Notification endpoint authenticated with **Pub/Sub push OIDC** — issuer,
   signature, expiry, audience and service account all verified
-- ✅ Purchases acknowledged server-side after verification
+- ✅ Purchases acknowledged server-side **after** verification and account
+  linking — never for forged, wrong-product, revoked, pending or
+  cross-account tokens, and never twice
 - ✅ 160+ backend tests including forged, replayed, revoked, wrong-product,
   cross-account, wrong-audience, expired-token and platform-isolation cases
 
@@ -61,10 +63,27 @@ refund, a real RTDN delivery, and any Android device run.
 
 - [ ] 🧑 **Create a Google Cloud project** and a **service account** in it.
 - [ ] 🧑 Link the Cloud project to Play Console (Setup → API access) and grant
-      the service account access with at least **View financial data, orders and
-      cancellation survey responses**. Without that permission the API returns
-      403, which our server correctly reports as 503 (our misconfiguration)
-      rather than as a bad purchase.
+      the service account **two** permissions:
+
+      | Permission | Needed for |
+      |---|---|
+      | View financial data, orders and cancellation survey responses | `purchases.productsv2.getproductpurchasev2` — reading a purchase |
+      | Manage orders and subscriptions | `purchases.products.acknowledge` — confirming delivery |
+
+      The second is easy to miss because verification works without it. The
+      symptom is subtle and expensive: purchases verify and grant Pro
+      correctly, then **Google auto-refunds every one of them after three
+      days** because acknowledgement kept failing. Our server logs a warning
+      when acknowledgement fails but deliberately still grants access, so this
+      will not surface as a user-visible error — check the logs after the first
+      sandbox purchase.
+
+      🔎 Confirm the exact permission names in the current Play Console UI;
+      Google renames them periodically and this file cannot track that.
+
+      A 403 on either call is reported by our server as 503 (our
+      misconfiguration), never as a bad purchase — so a permissions mistake
+      cannot look like a customer's fault.
 - [ ] 🔐 🧑 **Download the service-account JSON key.** This contains a **private
       key**. Set it as `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` in the hosting
       dashboard, as one line. **Never** commit it, never put it in `render.yaml`,

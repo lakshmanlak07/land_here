@@ -332,3 +332,60 @@ def fetch_purchase(purchase_token: str) -> VerifiedPlayPurchase:
         is_test_purchase=is_test,
         region_code=body.get("regionCode"),
     )
+
+
+def acknowledge_purchase(purchase_token: str) -> None:
+    """Tell Google we have delivered the product.
+
+    POST .../purchases/products/{productId}/tokens/{token}:acknowledge
+
+    This is not optional bookkeeping. Google's one-time-product lifecycle gives
+    three days: an unacknowledged purchase is **automatically refunded and
+    revoked**. So a purchase we verified, linked to an account, and served
+    content for would quietly be reversed if this never ran.
+
+    Ordering matters and is the caller's responsibility: acknowledge only AFTER
+    the purchase has been verified and linked to the right account. Acknowledging
+    first would tell Google to keep the money for a purchase we might then refuse
+    to honour — and the three-day auto-refund is precisely the safety net that
+    protects a user when our verification is unavailable.
+
+    Deliberately idempotent from the caller's point of view: Google treats
+    re-acknowledging an already-acknowledged purchase as an error, so callers are
+    expected to check `acknowledged` first, and a stray 400 here is swallowed
+    rather than failing a purchase that is otherwise fine.
+
+    Raises GooglePlayUnavailable when we cannot reach or authenticate to Google —
+    never a silent success, because the caller needs to know the three-day clock
+    is still running.
+    """
+    token = _access_token()
+    url = (
+        f"{_API_ROOT}/applications/{settings.GOOGLE_PLAY_PACKAGE_NAME}"
+        f"/purchases/products/{settings.GOOGLE_PLAY_PRO_PRODUCT_ID}"
+        f"/tokens/{requests.utils.quote(purchase_token, safe='')}:acknowledge"
+    )
+    try:
+        response = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            json={},
+            timeout=_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException as exc:
+        raise GooglePlayUnavailable("Could not reach the Google Play API.") from exc
+
+    if response.status_code in (200, 204):
+        return
+    if response.status_code == 400:
+        # Google's documented response for an already-acknowledged purchase.
+        # The desired end state already holds, so this is not a failure.
+        logger.info("Play purchase was already acknowledged")
+        return
+    if response.status_code in (401, 403):
+        raise GooglePlayUnavailable(
+            "The Google Play credential was rejected or lacks permission."
+        )
+    raise GooglePlayUnavailable(
+        f"Unexpected Google Play acknowledge status {response.status_code}."
+    )

@@ -68,6 +68,10 @@ class _FakePlay:
         self.tokens: dict[str, dict] = {}
         self.calls: list[str] = []
         self.status_for: dict[str, int] = {}
+        # Tokens passed to :acknowledge, in order. A list rather than a set so
+        # "exactly once" is provable, not just "at least once".
+        self.acknowledged: list[str] = []
+        self.ack_status: int = 200
 
     def add(
         self,
@@ -121,6 +125,17 @@ class _FakePlay:
             return _Resp(404, None)
         return _Resp(200, self.tokens[token])
 
+    def post(self, url, headers=None, json=None, timeout=None):  # noqa: ANN001, A002
+        assert url.endswith(":acknowledge"), url
+        token = url.rsplit("/tokens/", 1)[-1].removesuffix(":acknowledge")
+        self.acknowledged.append(token)
+
+        class _Resp:
+            def __init__(self, code):
+                self.status_code = code
+
+        return _Resp(self.ack_status)
+
 
 @pytest.fixture
 def play(monkeypatch):
@@ -153,6 +168,7 @@ def play(monkeypatch):
     # whether we can ask Google, not what the answer means.
     monkeypatch.setattr(gp, "_access_token", lambda: "fake-access-token")
     monkeypatch.setattr(gp.requests, "get", fake.get)
+    monkeypatch.setattr(gp.requests, "post", fake.post)
     return fake
 
 
@@ -676,3 +692,110 @@ def test_a_valid_token_is_accepted_and_reaches_the_lookup(client, play):
     )
     assert r.status_code == 200
     assert r.json()["action"] == "revoked"
+
+
+# ── Server-side acknowledgement ────────────────────────────────────────────────
+#
+# Google auto-refunds and revokes an unacknowledged one-time purchase after three
+# days. Acknowledging is therefore what stops a real purchase being reversed —
+# and doing it before verification would tell Google to keep money for a purchase
+# we might still refuse.
+
+def test_a_valid_new_purchase_is_acknowledged_exactly_once(client, play):
+    _, headers, _ = _account(client)
+    token = play.add(_tok())
+
+    assert _verify_google(client, headers, token).json()["pro"] is True
+    assert play.acknowledged == [token], f"acknowledged {play.acknowledged}"
+
+
+def test_reverifying_does_not_acknowledge_twice(client, play):
+    """Google errors on re-acknowledging; restores must not trigger it again."""
+    _, headers, _ = _account(client)
+    token = play.add(_tok())
+    _verify_google(client, headers, token)
+    # Google now reports it acknowledged, exactly as it would on a restore.
+    play.tokens[token]["acknowledgementState"] = "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED"
+    _verify_google(client, headers, token)
+
+    assert play.acknowledged.count(token) == 1, play.acknowledged
+
+
+def test_an_already_acknowledged_purchase_is_never_reacknowledged(client, play):
+    _, headers, _ = _account(client)
+    token = play.add(_tok(), acknowledged=True)
+    assert _verify_google(client, headers, token).json()["pro"] is True
+    assert token not in play.acknowledged
+
+
+def test_a_forged_token_is_never_acknowledged(client, play):
+    _, headers, _ = _account(client)
+    token = _tok("forged")
+    assert _verify_google(client, headers, token).status_code == 400
+    assert play.acknowledged == []
+
+
+def test_a_wrong_product_is_never_acknowledged(client, play):
+    _, headers, _ = _account(client)
+    token = play.add(_tok(), product_id="com.landhere.app.other")
+    assert _verify_google(client, headers, token).status_code == 400
+    assert play.acknowledged == []
+
+
+def test_a_cancelled_purchase_is_never_acknowledged(client, play):
+    """Acknowledging a refunded purchase would claim delivery of something revoked."""
+    _, headers, _ = _account(client)
+    token = play.add(_tok(), state="CANCELLED")
+    assert _verify_google(client, headers, token).json()["pro"] is False
+    assert play.acknowledged == []
+
+
+def test_a_pending_purchase_is_never_acknowledged(client, play):
+    """Not paid yet — acknowledging would claim delivery for an unpaid order."""
+    _, headers, _ = _account(client)
+    token = play.add(_tok(), state="PENDING")
+    assert _verify_google(client, headers, token).status_code == 402
+    assert play.acknowledged == []
+
+
+def test_a_test_purchase_is_not_acknowledged_when_tests_are_rejected(client, play):
+    _, headers, _ = _account(client)
+    token = play.add(_tok(), test_purchase=True)
+    assert _verify_google(client, headers, token).status_code == 400
+    assert play.acknowledged == []
+
+
+def test_a_cross_account_claim_is_never_acknowledged(client, play):
+    """The second account is refused, and must not acknowledge on the way out."""
+    token = play.add(_tok())
+    _, buyer, _ = _account(client)
+    assert _verify_google(client, buyer, token).status_code == 200
+    assert play.acknowledged == [token]
+
+    _, freeloader, _ = _account(client)
+    assert _verify_google(client, freeloader, token).status_code == 409
+    assert play.acknowledged.count(token) == 1, "the 409 path acknowledged"
+
+
+def test_acknowledgement_is_never_attempted_without_credentials(client, monkeypatch):
+    _, headers, _ = _account(client)
+    monkeypatch.setattr(settings, "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "")
+    monkeypatch.setattr(settings, "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", "")
+    assert _verify_google(client, headers, _tok()).status_code == 503
+
+
+def test_a_failed_acknowledgement_does_not_take_access_away(client, play):
+    """The entitlement is already recorded and the user cannot fix Google.
+
+    Google's three-day window still runs, and a resulting refund reaches us as a
+    later CANCELLED — so failing the request here would remove access for a
+    problem that resolves itself either way.
+    """
+    _, headers, _ = _account(client)
+    token = play.add(_tok())
+    play.ack_status = 500
+
+    r = _verify_google(client, headers, token)
+    assert r.status_code == 200
+    assert r.json()["pro"] is True
+    assert play.acknowledged == [token], "the attempt should still have been made"

@@ -16,6 +16,7 @@ entitled, and it goes through Apple's signature.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -38,6 +39,7 @@ from app.core.googleplay import (
     GooglePlayVerificationError,
     PubSubAuthError,
     PubSubAuthUnavailable,
+    acknowledge_purchase,
     fetch_purchase,
     verify_pubsub_push_token,
 )
@@ -49,6 +51,8 @@ from app.models.purchase import (
     PurchaseNotification,
 )
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/purchases", tags=["purchases"])
 
@@ -299,6 +303,30 @@ def verify_google_purchase(
         # A CANCELLED Play purchase is a refunded or revoked one.
         revoked_at=datetime.now(timezone.utc) if purchase.cancelled else None,
     )
+
+    # Acknowledge ONLY now: verified, not cancelled, not pending, and linked to
+    # this account without a cross-account conflict (_link_purchase raises 409
+    # before we get here). Google auto-refunds an unacknowledged one-time
+    # purchase after three days, so this is what stops a real purchase being
+    # reversed — and doing it any earlier would tell Google to keep money for a
+    # purchase we might still refuse.
+    #
+    # Every rejection path above returns before this line, which is what makes
+    # "never acknowledge a forged, wrong-product, revoked or cross-account
+    # token" true by construction rather than by a check that could drift.
+    if not purchase.cancelled and not purchase.acknowledged:
+        try:
+            acknowledge_purchase(purchase.purchase_token)
+        except GooglePlayUnavailable:
+            # The entitlement is already recorded and the user has access. Google
+            # will retry-refund after three days if this never succeeds, which is
+            # visible to us as a later CANCELLED — so failing the request here
+            # would take access away for a problem the user cannot fix.
+            logger.warning(
+                "Play purchase verified but acknowledgement failed; "
+                "Google's 3-day auto-refund window is running"
+            )
+
     return _entitlement_for(db, current_user)
 
 
