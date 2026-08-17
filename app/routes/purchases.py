@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.appstore import (
@@ -146,12 +147,41 @@ def _link_purchase(
                 revoked_at=revoked_at,
             )
         )
-    else:
-        # Re-verification (restore, reinstall, new device): refresh the mutable
-        # fields, including clearing or setting revocation.
-        existing.transaction_id = transaction_id
-        existing.revoked_at = revoked_at
+        try:
+            db.commit()
+        except IntegrityError:
+            # Check-then-act race: two devices restoring the same purchase at the
+            # same instant both saw no row, and both inserted. The UNIQUE
+            # constraint keeps the data correct, but without this the loser gets
+            # a 500 on the money path — and a client that retries a 500 can turn
+            # one race into a loop. Roll back, re-read the winner's row, and
+            # continue as if we had found it first.
+            db.rollback()
+            existing = (
+                db.query(Purchase)
+                .filter(
+                    Purchase.platform == platform,
+                    Purchase.platform_transaction_id == platform_transaction_id,
+                )
+                .first()
+            )
+            if existing is None:
+                # The constraint fired for some other reason. Do not swallow it.
+                raise
+            if existing.user_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This purchase is already linked to another LandHere account.",
+                )
+            existing.transaction_id = transaction_id
+            existing.revoked_at = revoked_at
+            db.commit()
+        return
 
+    # Re-verification (restore, reinstall, new device): refresh the mutable
+    # fields, including clearing or setting revocation.
+    existing.transaction_id = transaction_id
+    existing.revoked_at = revoked_at
     db.commit()
 
 
