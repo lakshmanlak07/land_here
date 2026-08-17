@@ -18,6 +18,7 @@
  * transaction going to POST /purchases/verify. Restore is not a second, weaker
  * way to become entitled.
  */
+import { Platform } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 
@@ -33,6 +34,16 @@ import { PURCHASES_ENABLED } from './features';
  * places in App Store Connect.
  */
 export const PRO_PRODUCT_ID = 'com.landhere.app.pro';
+
+/**
+ * How the store refers to the purchase, for user-facing copy.
+ *
+ * Apple and Google use different words for the same things, and getting them
+ * wrong reads as sloppy in a paid flow ("Apple ID" on an Android phone).
+ */
+export const STORE_LABEL = Platform.OS === 'android' ? 'Google Play' : 'App Store';
+export const STORE_ACCOUNT_LABEL =
+  Platform.OS === 'android' ? 'Google account' : 'Apple ID';
 
 export const ENTITLEMENT_QUERY_KEY = ['entitlements'] as const;
 
@@ -51,15 +62,44 @@ export async function fetchEntitlement(): Promise<Entitlement> {
 /**
  * Send one Apple-signed transaction to the backend for verification.
  *
- * `purchaseToken` is expo-iap's unified field; on iOS it carries the StoreKit
- * JWS representation. It is a signed assertion, not a secret of ours, and no
- * Apple key or shared secret is involved on this side.
+ * On iOS `purchaseToken` carries the StoreKit JWS representation — a signed
+ * assertion, not a secret of ours. No Apple key or shared secret is involved on
+ * this side.
  */
 export async function verifySignedTransaction(signedTransaction: string): Promise<Entitlement> {
   const { data } = await api.post<Entitlement>('/purchases/verify', {
     signed_transaction: signedTransaction,
   });
   return data;
+}
+
+/**
+ * Send one Google Play purchase token to the backend for verification.
+ *
+ * A separate endpoint from the iOS one, deliberately. On Android the token is
+ * opaque and proves nothing by itself — the server has to ask Google what it
+ * means, authenticated as our own service account. Posting it to the iOS
+ * endpoint (or an Apple JWS to this one) is rejected server-side, so the two
+ * kinds of evidence can never be confused.
+ */
+export async function verifyGooglePurchase(purchaseToken: string): Promise<Entitlement> {
+  const { data } = await api.post<Entitlement>('/purchases/verify/google', {
+    purchase_token: purchaseToken,
+  });
+  return data;
+}
+
+/**
+ * Verify a purchase with whichever backend path this platform requires.
+ *
+ * The single place the platform branch lives, so no screen has to know that iOS
+ * and Android carry different kinds of proof. Both end at a server decision;
+ * neither grants anything locally.
+ */
+export async function verifyPurchaseForPlatform(purchaseToken: string): Promise<Entitlement> {
+  return Platform.OS === 'android'
+    ? verifyGooglePurchase(purchaseToken)
+    : verifySignedTransaction(purchaseToken);
 }
 
 // ── Flow state (UI only) ──────────────────────────────────────────────────────

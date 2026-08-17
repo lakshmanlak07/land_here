@@ -290,9 +290,27 @@ check('both buying and restoring go through server verification', () => {
   // Restore must not be a second, weaker path to Pro. Every transaction —
   // fresh or restored — is submitted to the same verify endpoint.
   const src = readCode('app/paywall.tsx');
-  assert.ok(src.includes('verifySignedTransaction'), 'purchase path does not verify');
+  assert.ok(
+    src.includes('verifyPurchaseForPlatform'),
+    'purchase path does not verify with the server',
+  );
   assert.ok(src.includes('restorePurchases'), 'restore action missing');
   assert.ok(src.includes('submitToServer'), 'restore does not reach the server');
+});
+
+check('each platform has its own verification endpoint', () => {
+  // An Apple JWS is not Android evidence and a Play token is not Apple
+  // evidence. Two endpoints, two request shapes, and one branch that decides —
+  // so nothing can be talked into treating one as the other.
+  const store = readCode('lib/purchaseStore.ts');
+  assert.ok(store.includes("'/purchases/verify'"), 'iOS verify endpoint missing');
+  assert.ok(store.includes("'/purchases/verify/google'"), 'Android verify endpoint missing');
+  assert.ok(store.includes('signed_transaction'), 'iOS request field missing');
+  assert.ok(store.includes('purchase_token'), 'Android request field missing');
+  assert.ok(
+    /Platform\.OS === 'android'/.test(store),
+    'no platform branch — one flow would be serving both stores',
+  );
 });
 
 check('a visible Restore Purchases action is present', () => {
@@ -304,7 +322,7 @@ check('a visible Restore Purchases action is present', () => {
   const profile = readCode('app/(tabs)/profile.tsx');
   assert.ok(profile.includes('Restore Purchases'), 'missing in Settings');
   assert.ok(
-    profile.includes('verifySignedTransaction'),
+    profile.includes('verifyPurchaseForPlatform'),
     'Settings restore must verify with the server, not unlock locally',
   );
 });

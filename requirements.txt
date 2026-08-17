@@ -17,3 +17,8 @@ redis  # Redis client for shared rate limiting (optional; falls back to in-memor
 # the trust anchors are Apple's public root CAs. Pulls cryptography>=43 —
 # verified against the existing suite at cryptography 50.0.0.
 app-store-server-library>=3.1,<4
+
+# Google Play Developer API auth for Android purchase verification
+# (app/core/googleplay.py). Only the OAuth2 service-account flow is used; the
+# heavier google-api-python-client is deliberately not pulled in.
+google-auth>=2.35,<3

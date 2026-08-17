@@ -25,7 +25,8 @@ import {
   PRO_PRODUCT_ID,
   useContentUnlocked,
   useRefreshEntitlement,
-  verifySignedTransaction,
+  STORE_ACCOUNT_LABEL,
+  verifyPurchaseForPlatform,
 } from '../../lib/purchaseStore';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -116,8 +117,8 @@ export default function ProfileScreen() {
   /**
    * Restore a previous LandHere Pro purchase.
    *
-   * Asks StoreKit for this Apple ID's past transactions, then submits each
-   * matching one to the server for verification — the same endpoint a fresh
+   * Asks the platform store for this account's past purchases, then submits each
+   * matching one to the server for verification — the same path a fresh
    * purchase uses. Nothing is granted locally, so a restore that the server
    * rejects leaves the account unentitled, which is the correct outcome.
    */
@@ -131,11 +132,11 @@ export default function ProfileScreen() {
       if (!match?.purchaseToken) {
         Alert.alert(
           'No purchase found',
-          `We couldn't find a LandHere Pro purchase for this ${Platform.OS === 'ios' ? 'Apple ID' : 'Google account'}.`,
+          `We couldn't find a LandHere Pro purchase for this ${STORE_ACCOUNT_LABEL}.`,
         );
         return;
       }
-      const entitlement = await verifySignedTransaction(match.purchaseToken);
+      const entitlement = await verifyPurchaseForPlatform(match.purchaseToken);
       await refreshEntitlement();
       Alert.alert(
         entitlement.pro ? 'LandHere Pro restored' : 'Purchase not active',

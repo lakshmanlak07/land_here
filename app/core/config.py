@@ -83,6 +83,32 @@ class Settings(BaseSettings):
     # unreachable. Tests turn it off to stay offline.
     APPLE_ENABLE_ONLINE_CHECKS: bool = True
 
+    # ── LandHere Pro on Google Play ────────────────────────────────────────────
+    # Android's model is the opposite of Apple's. Apple hands the client a blob
+    # signed by Apple, which we verify offline with public certificates and no
+    # credential. Google hands the client an opaque token that proves nothing on
+    # its own — the only way to know what it means is to ask Google, over an
+    # authenticated connection. So Android verification needs a real secret and
+    # Apple's does not.
+    GOOGLE_PLAY_PACKAGE_NAME: str = "com.landhere.app"
+    # Play's product identifier. Same string as the App Store's by convention;
+    # they are separate records in separate consoles and need not match.
+    GOOGLE_PLAY_PRO_PRODUCT_ID: str = "com.landhere.app.pro"
+    # Service-account JSON for the Google Play Developer API, as raw JSON.
+    # THIS IS A SECRET — a private key lives inside it. Inject it as a platform
+    # secret at deploy time. Never commit it, never bake it into an image, and
+    # never expose it to the mobile bundle. Empty = Android verification is
+    # unavailable and the endpoints return 503.
+    GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: str = ""
+    # Alternative to the above: a path to the JSON file, for platforms that
+    # mount secret files rather than injecting env vars. Ignored when
+    # GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is set.
+    GOOGLE_PLAY_SERVICE_ACCOUNT_FILE: str = ""
+    # Accept Play license-test purchases (testPurchaseContext.fopType == TEST).
+    # The Android counterpart of APPLE_ACCEPT_SANDBOX, and off for the same
+    # reason: a public release must not hand out Pro to license testers.
+    GOOGLE_ACCEPT_TEST_PURCHASES: bool = False
+
     # Redis connection URL for shared rate limiting across multiple workers.
     # Example: redis://localhost:6379/0  or  rediss://user:pass@host:6380/0 (TLS)
     # Leave empty ("") to use the in-memory fallback (development / single-process).

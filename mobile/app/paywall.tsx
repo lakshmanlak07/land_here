@@ -18,6 +18,7 @@ import {
   ActivityIndicator, Platform, ScrollView,
   StyleSheet, Text, View, Pressable,
 } from 'react-native';
+import { isAxiosError } from 'axios';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,9 +40,10 @@ import { PressableScale } from '../components/PressableScale';
 import { getErrorMessage } from '../lib/api';
 import {
   PRO_PRODUCT_ID,
+  STORE_ACCOUNT_LABEL,
   useContentUnlocked,
   useRefreshEntitlement,
-  verifySignedTransaction,
+  verifyPurchaseForPlatform,
 } from '../lib/purchaseStore';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -70,7 +72,8 @@ const GHOST_ROWS = [
   { initials: 'CMU', score: '88', name: 'Carnegie Mellon University', state: 'Pittsburgh, PA', tuition: '~$66k' },
 ];
 
-const STORE_ACCOUNT = Platform.OS === 'ios' ? 'Apple ID' : 'Google account';
+// Store-specific wording lives in lib/purchaseStore.ts so every surface agrees.
+const STORE_ACCOUNT = STORE_ACCOUNT_LABEL;
 
 const GHOST_GRADS: [string, string][] = [
   ['#8A1538', '#5A0C24'],
@@ -125,7 +128,7 @@ export default function PaywallScreen() {
         return false;
       }
       try {
-        const entitlement = await verifySignedTransaction(signed);
+        const entitlement = await verifyPurchaseForPlatform(signed);
         await refreshEntitlement();
         if (!entitlement.pro) {
           // Verified, but not entitling — a refunded or revoked purchase.
@@ -134,6 +137,15 @@ export default function PaywallScreen() {
         }
         return true;
       } catch (e) {
+        // 402 = the store says payment is still pending. Common on Google Play
+        // with deferred payment methods (cash, bank transfer). Not a failure,
+        // and crucially not something to retry — it resolves on its own.
+        if (isAxiosError(e) && e.response?.status === 402) {
+          setStoreNotice(
+            'Your payment is still being processed. Pro unlocks automatically once it completes.',
+          );
+          return false;
+        }
         setStoreError(getErrorMessage(e, 'We could not confirm your purchase. Please try again.'));
         return false;
       }

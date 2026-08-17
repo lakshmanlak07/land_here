@@ -431,7 +431,10 @@ def test_restore_is_idempotent(client):
     try:
         rows = (
             db.query(Purchase)
-            .filter(Purchase.original_transaction_id == original)
+            .filter(
+                Purchase.platform == 'ios',
+                Purchase.platform_transaction_id == original,
+            )
             .count()
         )
     finally:
@@ -469,7 +472,10 @@ def test_deleting_the_account_removes_the_purchase(client):
     try:
         remaining = (
             db.query(Purchase)
-            .filter(Purchase.original_transaction_id == original)
+            .filter(
+                Purchase.platform == 'ios',
+                Purchase.platform_transaction_id == original,
+            )
             .count()
         )
     finally:

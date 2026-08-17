@@ -31,8 +31,18 @@ from app.core.appstore import (
 )
 from app.core.database import get_db
 from app.core.deps import get_current_user, user_has_pro
+from app.core.googleplay import (
+    GooglePlayUnavailable,
+    GooglePlayVerificationError,
+    fetch_purchase,
+)
 from app.core.rate_limit import rate_limiter
-from app.models.purchase import Purchase, PurchaseNotification
+from app.models.purchase import (
+    PLATFORM_ANDROID,
+    PLATFORM_IOS,
+    Purchase,
+    PurchaseNotification,
+)
 from app.models.user import User
 
 router = APIRouter(prefix="/purchases", tags=["purchases"])
@@ -53,9 +63,19 @@ class EntitlementOut(BaseModel):
     product_id: str | None = None
     environment: str | None = None
     purchased_at: datetime | None = None
+    # Which store the entitlement came from. Useful in support ("you bought on
+    # iOS, so restore from an iPhone") and harmless to expose.
+    platform: str | None = None
 
 
 def _entitlement_for(db: Session, user: User) -> EntitlementOut:
+    """The single answer to "is this account Pro?", whatever store paid for it.
+
+    One entitlement model across both platforms: any unrevoked purchase row
+    entitles, so a user who bought on one store and signs in on the other keeps
+    Pro. Deliberately platform-agnostic — the entitlement belongs to the
+    LandHere account, not to a device or a store.
+    """
     row = (
         db.query(Purchase)
         .filter(Purchase.user_id == user.id, Purchase.revoked_at.is_(None))
@@ -69,7 +89,68 @@ def _entitlement_for(db: Session, user: User) -> EntitlementOut:
         product_id=row.product_id,
         environment=row.environment,
         purchased_at=row.purchased_at,
+        platform=row.platform,
     )
+
+
+def _link_purchase(
+    db: Session,
+    *,
+    current_user: User,
+    platform: str,
+    platform_transaction_id: str,
+    transaction_id: str | None,
+    product_id: str,
+    environment: str,
+    purchased_at: datetime,
+    revoked_at: datetime | None,
+) -> None:
+    """Attach a verified store purchase to this account, or refresh it.
+
+    Shared by both platforms *after* each has done its own, separate
+    verification. Nothing in here decides whether a purchase is genuine — by the
+    time we are called, the caller has already proved it with Apple's signature
+    or with Google's API. This only enforces the account-binding rule, which is
+    identical on both stores.
+    """
+    existing = (
+        db.query(Purchase)
+        .filter(
+            Purchase.platform == platform,
+            Purchase.platform_transaction_id == platform_transaction_id,
+        )
+        .first()
+    )
+
+    if existing is not None and existing.user_id != current_user.id:
+        # One store purchase, one LandHere account. Restoring on a second
+        # account must not clone the entitlement.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This purchase is already linked to another LandHere account.",
+        )
+
+    if existing is None:
+        db.add(
+            Purchase(
+                id=uuid.uuid4(),
+                user_id=current_user.id,
+                platform=platform,
+                platform_transaction_id=platform_transaction_id,
+                transaction_id=transaction_id,
+                product_id=product_id,
+                environment=environment,
+                purchased_at=purchased_at,
+                revoked_at=revoked_at,
+            )
+        )
+    else:
+        # Re-verification (restore, reinstall, new device): refresh the mutable
+        # fields, including clearing or setting revocation.
+        existing.transaction_id = transaction_id
+        existing.revoked_at = revoked_at
+
+    db.commit()
 
 
 @router.get("/entitlements", response_model=EntitlementOut)
@@ -110,43 +191,80 @@ def verify_purchase(
     except PurchaseVerificationError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
-    existing = (
-        db.query(Purchase)
-        .filter(Purchase.original_transaction_id == verified.original_transaction_id)
-        .first()
+    _link_purchase(
+        db,
+        current_user=current_user,
+        platform=PLATFORM_IOS,
+        platform_transaction_id=verified.original_transaction_id,
+        transaction_id=verified.transaction_id,
+        product_id=verified.product_id,
+        environment=verified.environment,
+        purchased_at=verified.purchased_at,
+        revoked_at=verified.revoked_at,
     )
+    return _entitlement_for(db, current_user)
 
-    if existing is not None and existing.user_id != current_user.id:
-        # One Apple purchase, one LandHere account. Restoring on a second
-        # account must not clone the entitlement. The user's route back is to
-        # sign in as the original account or contact support.
+
+class VerifyGoogleIn(BaseModel):
+    # Play purchase tokens are long; the bound is generous but finite.
+    purchase_token: str = Field(..., min_length=1, max_length=4096)
+
+
+@router.post(
+    "/verify/google",
+    response_model=EntitlementOut,
+    dependencies=[Depends(_verify_limit)],
+)
+def verify_google_purchase(
+    body: VerifyGoogleIn,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Verify a Google Play purchase and grant Pro to the calling account.
+
+    A SEPARATE endpoint from the Apple one, taking a differently-named field, on
+    purpose. An Apple JWS is not Android evidence and a Play token is not Apple
+    evidence; there is no shared entry point that could be talked into confusing
+    them. The Play token is opaque and proves nothing by itself, so the only
+    thing consulted here is Google's own answer about it.
+    """
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        purchase = fetch_purchase(body.purchase_token)
+    except GooglePlayUnavailable:
+        # Our misconfiguration or Google being unreachable. Never a reason to
+        # grant anything. The client must not acknowledge the purchase after
+        # this, so Play auto-refunds it within three days.
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This purchase is already linked to another LandHere account.",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Purchase verification is not available.",
+        )
+    except GooglePlayVerificationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    if purchase.pending:
+        # A deferred payment (cash at a store, pending card). Real, unpaid, and
+        # must not entitle — recorded as nothing so a later re-check can grant it.
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="This purchase is still pending payment.",
         )
 
-    if existing is None:
-        existing = Purchase(
-            id=uuid.uuid4(),
-            user_id=current_user.id,
-            original_transaction_id=verified.original_transaction_id,
-            transaction_id=verified.transaction_id,
-            product_id=verified.product_id,
-            environment=verified.environment,
-            purchased_at=verified.purchased_at,
-            revoked_at=verified.revoked_at,
-        )
-        db.add(existing)
-    else:
-        # Re-verification (restore, reinstall, new device): refresh the mutable
-        # fields. Apple reporting a revocationDate is how a refund reaches us
-        # without Server Notifications.
-        existing.transaction_id = verified.transaction_id
-        existing.revoked_at = verified.revoked_at
-
-    db.commit()
-    db.refresh(existing)
-
+    _link_purchase(
+        db,
+        current_user=current_user,
+        platform=PLATFORM_ANDROID,
+        # Play's stable per-purchase identifier.
+        platform_transaction_id=purchase.purchase_token,
+        transaction_id=purchase.order_id,
+        product_id=purchase.product_id,
+        environment="Test" if purchase.is_test_purchase else "Production",
+        purchased_at=purchase.purchased_at,
+        # A CANCELLED Play purchase is a refunded or revoked one.
+        revoked_at=datetime.now(timezone.utc) if purchase.cancelled else None,
+    )
     return _entitlement_for(db, current_user)
 
 
@@ -231,7 +349,8 @@ def app_store_notification(
             notification_uuid=notification.notification_uuid,
             notification_type=notification.notification_type,
             subtype=notification.subtype,
-            original_transaction_id=(
+            platform=PLATFORM_IOS,
+            platform_transaction_id=(
                 transaction.original_transaction_id if transaction else None
             ),
         )
@@ -242,7 +361,9 @@ def app_store_notification(
         purchase = (
             db.query(Purchase)
             .filter(
-                Purchase.original_transaction_id == transaction.original_transaction_id
+                Purchase.platform == PLATFORM_IOS,
+                Purchase.platform_transaction_id
+                == transaction.original_transaction_id,
             )
             .first()
         )
@@ -256,6 +377,87 @@ def app_store_notification(
             elif notification.notification_type in _RESTORING_TYPES:
                 purchase.revoked_at = None
                 action = "restored"
+
+    db.commit()
+    return NotificationAck(received=True, duplicate=False, action=action)
+
+
+class GoogleNotificationIn(BaseModel):
+    """A Google Play Real-time Developer Notification, Pub/Sub push shape.
+
+    Only `purchaseToken` is read from it, and even that is treated as a hint —
+    see the endpoint docstring.
+    """
+
+    purchase_token: str = Field(..., min_length=1, max_length=4096)
+
+
+@router.post(
+    "/notifications/google",
+    response_model=NotificationAck,
+    dependencies=[Depends(_notify_limit)],
+)
+def google_play_notification(
+    body: GoogleNotificationIn,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Re-check a Google Play purchase after Play says something changed.
+
+    **The message body is not evidence and is not trusted.** This is the crucial
+    difference from the Apple endpoint. Apple signs its notifications, so the
+    payload itself proves what it claims. Google's RTDN messages are ordinary
+    Pub/Sub messages carrying no signature over their contents — anyone who
+    learns the URL can POST one.
+
+    So the message is treated purely as a prompt: the only thing we act on is
+    what Google's API says when we ask it directly about that token. A forged
+    message therefore achieves nothing beyond making us perform a lookup, and it
+    can never revoke a paying user's access, because the lookup would come back
+    PURCHASED.
+
+    That also means this endpoint is useless without credentials rather than
+    dangerous: no service account, no lookup, 503, and Play retries.
+
+    ⚠️ Transport authentication is still required and is NOT implemented here:
+    the Pub/Sub push subscription must be configured with an OIDC token and the
+    platform must verify it (or the URL must carry an unguessable secret path).
+    Without that, this endpoint is an unauthenticated way to make us spend API
+    quota. See LAUNCH/LAUNCH_RUNBOOK.md for the Play Console setup.
+    """
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        purchase = fetch_purchase(body.purchase_token)
+    except GooglePlayUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Notification verification is not available.",
+        )
+    except GooglePlayVerificationError:
+        # Google does not recognise the token, or it is for another product.
+        # 200 so Play stops retrying something we will never act on.
+        return NotificationAck(received=True, duplicate=False, action="none")
+
+    row = (
+        db.query(Purchase)
+        .filter(
+            Purchase.platform == PLATFORM_ANDROID,
+            Purchase.platform_transaction_id == purchase.purchase_token,
+        )
+        .first()
+    )
+    if row is None:
+        return NotificationAck(received=True, duplicate=False, action="none")
+
+    action = "none"
+    if purchase.cancelled and row.revoked_at is None:
+        row.revoked_at = datetime.now(timezone.utc)
+        action = "revoked"
+    elif not purchase.cancelled and not purchase.pending and row.revoked_at is not None:
+        # Play reports it valid again — a reversed refund.
+        row.revoked_at = None
+        action = "restored"
 
     db.commit()
     return NotificationAck(received=True, duplicate=False, action=action)
