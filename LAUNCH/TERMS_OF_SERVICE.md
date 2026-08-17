@@ -86,8 +86,21 @@ Other terms of the purchase:
   and whether any statutory withdrawal/cooling-off right applies in the EU/UK or
   India despite Apple mediating the transaction.]**
 
-_Android is not offered at this time; LandHere is currently an iOS app. Any
-Google Play wording must be added if and when an Android release ships._
+**On Google Play**, the same purchase is sold by **Google**, at the equivalent
+price for your country. Google processes the payment and decides refunds, and
+Google's refund policies apply instead of Apple's. Everything else is the same:
+one-time, non-consumable, no subscription, permanent for that Google account,
+with Restore Purchases available.
+
+**A purchase does not transfer between the App Store and Google Play.** Each
+store only knows about its own purchases, so a purchase made on one cannot be
+restored on the other. Your LandHere Pro access, however, belongs to your
+LandHere account — so signing in to the same account on the other platform keeps
+your access even though the purchase itself cannot be restored there.
+
+_[Lawyer to review: whether the two-merchant arrangement needs separate
+paragraphs per store, and whether the no-cross-store-restore limitation is
+adequately disclosed here and in the store listings.]_
 
 ## 4. Eligibility and accounts
 

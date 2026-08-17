@@ -4,8 +4,11 @@ _Rewritten 2026-08-01 for v0.1.0-rc.3; revised 2026-08-16 for **`feat/pro-iap`**
 which restores the $1.99 LandHere Pro purchase with server-side entitlement._
 
 The ordered task list is **`LAUNCH/APP_STORE_SUBMISSION_CHECKLIST.md`**.
-Backend provisioning, migration, backup/restore and rollback now live in
-**`LAUNCH/DEPLOYMENT_RUNBOOK.md`**.
+Backend provisioning, migration, backup/restore and rollback live in
+**`LAUNCH/DEPLOYMENT_RUNBOOK.md`**. Google Play setup lives in
+**`LAUNCH/PLAY_STORE_SUBMISSION_CHECKLIST.md`** — including the two Google
+secrets the backend needs (`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`,
+`GOOGLE_RTDN_SHARED_SECRET`).
 This runbook explains the release, the commands, and what to do when something
 goes wrong.
 
@@ -13,14 +16,17 @@ goes wrong.
 
 ## 1. What this release is
 
-**LandHere v1.0.0 is a free app with one optional in-app purchase.** iOS only.
+**LandHere v1.0.0 is a free app with one optional in-app purchase.**
+Purchase paths for **both** the App Store and Google Play are implemented.
 
 | | |
 |---|---|
 | App bundle id | `com.landhere.app` |
 | IAP product id | `com.landhere.app.pro` (**not** the bundle id) |
 | Type | One-time **non-consumable** |
-| Price | US $1.99, set in App Store Connect |
+| Android package | `com.landhere.app` |
+| Play product id | `com.landhere.app.pro` (**not** the package name) |
+| Price | US $1.99, set in App Store Connect **and** Play Console |
 | Subscriptions | none, and none may be created |
 
 **Free without paying:** journey phases 1–2, the top 25 ranked universities, the
@@ -46,7 +52,8 @@ it gated content with an AsyncStorage boolean any user could set.
 | Purchase store | `purchaseStore.ts` reads entitlement from the server; **persists nothing** |
 | StoreKit library | `expo-iap`, in `package.json` **and** in the `app.json` plugins array |
 | Server verification | `app/core/appstore.py` — Apple's JWS chain, fails closed |
-| Entitlement store | `purchases` table, UNIQUE on `original_transaction_id` |
+| Entitlement store | `purchases` table, UNIQUE on `(platform, platform_transaction_id)` |
+| Google verification | `app/core/googleplay.py` — asks Google, fails closed |
 | Content gating | `require_pro` + pre-serialisation trimming in the API |
 
 Two details worth keeping in mind:
@@ -285,9 +292,11 @@ never hand-edit them. Bump `version` in `app.json` for a user-visible release.
   must be configured before launch, not discovered after.
 - **Any Apple private key, `.p8`, or shared secret in the app bundle.** None is
   needed; verification uses Apple's public roots. The bundle scan enforces this.
-- **Android.** No Android build exists. India is Android-heavy, so this is the
-  obvious next milestone — but it is a separate release with its own Play Console
-  account, and the `serviceAccountKeyPath` in `eas.json` is a placeholder.
+- **An Android build with no Google credentials on the server.** The purchase
+  path is implemented, but with `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` unset every
+  Play purchase fails verification (503) and is auto-refunded by Google after
+  three days. Shipping that would take money and give it back, badly.
+  `serviceAccountKeyPath` in `eas.json` is still a placeholder.
 - **Any corridor beyond IN→US, IN→CA, IN→UK.** The picker is already restricted.
 - **A "verified" badge on anything a human has not checked.** AU / IE / NL / NZ /
   FR / SG work rules remain unverified and are excluded.

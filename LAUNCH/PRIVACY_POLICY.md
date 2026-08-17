@@ -57,15 +57,18 @@ non-consumable in-app purchase** called **LandHere Pro** (product identifier
 `com.landhere.app.pro`), priced at **US $1.99** or the equivalent your app store
 shows in your country. **There is no subscription and no recurring charge.**
 
-The payment itself is processed entirely by **Apple (App Store)**. We never see
-or store your card number, billing address, or any payment details.
+The payment itself is processed entirely by **Apple (App Store)** on iPhone, or
+by **Google (Google Play)** on Android. We never see or store your card number,
+billing address, or any payment details from either.
 
 **We do record that your account owns Pro.** When you buy or restore Pro, the App
 Store gives the app a receipt signed by Apple. The app sends that receipt to our
 server, which checks Apple's signature and then stores:
 
-- Apple's transaction identifiers for that purchase (`originalTransactionId` and
-  `transactionId`) — random-looking identifiers issued by Apple, not payment data
+- the store's identifiers for that purchase — Apple's `originalTransactionId`
+  and `transactionId`, or Google's purchase token and order id. These are
+  random-looking identifiers issued by the store, not payment data
+- which store the purchase came from
 - the product identifier (`com.landhere.app.pro`)
 - whether the purchase came from Apple's production or sandbox environment
 - the purchase date, the date we verified it, and — if Apple later tells us the
@@ -73,8 +76,12 @@ server, which checks Apple's signature and then stores:
 
 This record is linked to your LandHere account. We need that link because Pro
 content is withheld by our server, not merely hidden in the app, so the server
-has to know which account is entitled. Apple's transaction identifier is stored
-**uniquely**, which means one purchase entitles one LandHere account.
+has to know which account is entitled. The store's identifier is stored
+**uniquely per store**, which means one purchase entitles one LandHere account.
+
+**On Android**, verifying a purchase means our server asks Google whether your
+purchase token is valid. That request identifies the purchase, not you — we send
+Google no LandHere account information.
 
 - **Restoring:** "Restore Purchases" (on the Pro screen and in Settings) asks
   Apple for your past purchases and re-verifies them with our server.

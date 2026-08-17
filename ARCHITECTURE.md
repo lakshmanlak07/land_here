@@ -134,6 +134,8 @@ This three-part model ensures LandHere never makes legal or immigration claims �
 | POST | `/purchases/verify` | Bearer JWT | Verify an Apple-signed transaction and record the entitlement |
 | GET | `/purchases/entitlements` | Bearer JWT | What this account owns |
 | POST | `/purchases/notifications` | **none — Apple's signature** | App Store Server Notifications V2 (refunds, revocations) |
+| POST | `/purchases/verify/google` | Bearer JWT | Verify a Google Play purchase token and record the entitlement |
+| POST | `/purchases/notifications/google` | shared secret header | Play RTDN prompt — triggers a re-check against Google |
 
 `GET /info/journey` also takes optional auth: a free or anonymous caller receives
 only the free phases.
@@ -155,7 +157,7 @@ StoreKit ──► purchase.purchaseToken (iOS: Apple's JWS)
                  │                        product id, type, revocation
                  │
                  └─ app/models/purchase.py  insert, UNIQUE on
-                                            original_transaction_id
+                                            (platform, platform_transaction_id)
 ```
 
 - **No Apple secret is involved.** Verification uses Apple's *public* root
@@ -163,13 +165,50 @@ StoreKit ──► purchase.purchaseToken (iOS: Apple's JWS)
   the server and certainly not in the bundle.
 - **Fails closed.** With no root certificates configured the endpoint returns
   503 rather than trusting a payload it cannot check.
-- **`purchases.original_transaction_id` is UNIQUE.** That constraint *is* the
-  entitlement model: one Apple purchase entitles exactly one LandHere account, so
+- **`purchases` is UNIQUE on (platform, platform_transaction_id).** That
+  constraint *is* the entitlement model: one Apple purchase entitles exactly one LandHere account, so
   a restore presented on a second account collides (409) instead of cloning Pro.
 - **Buying and restoring are the same path.** Restore is not a second, weaker
   route to entitlement; both submit a signed transaction to the same endpoint.
 - **Rows cascade with the user**, so account deletion removes the purchase record
   along with everything else.
+
+### Google Play: the same goal, an opposite mechanism
+
+`app/core/googleplay.py` is a deliberately separate module with its own error
+types and no shared entry point with the Apple path, because the two are not
+variants of one idea:
+
+| | Apple | Google |
+|---|---|---|
+| What the client hands us | a JWS **signed by Apple** | an **opaque token** |
+| How we verify | offline, against public root CAs | by **asking Google**, authenticated |
+| Credential needed | none | a service-account **private key** |
+| Test purchases | `environment: Sandbox` | `testPurchaseContext.fopType == TEST` |
+| Delivery deadline | none | **acknowledge within 3 days or Google auto-refunds** |
+
+Keeping them apart is a security property, not tidiness. A single "verify some
+proof of purchase" function would have to guess the platform, and the guess would
+be the vulnerability — an Apple JWS offered as Android evidence, or the reverse.
+Two endpoints, two request fields, and tests that prove each rejects the other's.
+
+Endpoint used: `purchases.productsv2.getproductpurchasev2` — the current form for
+one-time products (`purchases.products.get` is the superseded v1).
+
+**Fail-closed has a useful side effect on Android.** No service-account
+credentials means 503, never a grant. Because the client only acknowledges after
+the server confirms, an unverifiable purchase is never acknowledged — so Google
+auto-refunds it within three days and the user gets their money back.
+
+A 401/403 from Google is reported as **503, not 400**. Treating a rejected
+credential as a bad purchase would silently deny every purchase the moment the
+service account lost its permission.
+
+**The Play notification endpoint does not trust its request body.** Google's RTDN
+messages carry no signature over their contents, so the message is only a prompt
+to re-ask Google; a forged one achieves nothing because the lookup returns
+PURCHASED. It is additionally guarded by a shared-secret header, constant-time
+compared, because the lookup itself spends Google API quota.
 
 ### Refunds and revocations
 

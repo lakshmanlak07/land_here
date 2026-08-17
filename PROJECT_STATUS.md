@@ -168,6 +168,10 @@ misconfigured EAS build **fails on the build machine** rather than shipping.
 - **The legal pack is unreviewed.** `LAUNCH/PRIVACY_POLICY.md` and
   `LAUNCH/TERMS_OF_SERVICE.md` are drafts marked for legal review. No compliance
   claim is made. `LAUNCH/ATTORNEY_REVIEW_PACKET.md` is what goes to counsel.
+- **Google Play purchases are implemented and tested against a simulated Google
+  API.** No Play account exists, so no real token has ever been verified, no
+  refund observed, and no RTDN received. See
+  `LAUNCH/PLAY_STORE_SUBMISSION_CHECKLIST.md`.
 - **The purchase flow has never touched real StoreKit.** No device build exists,
   and no real App Store notification has ever been received — the notification
   endpoint is tested only against a synthetic certificate chain.

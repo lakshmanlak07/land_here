@@ -9,12 +9,14 @@ The app deliberately does not give legal or immigration advice. Every piece of i
 ## Product model
 
 LandHere is **free to download and free to use**, with one optional in-app
-purchase. iOS only; there is no Android release.
+purchase. **iOS and Android** purchase paths are both implemented; neither has
+run on a real device.
 
 | | |
 |---|---|
 | App bundle id | `com.landhere.app` |
-| IAP product id | `com.landhere.app.pro` — a **different** identifier from the bundle id |
+| IAP product id | `com.landhere.app.pro` — a **different** identifier from the bundle id / package name |
+| Android package | `com.landhere.app` |
 | Type | One-time **non-consumable**. No subscription, ever. |
 | Price | US $1.99, set in App Store Connect |
 

@@ -71,6 +71,26 @@ services:
       - key: APPLE_ENABLE_ONLINE_CHECKS
         value: "true"
 
+      # ── LandHere Pro on Google Play ───────────────────────────────────────
+      # Unlike the Apple block above, TWO of these are real secrets. Both are
+      # sync: false so they are entered in the dashboard and never live in this
+      # file or in git.
+      - key: GOOGLE_PLAY_PACKAGE_NAME
+        value: com.landhere.app
+      - key: GOOGLE_PLAY_PRO_PRODUCT_ID
+        value: com.landhere.app.pro
+      # SECRET: service-account JSON, one line. Contains a private key.
+      # Empty => Android verification returns 503 and nobody can buy on Play.
+      - key: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+        sync: false
+      # SECRET: guards the unsigned Play notification endpoint.
+      - key: GOOGLE_RTDN_SHARED_SECRET
+        sync: false
+      # TRUE only while testing through Play internal testing.
+      # MUST be false for the public release.
+      - key: GOOGLE_ACCEPT_TEST_PURCHASES
+        sync: false
+
   # Shared rate-limit backend. Required to run more than one web worker.
   - type: keyvalue
     name: landhere-cache
