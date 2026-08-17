@@ -192,6 +192,7 @@ def _signed_notification(
     subtype: str | None = None,
     transaction: dict | None = None,
     include_transaction: bool = True,
+    signed_date: int | None = None,
 ) -> str:
     """Build an App Store Server Notification (V2) envelope.
 
@@ -209,7 +210,7 @@ def _signed_notification(
             "notificationUUID": notification_uuid or str(uuid.uuid4()),
             "data": data,
             "version": "2.0",
-            "signedDate": _now_ms(),
+            "signedDate": _now_ms() if signed_date is None else signed_date,
         }
     )
 
@@ -675,6 +676,133 @@ def test_notification_verification_unavailable_returns_503(client, monkeypatch):
     monkeypatch.setattr(settings, "APPLE_ROOT_CA_DIR", "")
     r = _notify(client, _signed_notification("REFUND"))
     assert r.status_code == 503
+
+
+# ── Event ordering ─────────────────────────────────────────────────────────────
+#
+# Arrival order is not event order. Apple documents signedDate as "the UNIX time,
+# in milliseconds, that the App Store signed the JSON Web Signature data" — the
+# App Store's own timestamp for when the event happened. A retry or queue delay
+# can deliver a REFUND after the REFUND_REVERSED that undid it.
+
+def _buy_for_ordering(client):
+    _, headers, _ = _account(client)
+    original = str(uuid.uuid4().int)[:16]
+    assert _buy(client, headers, original_transaction_id=original).status_code == 200
+    return headers, original
+
+
+def _pro(client, headers) -> bool:
+    return client.get("/purchases/entitlements", headers=headers).json()["pro"]
+
+
+def test_refund_then_reversal_in_order_restores_access(client):
+    headers, original = _buy_for_ordering(client)
+    t0 = _now_ms()
+
+    r1 = _notify(client, _signed_notification(
+        "REFUND", signed_date=t0,
+        transaction=_transaction(original_transaction_id=original)))
+    assert r1.json()["action"] == "revoked"
+    assert _pro(client, headers) is False
+
+    r2 = _notify(client, _signed_notification(
+        "REFUND_REVERSED", signed_date=t0 + 60_000,
+        transaction=_transaction(original_transaction_id=original)))
+    assert r2.json()["action"] == "restored"
+    assert _pro(client, headers) is True
+
+
+def test_a_delayed_refund_cannot_undo_a_newer_reversal(client):
+    """The case the old last-write-wins model got wrong.
+
+    The reversal happened later but arrived first. Applying the refund on
+    arrival would lock a paying customer out of something they own.
+    """
+    headers, original = _buy_for_ordering(client)
+    t0 = _now_ms()
+
+    # Reversal (later event) arrives first.
+    r1 = _notify(client, _signed_notification(
+        "REFUND_REVERSED", signed_date=t0 + 60_000,
+        transaction=_transaction(original_transaction_id=original)))
+    assert r1.json()["action"] == "restored"
+
+    # The refund it reversed (earlier event) arrives late.
+    r2 = _notify(client, _signed_notification(
+        "REFUND", signed_date=t0,
+        transaction=_transaction(
+            original_transaction_id=original, revocation_date=t0)))
+    assert r2.status_code == 200
+    assert r2.json()["action"] == "ignored_stale", "a stale refund was applied"
+    assert _pro(client, headers) is True, "a delayed refund revoked a valid purchase"
+
+
+def test_duplicate_delivery_of_the_same_event_changes_nothing(client):
+    """Apple documents notificationUUID as the way to spot a duplicate."""
+    headers, original = _buy_for_ordering(client)
+    payload = _signed_notification(
+        "REFUND", notification_uuid="ordering-dup-test",
+        transaction=_transaction(original_transaction_id=original))
+
+    first = _notify(client, payload)
+    second = _notify(client, payload)
+    assert first.json() == {"received": True, "duplicate": False, "action": "revoked"}
+    assert second.json()["duplicate"] is True
+    assert second.json()["action"] == "none"
+    assert _pro(client, headers) is False
+
+
+def test_two_distinct_refunds_at_the_same_instant_both_apply(client):
+    """Equal timestamps must not be treated as stale.
+
+    Apple can sign two events in the same millisecond, and duplicates are
+    already handled by notificationUUID — so treating equal as stale would drop
+    a real second event.
+    """
+    headers, original = _buy_for_ordering(client)
+    t0 = _now_ms()
+    _notify(client, _signed_notification(
+        "REFUND", signed_date=t0,
+        transaction=_transaction(original_transaction_id=original)))
+    r = _notify(client, _signed_notification(
+        "REFUND_REVERSED", signed_date=t0,
+        transaction=_transaction(original_transaction_id=original)))
+    assert r.json()["action"] == "restored", "an equal-timestamp event was dropped"
+    assert _pro(client, headers) is True
+
+
+def test_ordering_is_tracked_per_purchase_not_globally(client):
+    """A late event for one purchase must not block a newer one for another."""
+    headers_a, original_a = _buy_for_ordering(client)
+    headers_b, original_b = _buy_for_ordering(client)
+    t0 = _now_ms()
+
+    _notify(client, _signed_notification(
+        "REFUND", signed_date=t0 + 60_000,
+        transaction=_transaction(original_transaction_id=original_a)))
+    r = _notify(client, _signed_notification(
+        "REFUND", signed_date=t0,
+        transaction=_transaction(original_transaction_id=original_b)))
+
+    assert r.json()["action"] == "revoked", "purchase B was blocked by purchase A's event"
+    assert _pro(client, headers_a) is False
+    assert _pro(client, headers_b) is False
+
+
+def test_an_event_for_a_deleted_account_is_accepted_without_error(client):
+    """The purchase row went with the account; the notification still arrives."""
+    _, headers, password = _account(client)
+    original = str(uuid.uuid4().int)[:16]
+    assert _buy(client, headers, original_transaction_id=original).status_code == 200
+    assert client.request(
+        "DELETE", "/account", json={"password": password}, headers=headers
+    ).status_code == 204
+
+    r = _notify(client, _signed_notification(
+        "REFUND", transaction=_transaction(original_transaction_id=original)))
+    assert r.status_code == 200
+    assert r.json()["action"] == "none"
 
 
 # ── Server-enforced Pro gates ──────────────────────────────────────────────────

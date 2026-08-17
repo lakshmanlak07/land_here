@@ -72,6 +72,22 @@ class Purchase(Base):
     # Non-null = refunded or revoked by the store; the entitlement no longer counts.
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # When the store signed the event that last changed `revoked_at`.
+    #
+    # This is the ordering key, and it exists because arrival order is not event
+    # order. Apple documents `signedDate` as "the UNIX time, in milliseconds,
+    # that the App Store signed the JSON Web Signature data" — so it is the
+    # App Store's own timestamp for when the event happened, independent of when
+    # the POST reached us. A retry, a queue delay or a transient 500 on our side
+    # can deliver a REFUND after the REFUND_REVERSED that undid it; applying
+    # them in arrival order would then leave a paying user locked out.
+    #
+    # NULL means no store event has been applied yet (the row came from a direct
+    # verify), and any event may apply.
+    last_event_signed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
     __table_args__ = (
         Index("ix_purchases_user_id", "user_id"),
         UniqueConstraint(

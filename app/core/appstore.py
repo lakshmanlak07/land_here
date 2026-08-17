@@ -82,6 +82,10 @@ class VerifiedNotification:
     notification_type: str
     subtype: str | None
     notification_uuid: str
+    # Apple's own timestamp for the event: "the UNIX time, in milliseconds, that
+    # the App Store signed the JSON Web Signature data". Used to order events,
+    # because arrival order is not event order.
+    signed_at: datetime | None
     transaction: VerifiedTransaction | None
 
 
@@ -259,5 +263,6 @@ def verify_signed_notification(signed_payload: str) -> VerifiedNotification:
         notification_type=notification_type,
         subtype=subtype,
         notification_uuid=payload.notificationUUID,
+        signed_at=_ms_to_datetime(payload.signedDate),
         transaction=transaction,
     )

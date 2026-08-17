@@ -325,6 +325,41 @@ _REVOKING_TYPES = {"REFUND", "REVOKE"}
 _RESTORING_TYPES = {"REFUND_REVERSED"}
 
 
+def _is_stale_event(purchase: Purchase, signed_at: datetime | None) -> bool:
+    """True when this event predates the one already applied to the row.
+
+    Ordering is by Apple's `signedDate` — the App Store's own timestamp for the
+    event — not by when the POST arrived, because those differ under retries and
+    queue delays.
+
+    Two deliberate conservative choices:
+
+      * an event with NO signedDate is never treated as stale. Refusing to act
+        on an event we cannot place in time would silently drop a real refund;
+        applying it is the safer failure.
+      * equal timestamps are NOT stale. Apple can sign two events in the same
+        millisecond, and notificationUUID deduplication already handles genuine
+        duplicates, so treating equal as stale would drop a real second event.
+    """
+    if signed_at is None or purchase.last_event_signed_at is None:
+        return False
+    return _as_utc(signed_at) < _as_utc(purchase.last_event_signed_at)
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Normalise to an aware UTC datetime before comparing.
+
+    Not defensive padding: the stored value comes back timezone-aware from
+    PostgreSQL but NAIVE from SQLite, which does not persist offsets for
+    DateTime(timezone=True). Comparing an aware value with a naive one raises
+    TypeError, which on this endpoint would mean a 500 on every refund — so the
+    comparison has to be explicit about it rather than assume the driver.
+    Stored values are always written as UTC, so attaching UTC is correct, not a
+    guess.
+    """
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+
+
 @router.post(
     "/notifications",
     response_model=NotificationAck,
@@ -402,14 +437,27 @@ def app_store_notification(
             .first()
         )
         if purchase is not None:
-            if notification.notification_type in _REVOKING_TYPES:
+            changes_entitlement = (
+                notification.notification_type in _REVOKING_TYPES
+                or notification.notification_type in _RESTORING_TYPES
+            )
+            if changes_entitlement and _is_stale_event(purchase, notification.signed_at):
+                # An older event arriving after a newer one. Apple's signedDate
+                # is the App Store's timestamp for when the event happened, so
+                # this is genuinely out-of-order delivery — a retried REFUND
+                # landing after the REFUND_REVERSED that undid it. Applying it
+                # would lock a paying customer out of something they own.
+                action = "ignored_stale"
+            elif notification.notification_type in _REVOKING_TYPES:
                 # Apple's own revocationDate if it gave us one; otherwise now.
                 purchase.revoked_at = transaction.revoked_at or datetime.now(
                     timezone.utc
                 )
+                purchase.last_event_signed_at = notification.signed_at
                 action = "revoked"
             elif notification.notification_type in _RESTORING_TYPES:
                 purchase.revoked_at = None
+                purchase.last_event_signed_at = notification.signed_at
                 action = "restored"
 
     db.commit()
