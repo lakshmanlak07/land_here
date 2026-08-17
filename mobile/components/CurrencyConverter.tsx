@@ -50,7 +50,7 @@ function formatMoney(value: number): string {
 }
 
 export function CurrencyConverter({ defaultFrom, defaultTo }: Props) {
-  const { colors, spacing, radius, isDark } = useTheme();
+  const { colors, spacing, radius } = useTheme();
   const [amount, setAmount] = useState('1000');
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);

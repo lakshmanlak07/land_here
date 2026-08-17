@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { Card } from '../components/Card';
 import { withAlpha } from '../lib/color';
-import { PressableScale } from '../components/PressableScale';
 import {
   WORK_HOURS_COUNTRIES,
   WORK_HOURS_FOOTER,

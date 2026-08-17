@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,28 +23,7 @@ function tabIcon(active: IoniconName, inactive: IoniconName) {
   );
 }
 
-// Tab icon with a small lock badge overlay for premium tabs.
-function premiumTabIcon(active: IoniconName, inactive: IoniconName, locked: boolean, primaryColor: string) {
-  return ({ color, focused, size }: { color: string; focused: boolean; size: number }) => (
-    <View style={lt.iconWrap}>
-      <Ionicons name={focused ? active : inactive} size={size ?? 24} color={color} />
-      {locked && (
-        <View style={[lt.lockDot, { backgroundColor: primaryColor }]}>
-          <Ionicons name="lock-closed" size={7} color="#fff" />
-        </View>
-      )}
-    </View>
-  );
-}
 
-const lt = StyleSheet.create({
-  iconWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
-  lockDot: {
-    position: 'absolute', top: -2, right: -4,
-    width: 13, height: 13, borderRadius: 7,
-    alignItems: 'center', justifyContent: 'center',
-  },
-});
 
 export default function TabsLayout() {
   const token = useAuthStore((s) => s.token);
@@ -59,7 +37,7 @@ export default function TabsLayout() {
     if (!token) {
       router.replace('/(auth)/login');
     }
-  }, [token, hydrated]);
+  }, [token, hydrated, router]);
 
   return (
     <Tabs

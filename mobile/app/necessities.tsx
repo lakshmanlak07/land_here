@@ -75,7 +75,7 @@ export default function NecessitiesScreen() {
 }
 
 function NecessitiesList() {
-  const { colors, spacing, radius } = useTheme();
+  const { colors, spacing } = useTheme();
   const router = useRouter();
 
   return (
@@ -167,7 +167,7 @@ function Section({ section }: { section: NecessitySection }) {
 }
 
 function ItemCard({ item, accent, order }: { item: NecessityItem; accent: string; order: number | null }) {
-  const { colors, radius } = useTheme();
+  const { colors } = useTheme();
   return (
     <View style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border, borderLeftColor: accent, borderLeftWidth: 4 }]}>
       <View style={[s.badge, { backgroundColor: accent }]}>

@@ -240,6 +240,76 @@ check('the journey gate is driven by the server response', () => {
   );
 });
 
+check('signed-out users are redirected out of the app shell', () => {
+  // The tab layout is the gate for every authenticated screen. If this effect
+  // is lost, a signed-out user lands on tabs that fire authenticated requests
+  // and render error states instead of the login screen.
+  const tabs = readCode('app/(tabs)/_layout.tsx');
+  assert.ok(tabs.includes('useAuthStore'), 'tab layout does not read auth state');
+  assert.ok(/router\.replace\(\s*['"]\/\(auth\)\/login['"]\s*\)/.test(tabs),
+    'tab layout does not redirect signed-out users to login');
+  assert.ok(tabs.includes('hydrated'),
+    'redirect must wait for hydration, or it fires before the token is read');
+
+  const auth = readCode('app/(auth)/_layout.tsx');
+  assert.ok(/router\.replace/.test(auth), 'auth layout does not redirect signed-in users onward');
+});
+
+check('purchase UI covers every state a store can return', () => {
+  // A paid flow that silently does nothing on cancel, or shows "failed" for a
+  // pending payment, reads as broken. Each of these is a distinct outcome the
+  // stores actually produce.
+  const paywall = readCode('app/paywall.tsx');
+  for (const [label, needle] of [
+    ['cancellation', 'ErrorCode.UserCancelled'],
+    ['already-owned', 'ErrorCode.AlreadyOwned'],
+    ['deferred/pending', 'ErrorCode.DeferredPayment'],
+    ['network failure', 'ErrorCode.NetworkError'],
+    ['item unavailable', 'ErrorCode.ItemUnavailable'],
+    ['server-side pending (402)', '402'],
+    ['buying spinner', 'buying'],
+    ['restoring spinner', 'restoring'],
+    ['error surface', 'storeError'],
+    ['non-error notice surface', 'storeNotice'],
+  ] as const) {
+    assert.ok(paywall.includes(needle), `paywall has no ${label} handling (${needle})`);
+  }
+  // Cancelling must not be reported as an error.
+  assert.ok(
+    /case ErrorCode\.UserCancelled:[\s\S]{0,240}setStoreError\(null\)/.test(paywall),
+    'cancelling a purchase is surfaced as an error',
+  );
+});
+
+check('API failures are turned into readable messages, not raw errors', () => {
+  // getErrorMessage maps timeouts, offline, FastAPI detail strings and 5xx into
+  // something a user can act on. Screens that skip it show "[object Object]".
+  const api = readCode('lib/api.ts');
+  assert.ok(api.includes('export function getErrorMessage'), 'getErrorMessage missing');
+  for (const rel of ['app/paywall.tsx', 'app/(tabs)/profile.tsx']) {
+    assert.ok(readCode(rel).includes('getErrorMessage'), `${rel} does not map API errors`);
+  }
+});
+
+check('the entitlement gate is read from the shared hook, never from a local flag', () => {
+  // One source of truth for "is this account Pro". A screen inventing its own
+  // boolean is how a client-side bypass gets reintroduced.
+  const store = readCode('lib/purchaseStore.ts');
+  assert.ok(store.includes('export function useContentUnlocked'), 'gate hook missing');
+  assert.ok(store.includes('/purchases/entitlements'), 'gate hook is not server-backed');
+
+  const offenders: string[] = [];
+  const visit = (rel: string, code: string) => {
+    // A screen assigning its own pro/unlocked boolean rather than calling the hook.
+    if (/const\s+(isPro|hasPro|unlocked|purchased)\s*=\s*(true|false)\b/.test(code)) {
+      offenders.push(rel);
+    }
+  };
+  eachSource('app', visit);
+  eachSource('components', visit);
+  assert.deepEqual(offenders, [], 'a screen hardcodes an entitlement flag');
+});
+
 // ── LandHere Pro ──────────────────────────────────────────────────────────────
 // These checks used to assert that no purchase existed. The product now HAS a
 // one-time purchase, so they assert the opposite thing — that the purchase is

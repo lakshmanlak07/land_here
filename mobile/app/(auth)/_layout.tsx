@@ -25,7 +25,7 @@ export default function AuthLayout() {
     } else {
       router.replace('/(auth)/onboarding');
     }
-  }, [token, hydrated, onboarded, segments]);
+  }, [token, hydrated, onboarded, segments, router]);
 
   // Match the root stack's slide so login -> register feels consistent.
   return (

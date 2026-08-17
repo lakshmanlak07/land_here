@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  RefreshControl, ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
@@ -135,7 +135,6 @@ export default function HomeScreen() {
   }, [journey, completedIds, user?.stage]);
 
   const destCode = user?.destination_country_code ?? '';
-  const originCode = user?.origin_country_code ?? '';
   const displayName = user?.full_name?.trim().split(' ')[0] ?? '';
   const initial = (user?.full_name?.trim()?.[0] ?? user?.email?.[0] ?? '?').toUpperCase();
 
