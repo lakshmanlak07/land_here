@@ -6,10 +6,16 @@ sqlalchemy
 alembic
 psycopg2-binary
 python-jose[cryptography]
+# python-jose pulls `ecdsa`, which carries PYSEC-2026-1325 with NO upstream fix
+# as of 2026-08-18. Assessed and accepted: this app signs and verifies JWTs with
+# HS256 only (app/core/config.py ALGORITHM), which is HMAC — the ecdsa package's
+# EC code paths are never reached, and no attacker-controlled EC key or
+# signature ever enters the process. Revisit if ALGORITHM ever becomes ES*.
 passlib[bcrypt]
 bcrypt==4.0.1
 python-dotenv
-pydantic-settings
+# Floor set for GHSA-4xgf-cpjx-pc3j (pip-audit, 2026-08-18).
+pydantic-settings>=2.14.2
 pydantic[email]
 redis  # Redis client for shared rate limiting (optional; falls back to in-memory)
 # Apple's own App Store Server library. Used ONLY to verify the signature chain
@@ -22,3 +28,5 @@ app-store-server-library>=3.1,<4
 # (app/core/googleplay.py). Only the OAuth2 service-account flow is used; the
 # heavier google-api-python-client is deliberately not pulled in.
 google-auth>=2.35,<3
+# Transitive via google-auth. Floor set for PYSEC-2026-3455/3456/3457.
+pyasn1>=0.6.4
