@@ -308,6 +308,44 @@ never hand-edit them. Bump `version` in `app.json` for a user-visible release.
 
 ---
 
+## 6b. Build-toolchain vulnerabilities — why they are not fixed
+
+`npm audit` reports 25 advisories against the mobile project. All 25 resolve to
+the same place, and none of them executes in the shipped app.
+
+Following the `via` chains, every advisory against `expo`, `react-native`,
+`react-native-reanimated`, `expo-router` and `expo-constants` traces to
+**metro** — the bundler — and from there to `image-size`, `postcss`, `tar`,
+`js-yaml`, `shell-quote`, `brace-expansion` and `nanoid`. These are parsers and
+utilities that run on a developer machine or a build server while producing the
+bundle. They are not in the bundle.
+
+**There is no upgrade that removes them, and this was checked rather than
+assumed:**
+
+- The `image-size` advisories (GHSA-w3rx-r6r6-pgpr, GHSA-5p2g-fcmc-qvqq) cover
+  `<= 2.0.2`, and **2.0.2 is the latest published version**. Every published
+  release is affected; there is nothing to upgrade to.
+- npm reports `fixAvailable: expo@57.0.14` — two major SDK jumps. But
+  `metro@latest` still declares `image-size: ^1.0.2`, so the newest toolchain
+  pulls a vulnerable copy too. The "fix" would move the tree without removing
+  the advisory.
+- An npm `overrides` pin cannot help either, for the same reason: there is no
+  non-vulnerable version to pin to.
+
+So the choice is not "upgrade or accept". It is "accept, or make an untestable
+two-major-version jump off Expo SDK 54 / React Native 0.81 — with no device to
+test on — and still not clear the advisories."
+
+**Residual risk, stated precisely:** a maliciously crafted ICNS, JXL or HEIF
+image placed in the project's assets could hang the bundler during a build. The
+attacker would need write access to the repository or to a dependency's assets.
+The impact is a stalled build, not a compromised app. No shipped code path
+reaches these parsers.
+
+Re-check this when Expo SDK 54 reaches end of support, or if any advisory here
+turns into a fixed release rather than a version-range warning.
+
 ## 7. Known limitations shipping in this build
 
 - **Email enumeration is reduced, not eliminated.** Duplicate registration returns

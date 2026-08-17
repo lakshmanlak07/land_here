@@ -177,6 +177,10 @@ misconfigured EAS build **fails on the build machine** rather than shipping.
   endpoint is tested only against a synthetic certificate chain.
 - **Nothing is deployed.** `LAUNCH/DEPLOYMENT_RUNBOOK.md` is a procedure, not a
   record: no infrastructure exists and no account has been created.
+- **25 build-toolchain advisories are accepted, not outstanding work.** They
+  all trace to metro's dependencies; `image-size` has no non-vulnerable
+  release, and `metro@latest` still depends on it, so no upgrade clears them.
+  Reasoning and residual risk in `LAUNCH/LAUNCH_RUNBOOK.md` §6b.
 - **`vendor/apple-root-ca/` is empty.** Apple's public root certificate must be
   downloaded into it, or purchase verification returns 503 and nobody can buy.
 - **Backup and rollback are documented but unrehearsed** — there is no
