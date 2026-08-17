@@ -16,10 +16,11 @@ entitled, and it goes through Apple's signature.
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,7 @@ from app.core.appstore import (
     verify_signed_notification,
     verify_signed_transaction,
 )
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user, user_has_pro
 from app.core.googleplay import (
@@ -401,6 +403,7 @@ def google_play_notification(
     body: GoogleNotificationIn,
     response: Response,
     db: Session = Depends(get_db),
+    x_landhere_rtdn_secret: str | None = Header(default=None),
 ):
     """Re-check a Google Play purchase after Play says something changed.
 
@@ -426,6 +429,26 @@ def google_play_notification(
     quota. See LAUNCH/LAUNCH_RUNBOOK.md for the Play Console setup.
     """
     response.headers["Cache-Control"] = "no-store"
+
+    # Transport guard. Unlike Apple's, this endpoint cannot authenticate itself
+    # from its payload, and it performs an authenticated outbound Google API
+    # call — so an open version of it is a way for a stranger to spend our API
+    # quota. Unconfigured means closed, consistent with the rest of the
+    # purchase surface.
+    expected = settings.GOOGLE_RTDN_SHARED_SECRET
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Notification endpoint is not configured.",
+        )
+    if not x_landhere_rtdn_secret or not secrets.compare_digest(
+        x_landhere_rtdn_secret, expected
+    ):
+        # Constant-time comparison: a timing oracle on this would let someone
+        # recover the secret a byte at a time.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized."
+        )
 
     try:
         purchase = fetch_purchase(body.purchase_token)

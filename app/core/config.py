@@ -104,6 +104,19 @@ class Settings(BaseSettings):
     # mount secret files rather than injecting env vars. Ignored when
     # GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is set.
     GOOGLE_PLAY_SERVICE_ACCOUNT_FILE: str = ""
+    # Shared secret guarding POST /purchases/notifications/google.
+    #
+    # SECRET. Apple signs its notifications, so that endpoint authenticates
+    # itself. Google's do not: an RTDN is an ordinary Pub/Sub message, so without
+    # a guard anyone who learns the URL can make us perform an authenticated
+    # Google API lookup on demand — cheap for them, quota and billing for us.
+    #
+    # Empty = the endpoint refuses every request (503). Set it, and configure the
+    # Pub/Sub push subscription to send it as the X-LandHere-RTDN-Secret header.
+    # A proper OIDC-token check on the push subscription is the stronger option
+    # and remains the upgrade path.
+    GOOGLE_RTDN_SHARED_SECRET: str = ""
+
     # Accept Play license-test purchases (testPurchaseContext.fopType == TEST).
     # The Android counterpart of APPLE_ACCEPT_SANDBOX, and off for the same
     # reason: a public release must not hand out Pro to license testers.

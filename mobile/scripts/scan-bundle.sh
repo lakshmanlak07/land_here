@@ -41,7 +41,9 @@ note() { printf '  %s %s\n' "$1" "$2"; }
 for pat in \
   'landhere_purchased' 'react-native-iap' \
   'EXPO_PUBLIC_UNSPLASH_KEY' 'api.unsplash.com' 'Client-ID' \
-  'BEGIN PRIVATE KEY' '-----BEGIN' 'appstoreconnect-issuer' 'APPLE_ROOT_CA'
+  'BEGIN PRIVATE KEY' '-----BEGIN' 'appstoreconnect-issuer' 'APPLE_ROOT_CA' \
+  'service_account' 'private_key_id' 'androidpublisher' \
+  'GOOGLE_PLAY_SERVICE_ACCOUNT' 'GOOGLE_RTDN_SHARED_SECRET'
 do
   if echo "$FILES" | xargs grep -l -F -- "$pat" 2>/dev/null | grep -q .; then
     note "✖" "forbidden string present: $pat"; fail=1
@@ -54,7 +56,8 @@ done
 # The mirror of the check above. A build that silently dropped the paywall or
 # the product id would ship a paid app with nothing to buy — and an export
 # succeeds either way, so only an explicit assertion catches it.
-for pat in 'com.landhere.app.pro' 'Restore Purchases' '/purchases/verify'
+for pat in 'com.landhere.app.pro' 'Restore Purchases' '/purchases/verify' \
+  '/purchases/verify/google'
 do
   if echo "$FILES" | xargs grep -l -F -- "$pat" 2>/dev/null | grep -q .; then
     note "✔" "present: $pat"

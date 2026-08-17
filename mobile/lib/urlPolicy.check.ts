@@ -374,6 +374,55 @@ check('no Apple credential or private key is in the mobile source', () => {
   assert.deepEqual(offenders, []);
 });
 
+check('the Android package and product ids are configured and distinct', () => {
+  // Play's package name is the Android equivalent of the iOS bundle id, and the
+  // product id is again a separate record in a separate console. Conflating them
+  // makes the product silently fail to load on device.
+  const appJson = JSON.parse(readFileSync(join(MOBILE, 'app.json'), 'utf8'));
+  assert.equal(appJson?.expo?.android?.package, 'com.landhere.app');
+  assert.notEqual(appJson?.expo?.android?.package, 'com.landhere.app.pro');
+  // Same product string is used on both stores; asserted so a rename cannot
+  // drift on one platform only.
+  assert.ok(readCode('lib/purchaseStore.ts').includes("'com.landhere.app.pro'"));
+});
+
+check('no Google service-account credential is in the mobile source', () => {
+  // The Play Developer API key is a real secret with a private key inside it.
+  // It belongs on the server only. If any of these appear here, Android
+  // verification has been moved into the client, which would make the whole
+  // server-authoritative model decorative.
+  const offenders: string[] = [];
+  const visit = (rel: string, code: string) => {
+    if (
+      /"type":\s*"service_account"|private_key_id|androidpublisher|GOOGLE_PLAY_SERVICE_ACCOUNT|GOOGLE_RTDN_SHARED_SECRET/i.test(
+        code,
+      )
+    ) {
+      offenders.push(rel);
+    }
+  };
+  eachSource('app', visit);
+  eachSource('components', visit);
+  eachSource('lib', visit);
+  assert.deepEqual(offenders, []);
+});
+
+check('the store-facing wording is platform-aware', () => {
+  // "Apple ID" on an Android phone reads as sloppy in a paid flow, and the
+  // wording used to be duplicated per screen.
+  const store = readCode('lib/purchaseStore.ts');
+  assert.ok(store.includes('STORE_ACCOUNT_LABEL'), 'no platform-aware account label');
+  const offenders: string[] = [];
+  const visit = (rel: string, code: string) => {
+    // A hardcoded Apple-only ternary in a screen means the label drifted back
+    // out of the shared module.
+    if (/Platform\.OS === 'ios' \? 'Apple ID'/.test(code)) offenders.push(rel);
+  };
+  eachSource('app', visit);
+  eachSource('components', visit);
+  assert.deepEqual(offenders, []);
+});
+
 check('the product id is distinct from the bundle id', () => {
   // com.landhere.app is the app; com.landhere.app.pro is the thing sold inside
   // it. They are configured in different places in App Store Connect and

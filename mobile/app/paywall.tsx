@@ -74,6 +74,8 @@ const GHOST_ROWS = [
 
 // Store-specific wording lives in lib/purchaseStore.ts so every surface agrees.
 const STORE_ACCOUNT = STORE_ACCOUNT_LABEL;
+// Who takes the money and decides refunds, in user-facing words.
+const STORE_OWNER = Platform.OS === 'android' ? 'Google' : 'Apple';
 
 const GHOST_GRADS: [string, string][] = [
   ['#8A1538', '#5A0C24'],
@@ -462,10 +464,8 @@ export default function PaywallScreen() {
         </PressableScale>
 
         <Text style={[st.terms, { color: colors.textTertiary }]}>
-          Payment charged to your{' '}
-          {Platform.OS === 'ios' ? 'Apple ID' : 'Google Play account'} at confirmation.
-          One-time purchase — no recurring charges. Refunds are handled by{' '}
-          {Platform.OS === 'ios' ? 'Apple' : 'Google'}.
+          Payment charged to your {STORE_ACCOUNT} at confirmation. One-time
+          purchase — no recurring charges. Refunds are handled by {STORE_OWNER}.
         </Text>
       </ScrollView>
     </View>

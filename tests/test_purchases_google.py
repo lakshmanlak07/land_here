@@ -33,6 +33,9 @@ from tests.test_purchases import _account, _signed, apply_apple_test_settings
 
 PACKAGE_NAME = "com.landhere.app"
 PLAY_PRODUCT_ID = "com.landhere.app.pro"
+# Stands in for the transport guard on the RTDN endpoint. Not a real secret.
+RTDN_SECRET = "test-only-rtdn-shared-secret"
+RTDN_HEADERS = {"X-LandHere-RTDN-Secret": RTDN_SECRET}
 
 
 # ── A stand-in for the Google Play Developer API ───────────────────────────────
@@ -109,6 +112,7 @@ def play(monkeypatch):
     monkeypatch.setattr(settings, "GOOGLE_PLAY_PACKAGE_NAME", PACKAGE_NAME)
     monkeypatch.setattr(settings, "GOOGLE_PLAY_PRO_PRODUCT_ID", PLAY_PRODUCT_ID)
     monkeypatch.setattr(settings, "GOOGLE_ACCEPT_TEST_PURCHASES", False)
+    monkeypatch.setattr(settings, "GOOGLE_RTDN_SHARED_SECRET", RTDN_SECRET)
     # Stand in for the service-account exchange. No key material in tests, and
     # nothing here weakens the checks under test — the credential only decides
     # whether we can ask Google, not what the answer means.
@@ -432,7 +436,11 @@ def test_play_notification_body_is_not_trusted(client, play):
     token = play.add(_tok())
     assert _verify_google(client, headers, token).json()["pro"] is True
 
-    r = client.post("/purchases/notifications/google", json={"purchase_token": token})
+    r = client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": token},
+        headers=RTDN_HEADERS,
+    )
     assert r.status_code == 200
     assert r.json()["action"] == "none"
     assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is True
@@ -444,7 +452,11 @@ def test_play_notification_revokes_when_google_says_cancelled(client, play):
     assert _verify_google(client, headers, token).json()["pro"] is True
 
     play.tokens[token]["purchaseStateContext"]["purchaseState"] = "CANCELLED"
-    r = client.post("/purchases/notifications/google", json={"purchase_token": token})
+    r = client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": token},
+        headers=RTDN_HEADERS,
+    )
     assert r.status_code == 200
     assert r.json()["action"] == "revoked"
     assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is False
@@ -457,21 +469,76 @@ def test_play_notification_restores_a_reversed_refund(client, play):
     assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is False
 
     play.tokens[token]["purchaseStateContext"]["purchaseState"] = "PURCHASED"
-    r = client.post("/purchases/notifications/google", json={"purchase_token": token})
+    r = client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": token},
+        headers=RTDN_HEADERS,
+    )
     assert r.json()["action"] == "restored"
     assert client.get("/purchases/entitlements", headers=headers).json()["pro"] is True
 
 
 def test_play_notification_for_unknown_token_is_accepted_without_action(client, play):
     r = client.post(
-        "/purchases/notifications/google", json={"purchase_token": _tok("unknown")}
+        "/purchases/notifications/google",
+        json={"purchase_token": _tok("unknown")},
+        headers=RTDN_HEADERS,
     )
     assert r.status_code == 200
     assert r.json()["action"] == "none"
 
 
-def test_play_notification_without_credentials_is_503(client, monkeypatch):
+def test_play_notification_without_credentials_is_503(client, play, monkeypatch):
     monkeypatch.setattr(settings, "GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", "")
     monkeypatch.setattr(settings, "GOOGLE_PLAY_SERVICE_ACCOUNT_FILE", "")
-    r = client.post("/purchases/notifications/google", json={"purchase_token": _tok()})
+    monkeypatch.setattr(gp, "_access_token", gp._access_token.__wrapped__ if hasattr(gp._access_token, "__wrapped__") else _raise_unavailable)
+    r = client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": _tok()},
+        headers=RTDN_HEADERS,
+    )
     assert r.status_code == 503
+
+
+def _raise_unavailable():
+    raise gp.GooglePlayUnavailable("not configured")
+
+
+# ── Transport guard on the notification endpoint ────────────────────────────────
+#
+# Apple signs its notifications, so that endpoint authenticates itself. Google's
+# do not, and this one makes an authenticated outbound Google API call — so an
+# open version of it lets a stranger spend our API quota.
+
+def test_play_notification_rejects_a_missing_secret(client, play):
+    _, headers, _ = _account(client)
+    token = play.add(_tok())
+    assert _verify_google(client, headers, token).json()["pro"] is True
+
+    r = client.post("/purchases/notifications/google", json={"purchase_token": token})
+    assert r.status_code == 401
+    assert play.calls.count(token) == 1, "an unauthorized call reached the Google API"
+
+
+def test_play_notification_rejects_a_wrong_secret(client, play):
+    token = play.add(_tok())
+    r = client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": token},
+        headers={"X-LandHere-RTDN-Secret": "wrong"},
+    )
+    assert r.status_code == 401
+    assert token not in play.calls, "a wrong secret still reached the Google API"
+
+
+def test_play_notification_closed_when_secret_unconfigured(client, play, monkeypatch):
+    """Unconfigured means closed, like the rest of the purchase surface."""
+    monkeypatch.setattr(settings, "GOOGLE_RTDN_SHARED_SECRET", "")
+    token = play.add(_tok())
+    r = client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": token},
+        headers=RTDN_HEADERS,
+    )
+    assert r.status_code == 503
+    assert token not in play.calls
