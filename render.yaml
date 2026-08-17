@@ -3,6 +3,13 @@ services:
     name: landhere-api
     runtime: docker
     dockerfilePath: ./Dockerfile
+    # Pinned explicitly rather than relying on Render's default, so the monthly
+    # cost of applying this blueprint is deterministic and reviewable in the
+    # file. Starter is $7/month (512 MB, 0.5 CPU) as listed on render.com/pricing
+    # on 2026-08-17. The Free instance type is deliberately not used: it spins
+    # down when idle, and the first request after a sleep is slow enough to be a
+    # problem for a mobile client and for an App Review reviewer.
+    plan: starter
     healthCheckPath: /health/ready
     envVars:
       - key: DATABASE_URL
