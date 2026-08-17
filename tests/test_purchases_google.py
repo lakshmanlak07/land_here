@@ -33,9 +33,25 @@ from tests.test_purchases import _account, _signed, apply_apple_test_settings
 
 PACKAGE_NAME = "com.landhere.app"
 PLAY_PRODUCT_ID = "com.landhere.app.pro"
-# Stands in for the transport guard on the RTDN endpoint. Not a real secret.
-RTDN_SECRET = "test-only-rtdn-shared-secret"
-RTDN_HEADERS = {"X-LandHere-RTDN-Secret": RTDN_SECRET}
+# Pub/Sub push OIDC. None of these is a secret: the audience is our own URL
+# and the service-account email is an identifier. Security comes from Google's
+# signature over the token, which google-auth verifies.
+PUBSUB_AUDIENCE = "https://api.landhere-tests.example.com/purchases/notifications/google"
+PUBSUB_SA_EMAIL = "landhere-rtdn@landhere-tests.iam.gserviceaccount.com"
+RTDN_HEADERS = {"Authorization": "Bearer test-oidc-token"}
+
+
+def _good_claims(**overrides) -> dict:
+    claims = {
+        "iss": "https://accounts.google.com",
+        "aud": PUBSUB_AUDIENCE,
+        "email": PUBSUB_SA_EMAIL,
+        "email_verified": True,
+        "sub": "1234567890",
+        "exp": 9_999_999_999,
+    }
+    claims.update(overrides)
+    return claims
 
 
 # ── A stand-in for the Google Play Developer API ───────────────────────────────
@@ -112,7 +128,26 @@ def play(monkeypatch):
     monkeypatch.setattr(settings, "GOOGLE_PLAY_PACKAGE_NAME", PACKAGE_NAME)
     monkeypatch.setattr(settings, "GOOGLE_PLAY_PRO_PRODUCT_ID", PLAY_PRODUCT_ID)
     monkeypatch.setattr(settings, "GOOGLE_ACCEPT_TEST_PURCHASES", False)
-    monkeypatch.setattr(settings, "GOOGLE_RTDN_SHARED_SECRET", RTDN_SECRET)
+    monkeypatch.setattr(settings, "GOOGLE_PUBSUB_AUDIENCE", PUBSUB_AUDIENCE)
+    monkeypatch.setattr(
+        settings, "GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL", PUBSUB_SA_EMAIL
+    )
+    # Replaces only the network hop that fetches Google's certs and checks the
+    # signature/expiry/audience. Our own claim checks stay under test; tests
+    # below drive this seam to simulate each way a token can be wrong.
+    seen: dict = {}
+
+    def fake_verify(token, audience):
+        seen["token"] = token
+        seen["audience"] = audience
+        if fake._raises is not None:
+            raise fake._raises
+        return fake._claims
+
+    fake._claims = _good_claims()
+    fake._raises = None
+    fake.seen = seen
+    monkeypatch.setattr(gp, "_verify_google_id_token", fake_verify)
     # Stand in for the service-account exchange. No key material in tests, and
     # nothing here weakens the checks under test — the credential only decides
     # whether we can ask Google, not what the answer means.
@@ -504,36 +539,120 @@ def _raise_unavailable():
     raise gp.GooglePlayUnavailable("not configured")
 
 
-# ── Transport guard on the notification endpoint ────────────────────────────────
+
+# ── Pub/Sub push authentication ────────────────────────────────────────────────
 #
 # Apple signs its notifications, so that endpoint authenticates itself. Google's
-# do not, and this one makes an authenticated outbound Google API call — so an
-# open version of it lets a stranger spend our API quota.
+# RTDN body is unsigned, so the trust comes from the OIDC identity token Pub/Sub
+# attaches to the push request. google-auth checks signature, expiry and
+# audience; the issuer / service-account / email_verified checks are ours, and
+# these tests drive each of them.
+#
+# Every one of these also asserts the Google Play API was NOT called, because
+# the point of the guard is to stop a stranger spending our API quota — a 401
+# that still made the outbound call would be a guard in name only.
 
-def test_play_notification_rejects_a_missing_secret(client, play):
+def test_play_notification_rejects_a_missing_token(client, play):
     _, headers, _ = _account(client)
     token = play.add(_tok())
     assert _verify_google(client, headers, token).json()["pro"] is True
+    calls_before = play.calls.count(token)
 
     r = client.post("/purchases/notifications/google", json={"purchase_token": token})
     assert r.status_code == 401
-    assert play.calls.count(token) == 1, "an unauthorized call reached the Google API"
+    assert play.calls.count(token) == calls_before, "unauthenticated call reached Google"
 
 
-def test_play_notification_rejects_a_wrong_secret(client, play):
+def test_play_notification_rejects_a_malformed_authorization_header(client, play):
+    token = play.add(_tok())
+    for value in ["", "Bearer", "Bearer ", "Basic abc", "token-without-scheme"]:
+        r = client.post(
+            "/purchases/notifications/google",
+            json={"purchase_token": token},
+            headers={"Authorization": value},
+        )
+        assert r.status_code == 401, f"{value!r} -> {r.status_code}"
+    assert token not in play.calls
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        ValueError("Token expired"),
+        ValueError("Could not verify token signature"),
+        ValueError("Token has wrong audience"),
+    ],
+    ids=["expired", "bad-signature", "wrong-audience"],
+)
+def test_play_notification_rejects_tokens_google_auth_refuses(client, play, failure):
+    """Signature, expiry and audience are enforced by google-auth; a refusal
+    from it must surface as 401 and must not reach the Play API."""
+    play._raises = failure
     token = play.add(_tok())
     r = client.post(
         "/purchases/notifications/google",
         json={"purchase_token": token},
-        headers={"X-LandHere-RTDN-Secret": "wrong"},
+        headers=RTDN_HEADERS,
     )
     assert r.status_code == 401
-    assert token not in play.calls, "a wrong secret still reached the Google API"
+    assert token not in play.calls
 
 
-def test_play_notification_closed_when_secret_unconfigured(client, play, monkeypatch):
+def test_play_notification_rejects_a_wrong_issuer(client, play):
+    play._claims = _good_claims(iss="https://evil.example.com")
+    token = play.add(_tok())
+    r = client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": token},
+        headers=RTDN_HEADERS,
+    )
+    assert r.status_code == 401
+    assert token not in play.calls
+
+
+def test_play_notification_rejects_a_different_service_account(client, play):
+    """A Google-signed token for our audience, but not from our subscription."""
+    play._claims = _good_claims(
+        email="someone-else@other-project.iam.gserviceaccount.com"
+    )
+    token = play.add(_tok())
+    r = client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": token},
+        headers=RTDN_HEADERS,
+    )
+    assert r.status_code == 401
+    assert token not in play.calls
+
+
+def test_play_notification_rejects_an_unverified_email(client, play):
+    play._claims = _good_claims(email_verified=False)
+    token = play.add(_tok())
+    r = client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": token},
+        headers=RTDN_HEADERS,
+    )
+    assert r.status_code == 401
+    assert token not in play.calls
+
+
+def test_the_configured_audience_is_what_gets_enforced(client, play):
+    """Without passing our audience through, ANY Google-issued token for ANY
+    service would verify. This asserts the audience actually reaches the check."""
+    token = play.add(_tok())
+    client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": token},
+        headers=RTDN_HEADERS,
+    )
+    assert play.seen["audience"] == PUBSUB_AUDIENCE
+    assert play.seen["token"] == "test-oidc-token"
+
+
+def test_play_notification_closed_when_pubsub_auth_unconfigured(client, play, monkeypatch):
     """Unconfigured means closed, like the rest of the purchase surface."""
-    monkeypatch.setattr(settings, "GOOGLE_RTDN_SHARED_SECRET", "")
+    monkeypatch.setattr(settings, "GOOGLE_PUBSUB_AUDIENCE", "")
     token = play.add(_tok())
     r = client.post(
         "/purchases/notifications/google",
@@ -542,3 +661,18 @@ def test_play_notification_closed_when_secret_unconfigured(client, play, monkeyp
     )
     assert r.status_code == 503
     assert token not in play.calls
+
+
+def test_a_valid_token_is_accepted_and_reaches_the_lookup(client, play):
+    _, headers, _ = _account(client)
+    token = play.add(_tok())
+    assert _verify_google(client, headers, token).json()["pro"] is True
+    play.tokens[token]["purchaseStateContext"]["purchaseState"] = "CANCELLED"
+
+    r = client.post(
+        "/purchases/notifications/google",
+        json={"purchase_token": token},
+        headers=RTDN_HEADERS,
+    )
+    assert r.status_code == 200
+    assert r.json()["action"] == "revoked"

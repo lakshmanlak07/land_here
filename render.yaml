@@ -83,8 +83,11 @@ services:
       # Empty => Android verification returns 503 and nobody can buy on Play.
       - key: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
         sync: false
-      # SECRET: guards the unsigned Play notification endpoint.
-      - key: GOOGLE_RTDN_SHARED_SECRET
+      # Pub/Sub push OIDC. NOT secrets: an audience and an identifier. The
+      # security is Google's signature over the token.
+      - key: GOOGLE_PUBSUB_AUDIENCE
+        sync: false
+      - key: GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL
         sync: false
       # TRUE only while testing through Play internal testing.
       # MUST be false for the public release.

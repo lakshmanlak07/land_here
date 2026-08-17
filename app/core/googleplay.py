@@ -88,6 +88,101 @@ class VerifiedPlayPurchase:
     region_code: str | None
 
 
+class PubSubAuthError(Exception):
+    """The push request did not carry a valid Google-signed identity token."""
+
+
+class PubSubAuthUnavailable(Exception):
+    """Push authentication is not configured, so no request can be trusted."""
+
+
+# Google signs Pub/Sub push identity tokens as the accounts.google.com issuer.
+# Both spellings appear in the wild and both are documented as valid.
+_GOOGLE_ISSUERS = frozenset({"https://accounts.google.com", "accounts.google.com"})
+
+
+def _verify_google_id_token(token: str, audience: str) -> dict:
+    """Signature + expiry + audience, delegated to google-auth.
+
+    A thin seam on purpose. This is the one part that talks to Google (it
+    fetches and caches Google's public certs), so it is the one part tests
+    replace — the claim checks in `verify_pubsub_push_token` are ours and are
+    tested directly. Rolling our own RS256/JWKS handling here would be
+    re-implementing a solved, security-critical problem.
+    """
+    from google.auth.transport import requests as ga_requests
+    from google.oauth2 import id_token as google_id_token
+
+    return google_id_token.verify_oauth2_token(
+        token, ga_requests.Request(), audience=audience
+    )
+
+
+def pubsub_auth_available() -> bool:
+    return bool(
+        settings.GOOGLE_PUBSUB_AUDIENCE.strip()
+        and settings.GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL.strip()
+    )
+
+
+def verify_pubsub_push_token(authorization_header: str | None) -> str:
+    """Authenticate a Pub/Sub push request. Returns the caller's email.
+
+    Google Pub/Sub attaches an OIDC identity token as `Authorization: Bearer
+    <jwt>`. Verifying it establishes that the request really came from our
+    subscription, which the message body alone can never establish — an RTDN
+    body is unsigned, so anyone who learns the URL could otherwise POST one.
+
+    Five things must hold, and all five matter:
+
+      signature   the token is signed by Google (delegated to google-auth)
+      exp         it has not expired (delegated to google-auth)
+      aud         it was minted for *our* endpoint, not some other service that
+                  also trusts Google-signed tokens — without this check, any
+                  Google-issued token for any audience would be accepted
+      iss         accounts.google.com
+      email       the specific service account our subscription signs as, with
+                  email_verified true
+
+    Raises PubSubAuthUnavailable when unconfigured (fail closed) and
+    PubSubAuthError when the token is missing or unacceptable.
+    """
+    if not pubsub_auth_available():
+        raise PubSubAuthUnavailable(
+            "Pub/Sub push authentication is not configured on this server."
+        )
+
+    if not authorization_header:
+        raise PubSubAuthError("Missing bearer token.")
+    scheme, _, raw = authorization_header.partition(" ")
+    if scheme.lower() != "bearer" or not raw.strip():
+        raise PubSubAuthError("Malformed Authorization header.")
+
+    try:
+        claims = _verify_google_id_token(
+            raw.strip(), settings.GOOGLE_PUBSUB_AUDIENCE.strip()
+        )
+    except Exception as exc:
+        # Bad signature, expired, wrong audience, malformed — google-auth raises
+        # ValueError for all of them. One opaque message: distinguishing them
+        # for the caller would only help someone probing the endpoint.
+        raise PubSubAuthError("Token could not be verified.") from exc
+
+    if claims.get("iss") not in _GOOGLE_ISSUERS:
+        raise PubSubAuthError("Token issuer is not Google.")
+
+    email = (claims.get("email") or "").strip().lower()
+    expected = settings.GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL.strip().lower()
+    if not email or email != expected:
+        # A Google-signed token for OUR audience but a different service account
+        # is still not our subscription.
+        raise PubSubAuthError("Token is not from the expected service account.")
+    if claims.get("email_verified") is not True:
+        raise PubSubAuthError("Token email is not verified.")
+
+    return email
+
+
 def _load_credentials() -> service_account.Credentials | None:
     """Build service-account credentials, or None when unconfigured.
 

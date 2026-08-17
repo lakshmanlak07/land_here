@@ -43,7 +43,7 @@ for pat in \
   'EXPO_PUBLIC_UNSPLASH_KEY' 'api.unsplash.com' 'Client-ID' \
   'BEGIN PRIVATE KEY' '-----BEGIN' 'appstoreconnect-issuer' 'APPLE_ROOT_CA' \
   'service_account' 'private_key_id' 'androidpublisher' \
-  'GOOGLE_PLAY_SERVICE_ACCOUNT' 'GOOGLE_RTDN_SHARED_SECRET'
+  'GOOGLE_PLAY_SERVICE_ACCOUNT' 'GOOGLE_PUBSUB_'
 do
   if echo "$FILES" | xargs grep -l -F -- "$pat" 2>/dev/null | grep -q .; then
     note "✖" "forbidden string present: $pat"; fail=1

@@ -26,9 +26,11 @@ deployed backend · 📱 needs a real Android device · 🔐 is a secret
 - ✅ Refund/revocation handling — a `CANCELLED` purchase revokes Pro
 - ✅ Deferred/pending payments do not entitle (402, shown as a notice not an error)
 - ✅ Fail-closed with no credentials: 503, never a grant
-- ✅ Notification endpoint guarded by a shared secret, constant-time compared
-- ✅ 128 backend tests including forged, replayed, revoked, wrong-product,
-  cross-account, and both platform-isolation cases
+- ✅ Notification endpoint authenticated with **Pub/Sub push OIDC** — issuer,
+  signature, expiry, audience and service account all verified
+- ✅ Purchases acknowledged server-side after verification
+- ✅ 160+ backend tests including forged, replayed, revoked, wrong-product,
+  cross-account, wrong-audience, expired-token and platform-isolation cases
 
 **Not done, and not doable without your account:** a real purchase, a real
 refund, a real RTDN delivery, and any Android device run.
@@ -68,10 +70,9 @@ refund, a real RTDN delivery, and any Android device run.
       dashboard, as one line. **Never** commit it, never put it in `render.yaml`,
       never let it near the mobile bundle. The bundle scan and policy suite both
       fail if any marker of it appears in the app.
-- [ ] 🔐 ☁️ **Generate `GOOGLE_RTDN_SHARED_SECRET`**:
-      `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
-      Set it on the server. Until it is set, the Play notification endpoint
-      refuses every request — deliberately, because Google's notifications are
+- [ ] ☁️ Configure **Pub/Sub push OIDC** for the notification endpoint — see
+      section D. Neither value is a secret. Until both are set, the endpoint
+      refuses every request, deliberately: Google's notification bodies are
       unsigned and that endpoint spends Google API quota.
 - [ ] ☁️ Set `GOOGLE_PLAY_PACKAGE_NAME` and `GOOGLE_PLAY_PRO_PRODUCT_ID`
       (not secrets; already defaulted in `render.yaml`).
@@ -87,12 +88,28 @@ refund, a real RTDN delivery, and any Android device run.
 - [ ] 🧑 Play Console → Monetize → Monetization setup → set the **topic name**
       and **opt into one-time product notifications**. One-time-product RTDNs are
       only published if you opt in.
+- [ ] 🧑 Create a **service account for the push subscription** (it can be the
+      same one used for the Play API, or a separate, more limited one). Grant it
+      the **Service Account Token Creator** role so Pub/Sub can mint identity
+      tokens as it, and note its email.
 - [ ] ☁️ Create a **push subscription** to
-      `https://YOUR-API-ORIGIN/purchases/notifications/google`, adding the header
-      `X-LandHere-RTDN-Secret` with the value from section C.
-- [ ] 🧑 Consider adding an **OIDC token** on the push subscription and verifying
-      it. The shared secret is adequate; OIDC is stronger and is the documented
-      upgrade path.
+      `https://YOUR-API-ORIGIN/purchases/notifications/google` with
+      **authentication enabled**: choose that service account and set the
+      **audience** to the same full URL.
+- [ ] ☁️ Set `GOOGLE_PUBSUB_AUDIENCE` to that exact audience string and
+      `GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL` to that service account's email.
+      They must match character for character — a mismatch means every
+      notification is rejected with 401 and refunds stop being processed.
+- [ ] ☁️ Grant `service-<PROJECT_NUMBER>@gcp-sa-pubsub.iam.gserviceaccount.com`
+      the **Service Account Token Creator** role on the push service account,
+      or Pub/Sub cannot sign the token at all.
+
+**What the server checks on every notification**, per Google's push
+authentication documentation: the token's signature and expiry (via
+`google-auth`), that `iss` is `accounts.google.com`, that `aud` equals the
+configured audience, that `email` is the configured service account, and that
+`email_verified` is true. Only then is the purchase token re-checked with
+Google. A request that fails any of these never reaches the Play API.
 - [ ] Until this section is complete, a refunded Android user keeps Pro until
       their next restore. Not a submission blocker; a revenue and support one.
 

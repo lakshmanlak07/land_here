@@ -8,7 +8,7 @@ Backend provisioning, migration, backup/restore and rollback live in
 **`LAUNCH/DEPLOYMENT_RUNBOOK.md`**. Google Play setup lives in
 **`LAUNCH/PLAY_STORE_SUBMISSION_CHECKLIST.md`** — including the two Google
 secrets the backend needs (`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`,
-`GOOGLE_RTDN_SHARED_SECRET`).
+and the Pub/Sub push OIDC settings).
 This runbook explains the release, the commands, and what to do when something
 goes wrong.
 

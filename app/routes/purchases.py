@@ -16,7 +16,6 @@ entitled, and it goes through Apple's signature.
 
 from __future__ import annotations
 
-import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -37,7 +36,10 @@ from app.core.deps import get_current_user, user_has_pro
 from app.core.googleplay import (
     GooglePlayUnavailable,
     GooglePlayVerificationError,
+    PubSubAuthError,
+    PubSubAuthUnavailable,
     fetch_purchase,
+    verify_pubsub_push_token,
 )
 from app.core.rate_limit import rate_limiter
 from app.models.purchase import (
@@ -433,7 +435,7 @@ def google_play_notification(
     body: GoogleNotificationIn,
     response: Response,
     db: Session = Depends(get_db),
-    x_landhere_rtdn_secret: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
 ):
     """Re-check a Google Play purchase after Play says something changed.
 
@@ -460,22 +462,24 @@ def google_play_notification(
     """
     response.headers["Cache-Control"] = "no-store"
 
-    # Transport guard. Unlike Apple's, this endpoint cannot authenticate itself
-    # from its payload, and it performs an authenticated outbound Google API
-    # call — so an open version of it is a way for a stranger to spend our API
-    # quota. Unconfigured means closed, consistent with the rest of the
-    # purchase surface.
-    expected = settings.GOOGLE_RTDN_SHARED_SECRET
-    if not expected:
+    # Transport authentication. Unlike Apple's, this endpoint cannot
+    # authenticate itself from its payload, and it performs an authenticated
+    # outbound Google API call — so an open version of it lets a stranger spend
+    # our API quota. Pub/Sub signs the push request with an OIDC identity token;
+    # verifying it proves the request came from our subscription.
+    #
+    # This replaced a shared-secret header. A shared secret is a bearer
+    # credential that has to be configured in two places, never rotates itself,
+    # and is only as good as the weaker of the two. Google's token is signed,
+    # short-lived, and scoped to this exact audience.
+    try:
+        verify_pubsub_push_token(authorization)
+    except PubSubAuthUnavailable:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Notification endpoint is not configured.",
         )
-    if not x_landhere_rtdn_secret or not secrets.compare_digest(
-        x_landhere_rtdn_secret, expected
-    ):
-        # Constant-time comparison: a timing oracle on this would let someone
-        # recover the secret a byte at a time.
+    except PubSubAuthError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized."
         )

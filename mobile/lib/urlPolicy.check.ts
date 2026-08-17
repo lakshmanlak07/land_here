@@ -464,7 +464,7 @@ check('no Google service-account credential is in the mobile source', () => {
   const offenders: string[] = [];
   const visit = (rel: string, code: string) => {
     if (
-      /"type":\s*"service_account"|private_key_id|androidpublisher|GOOGLE_PLAY_SERVICE_ACCOUNT|GOOGLE_RTDN_SHARED_SECRET/i.test(
+      /"type":\s*"service_account"|private_key_id|androidpublisher|GOOGLE_PLAY_SERVICE_ACCOUNT|GOOGLE_PUBSUB_/i.test(
         code,
       )
     ) {
