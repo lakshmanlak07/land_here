@@ -452,6 +452,20 @@ def app_store_notification(
             ),
         )
     )
+    try:
+        # Flush now rather than letting autoflush do it during the purchase
+        # lookup below. Two copies of one notification can race: both pass the
+        # duplicate check above, both insert, and the UNIQUE constraint lets one
+        # win. Apple retries until it gets a 2xx, so duplicate delivery is
+        # ordinary traffic — and because Apple retries 500s too, letting the
+        # loser surface as an error would be self-amplifying. Flushing here puts
+        # the failure inside a try instead of raising from an unrelated query.
+        db.flush()
+    except IntegrityError:
+        # The winner already applied whatever entitlement change this event
+        # carries, so the right answer is the one a sequential duplicate gets.
+        db.rollback()
+        return NotificationAck(received=True, duplicate=True, action="none")
 
     action = "none"
     if transaction is not None:

@@ -347,3 +347,75 @@ def test_health_endpoints_expose_no_configuration(client):
         body = r.text.lower()
         for marker in ("password", "postgres://", "postgresql://", "secret", "redis://", "@"):
             assert marker not in body, f"{path} leaked {marker!r}: {r.text[:200]}"
+
+
+def test_a_duplicate_notification_race_recovers_instead_of_500ing(client, monkeypatch):
+    """Two copies of the same Apple notification arriving at once.
+
+    Apple retries a notification until it receives a 2xx, so duplicate delivery
+    is ordinary traffic rather than an edge case. The handler checks for an
+    existing notification_uuid and then inserts, so two concurrent copies both
+    pass the check and both insert; the UNIQUE constraint lets one win and the
+    loser raises IntegrityError.
+
+    That surfaces as a 500 — and Apple retries 500s, so a condition Apple
+    creates by design turns into a self-amplifying error loop. The correct
+    answer is the same one the endpoint already gives a sequential duplicate:
+    200 with duplicate=true, having changed nothing.
+
+    Simulated deterministically rather than with threads: the SQLite test
+    harness shares one connection across threads, so a threaded probe would
+    exercise the harness rather than this code.
+    """
+    from sqlalchemy.orm import Query
+
+    from app.models.purchase import PurchaseNotification
+    from tests.conftest import TestingSessionLocal
+    from tests.test_purchases import _notify, _signed_notification, _transaction
+
+    _, headers, _ = _account(client)
+    original = str(uuid.uuid4().int)[:16]
+    assert client.post(
+        "/purchases/verify",
+        json={"signed_transaction": _signed(original_transaction_id=original)},
+        headers=headers,
+    ).status_code == 200
+
+    payload = _signed_notification(
+        "REFUND",
+        notification_uuid="race-dup-uuid",
+        transaction=_transaction(original_transaction_id=original),
+    )
+    assert _notify(client, payload).status_code == 200  # the winner
+
+    real_first = Query.first
+    blinded = {"done": False}
+
+    def first_missing_once(self):
+        # Blind only the duplicate check, exactly once — the interleaving that
+        # produces the IntegrityError.
+        if not blinded["done"] and self.column_descriptions and (
+            self.column_descriptions[0].get("type") is PurchaseNotification
+        ):
+            blinded["done"] = True
+            return None
+        return real_first(self)
+
+    monkeypatch.setattr(Query, "first", first_missing_once)
+    r = _notify(client, payload)
+    monkeypatch.undo()
+
+    assert blinded["done"], "the race was not actually simulated"
+    assert r.status_code == 200, f"the losing duplicate returned {r.status_code}"
+    assert r.json()["duplicate"] is True
+
+    db = TestingSessionLocal()
+    try:
+        rows = (
+            db.query(PurchaseNotification)
+            .filter(PurchaseNotification.notification_uuid == "race-dup-uuid")
+            .count()
+        )
+    finally:
+        db.close()
+    assert rows == 1, f"{rows} notification rows survived the race"
