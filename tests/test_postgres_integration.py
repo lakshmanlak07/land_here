@@ -37,7 +37,19 @@ from sqlalchemy.orm import sessionmaker
 
 pytestmark = pytest.mark.integration
 
-SCRATCH_DB = "land_here_integration"
+DEFAULT_SCRATCH_DB = "land_here_integration"
+
+
+def _db_name(url: str) -> str:
+    """The database a URL points at.
+
+    Derived from the URL rather than taken from a constant. An earlier version
+    created the database named by a module constant and then connected to the
+    one named in INTEGRATION_DATABASE_URL — which silently worked only while
+    the two happened to agree, and failed on any machine where the scratch
+    database did not already exist.
+    """
+    return url.rstrip("/").rsplit("/", 1)[-1].split("?")[0]
 
 
 def _scratch_url() -> str | None:
@@ -56,7 +68,7 @@ def _scratch_url() -> str | None:
             base = None
     if not base or not base.startswith("postgresql"):
         return None
-    return re.sub(r"/[^/]+$", f"/{SCRATCH_DB}", base)
+    return re.sub(r"/[^/]+$", f"/{DEFAULT_SCRATCH_DB}", base)
 
 
 @pytest.fixture(scope="module")
@@ -65,15 +77,25 @@ def pg_engine():
     if url is None:
         pytest.skip("no PostgreSQL available (set INTEGRATION_DATABASE_URL)")
 
+    scratch_db = _db_name(url)
+    if not re.fullmatch(r"[A-Za-z0-9_]+", scratch_db):
+        pytest.skip(f"unsafe scratch database name: {scratch_db!r}")
     admin_url = re.sub(r"/[^/]+$", "/postgres", url)
     try:
         admin = create_engine(admin_url, isolation_level="AUTOCOMMIT")
         with admin.connect() as c:
-            c.execute(text(f"DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"))
-            c.execute(text(f"CREATE DATABASE {SCRATCH_DB}"))
+            c.execute(text(f"DROP DATABASE IF EXISTS {scratch_db} WITH (FORCE)"))
+            c.execute(text(f"CREATE DATABASE {scratch_db}"))
+            created = c.execute(
+                text("select count(*) from pg_database where datname = :n"),
+                {"n": scratch_db},
+            ).scalar()
         admin.dispose()
     except OperationalError as exc:
         pytest.skip(f"PostgreSQL not reachable: {str(exc)[:80]}")
+    # Fail loudly here rather than as an obscure "database does not exist" from
+    # create_all several lines later.
+    assert created == 1, f"scratch database {scratch_db} was not created"
 
     # Schema from the models rather than from Alembic: the migration chain is
     # verified separately, and this keeps these tests about runtime behaviour.
@@ -93,7 +115,7 @@ def pg_engine():
 
     admin = create_engine(admin_url, isolation_level="AUTOCOMMIT")
     with admin.connect() as c:
-        c.execute(text(f"DROP DATABASE IF EXISTS {SCRATCH_DB} WITH (FORCE)"))
+        c.execute(text(f"DROP DATABASE IF EXISTS {scratch_db} WITH (FORCE)"))
     admin.dispose()
 
 
