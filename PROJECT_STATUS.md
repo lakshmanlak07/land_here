@@ -1,5 +1,19 @@
 # LandHere — Project Status
 
+> ## v0.1.0-rc.4 — CODE-SIDE RELEASE CANDIDATE
+>
+> **Not launched. Not deployed. Not submitted to any store. Never run on a
+> physical device.**
+>
+> Commit `1349b6076b35730347a797c6be9f30ffb8425065`. Every code-side gate passes
+> from a clean worktree and clean installs — evidence in
+> `LAUNCH/RC4_VERIFICATION.md`.
+>
+> What remains is **entirely external**: an Apple account, a Google Play account,
+> a deployed backend, a lawyer's review, and real-device testing. Each is listed
+> as a blocked gate in the verification record. None can be closed by writing
+> code.
+
 _Honest snapshot as of **2026-08-01**, describing **v0.1.0-rc.3**._
 _Written by reading the codebase, running the test suites, and executing the
 migrations — not from memory. Supersedes the 2026-06-16 snapshot, which predates

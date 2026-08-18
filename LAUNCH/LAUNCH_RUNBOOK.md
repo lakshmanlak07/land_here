@@ -1,5 +1,12 @@
 # LandHere — Launch Runbook
 
+> ## Status: v0.1.0-rc.4 is a CODE-SIDE RELEASE CANDIDATE
+>
+> **Not launched, not deployed, not submitted, not device-verified.** This
+> runbook describes what to do; none of it has been done. Evidence for the
+> code-side gates is in `LAUNCH/RC4_VERIFICATION.md`; the App Store, Google Play,
+> deployment, legal and real-device gates are all listed there as **blocked**.
+
 _Rewritten 2026-08-01 for v0.1.0-rc.3; revised 2026-08-16 for **`feat/pro-iap`**,
 which restores the $1.99 LandHere Pro purchase with server-side entitlement._
 
@@ -36,8 +43,10 @@ methodology, country guides, arrival necessities, money tools.
 **LandHere Pro adds:** the remaining journey phases, ranked universities beyond
 the top 25, and university detail pages.
 
-Release state: branch `feat/pro-iap`.
-**Not merged to main. Not pushed. Not deployed. Never run on a physical device.**
+Release state: tag **`v0.1.0-rc.4`** on branch `feat/pro-iap`, pushed to
+`origin`.
+**Not merged to main. Not deployed. Not submitted. Never run on a physical
+device.**
 
 ### How the paid tier was restored
 
@@ -72,22 +81,26 @@ storage, and that no Apple credential appears in the mobile source.
 
 ## 2. Local verification — the commands that must be green
 
-Run from a clean checkout. Every one of these was executed for rc.3; results are
-in `LAUNCH/RC3_VERIFICATION.md`.
+Run from a clean checkout. Every one of these was executed for rc.4 from a
+clean worktree, a fresh virtualenv and a fresh `npm ci`; results are in
+**`LAUNCH/RC4_VERIFICATION.md`**. (`LAUNCH/RC3_VERIFICATION.md` is retained as
+the rc.3 record and describes the older, free-only build.)
 
 ```bash
 # ── Backend ───────────────────────────────────────────────────────────────────
 python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt -r requirements-dev.txt
-pytest tests -q                                    # expect: 67 passed
-pytest tests/test_security.py -q                   # expect: 37 passed
+pytest tests -q                                    # expect: 170 passed, 6 skipped
+# The 6 skips are the PostgreSQL integration tests; run them explicitly with
+# INTEGRATION_DATABASE_URL set   # expect: 6 passed
 
 # ── Mobile ────────────────────────────────────────────────────────────────────
 cd mobile
 npm install                                        # no --force, no --legacy-peer-deps
 npx tsc --noEmit                                   # expect: clean
-npm run lint                                       # expect: 0 errors
-npm run check                                      # expect: 23/23 passed
+npm run lint                                       # expect: 0 errors, 0 warnings
+npx expo-doctor                                    # expect: 18/18
+npm run check                                      # expect: 42/42 passed
 npm run check:env                                  # expect: FAILS until real URLs exist
 
 # ── Export + scan ─────────────────────────────────────────────────────────────
