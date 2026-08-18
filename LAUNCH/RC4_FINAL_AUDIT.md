@@ -20,8 +20,9 @@ installs. The tag was not modified, retagged, or force-pushed.
 
 ## Defect ledger
 
-Two real defects. Both are concurrency faults on paths where the *caller* creates
-the concurrency, so neither would have been rare in production.
+Three real defects. Two are concurrency faults on paths where the *caller*
+creates the concurrency; the third disabled a security control on infrastructure
+error. None would have been rare in production.
 
 ### D-1 — Refresh-token reuse detection could be defeated by racing it — **P1**
 
@@ -56,6 +57,64 @@ legitimate client already serialises its refreshes behind a single-flight guard.
   should not rest on a simulation.
 - Mutation-tested twice: reverting to read-then-write fails it, and removing the
   `claimed == 0` replay branch fails it.
+
+### D-3 — Rate limiter failed open on any Redis error — **P1**
+
+**Proof.** `enforce_limit` ended in a bare `except Exception: return`, so a Redis
+connection blip, timeout, or protocol fault **allowed the request**. A second
+fail-open sat in the `rate_limiter` dependency: if client-IP resolution raised,
+the limit was skipped entirely.
+
+The endpoints behind this limiter are login, registration, refresh, account
+deletion and purchase verification. Losing the limit turned an infrastructure
+blip into an open window for credential stuffing — and it was silent.
+
+**Fix.** commit `fix(security): rate limiter fails over to a local limiter instead of failing open` — a Redis failure now falls back to the per-process
+in-memory sliding window **for the same key and rule**, so enforcement degrades
+from distributed to per-instance rather than to absent. Specifically:
+
+- a genuine 429 from Redis still propagates — that is the limiter working;
+- any other Redis exception enters a 5-second cooldown and enforces locally. The
+  cooldown is an availability measure: Redis is configured with a 2-second socket
+  timeout, so retrying per request during an outage would add that to every call.
+  The first request after the cooldown retries Redis, which is how recovery
+  happens with no extra machinery;
+- the in-memory map gained a hard ceiling of 50,000 keys with batch eviction of
+  the least-recent entries. The pre-existing periodic sweep only removes
+  *expired* keys, so under a flood from many distinct IPs it frees nothing and
+  the map grew without bound — a slow memory-exhaustion DoS against the limiter
+  itself;
+- the dependency's IP-resolution failure now falls back to one shared bucket
+  instead of skipping the check;
+- even a failure of the local backend rejects rather than allows.
+
+**Degraded-mode logging is privacy-safe by construction**: the bucket name and
+the exception *type* only. Not the key — it contains the client IP, or an account
+identifier for the per-account login bucket. Not the exception message — a Redis
+client embeds the connection URL, which carries credentials. Rate limited to one
+line per minute so an outage cannot bury the log.
+
+**Regression evidence.** 17 tests in `tests/test_rate_limit_failover.py`: Redis
+enforcement when healthy; fallback on connection, timeout, runtime and protocol
+errors; 429 from the fallback; per-identity isolation while degraded; sweep of
+expired keys; the hard ceiling under an all-active flood; 32-thread contention
+admitting exactly the limit; no per-request Redis retry inside the cooldown;
+recovery to Redis after it; no identity or credential in the degraded log; no
+repeat logging; no leakage in the 429; and enforcement when Redis is
+deliberately absent.
+
+Mutation-tested: restoring the original `return` fails **13** of the 17;
+removing the key ceiling fails the bound test; logging the key and exception
+message fails the privacy test.
+
+**Honest limit, found by mutation:** removing `with _lock` does **not** fail the
+concurrency test. The race window is between the length check and the append,
+with no seam to inject a yield into, and CPython's GIL makes an unlocked
+read-modify-write usually correct at this granularity. The test proves exact
+admission under contention, not mutual exclusion. The lock is retained because a
+mutex around a read-modify-write is correct by construction — not because a test
+forces it. Recorded in the test file itself so a green suite is not mistaken for
+evidence the lock is unnecessary.
 
 ### D-2 — Duplicate Apple notifications raced into a 500 — **P2**
 
@@ -136,8 +195,9 @@ Each is a decision with evidence, not an oversight.
 2. **`ecdsa` PYSEC-2026-1325**, no upstream fix. Unreachable: the app is
    HS256-only, so the EC code paths are never entered. Revisit if `ALGORITHM`
    becomes `ES*`.
-3. **Rate limiting is fail-open.** A Redis outage removes limiting rather than
-   locking users out.
+3. **Rate limiting degrades, it does not disable.** A Redis outage moves
+   enforcement from distributed to per-instance — with N instances the effective
+   ceiling becomes N x limit. Weaker than normal, never unrestricted. See D-3.
 4. **A raced refresh logs the user out.** After D-1, two simultaneous refreshes
    of one token revoke the family. Correct for a security control, and the client
    serialises its own refreshes — but a pathological retry pattern would force a

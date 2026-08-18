@@ -133,11 +133,12 @@ only** (HMAC), so the package's EC code paths are never entered and no
 attacker-controlled EC key or signature enters the process. Revisit if
 `ALGORITHM` ever becomes `ES*`.
 
-### Rate limiting is fail-open
+### Rate limiting was fail-open — CLOSED after rc.4
 
-Any unexpected error — including a Redis blip — allows the request through. A
-Redis outage removes rate limiting rather than locking users out. Deliberate;
-recorded so it is a decision, not a surprise.
+Superseded on `hardening/rc4-final-audit`. A Redis error no longer allows the
+request; it degrades enforcement from distributed to per-instance. See
+`LAUNCH/RC4_FINAL_AUDIT.md` (D-3). Retained here because this file records the
+state of the rc.4 tag.
 
 ### Apple notification ordering
 
