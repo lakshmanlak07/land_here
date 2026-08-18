@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { API_URL } from './config';
 import type { TokenOut, UserOut } from './types';
+import { resetServerCache } from './queryClient';
 
 const TOKEN_KEY = 'auth_token';
 // Long-lived refresh token. Stored alongside the access token so a cold start
@@ -37,6 +38,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   onboarded: false,
 
   setAuth: (accessToken, refreshToken, user) => {
+    // A different account may have been signed in a moment ago and its
+    // responses are still cached. Entitlement-varying content must not
+    // survive an identity change — see resetServerCache.
+    resetServerCache();
     set({ token: accessToken, refreshToken, user });
     SecureStore.setItemAsync(TOKEN_KEY, accessToken).catch(() => {});
     SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken).catch(() => {});
@@ -80,6 +85,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Also clear the device-local onboarding flag so a fresh signup on this
     // device starts un-onboarded and sees the questions — otherwise a leftover
     // `onboarded: true` would route the next account straight past onboarding.
+    // Drop every cached server response. The query client outlives sign-out,
+    // and several cached responses contain Pro content that the next account
+    // on this device may not be entitled to.
+    resetServerCache();
     set({ token: null, refreshToken: null, user: null, onboarded: false });
     SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
     SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch(() => {});

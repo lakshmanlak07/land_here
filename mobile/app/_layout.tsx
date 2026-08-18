@@ -7,7 +7,8 @@ import {
   DefaultTheme as NavDefaultTheme,
   DarkTheme as NavDarkTheme,
 } from '@react-navigation/native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '../lib/queryClient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '../lib/store';
 import { useProgressStore } from '../lib/progressStore';
@@ -15,9 +16,8 @@ import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { SplashScreen } from '../components/SplashScreen';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 300_000 } },
-});
+// Created in lib/queryClient.ts so the auth store can reset it on sign-in
+// and sign-out — see resetServerCache there.
 
 // Feed React Navigation a theme built from OUR tokens. Without this, expo-router
 // falls back to React Navigation's default LIGHT theme, whose white

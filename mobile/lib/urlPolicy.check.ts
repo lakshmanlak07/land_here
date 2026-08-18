@@ -291,6 +291,54 @@ check('API failures are turned into readable messages, not raw errors', () => {
   }
 });
 
+check('the server-response cache is cleared on every identity change', () => {
+  // The React Query cache is keyed by WHAT was requested, never by WHO
+  // requested it, and it is created above the auth gate so it outlives
+  // sign-out. Several cached responses differ per account because the API
+  // withholds Pro content from free callers: the journey (trimmed to the free
+  // phases), the rankings list (clamped to 25), university detail, and the
+  // entitlement itself.
+  //
+  // Without a reset, a Pro user's cached journey — visa, departure and arrival
+  // steps — renders for whoever signs in next on the same device with the same
+  // corridor, before any refetch. That is paid content served from a
+  // device-local cache to someone not entitled to it.
+  const store = readCode('lib/store.ts');
+
+  // Slice the implementation body rather than regex across the whole file: the
+  // interface above also declares `logout: () => void;`, and an earlier version
+  // of this check anchored on that declaration and then found setAuth's call
+  // inside its window — passing while the defect was still present.
+  const body = (marker: string) => {
+    const start = store.indexOf(marker);
+    assert.notEqual(start, -1, `${marker} not found in lib/store.ts`);
+    const end = store.indexOf('\n  },', start);
+    assert.notEqual(end, -1, `could not find the end of ${marker}`);
+    return store.slice(start, end);
+  };
+
+  assert.ok(
+    body('logout: () => {').includes('resetServerCache()'),
+    'sign-out does not clear the cached server responses',
+  );
+  assert.ok(
+    body('setAuth: (accessToken, refreshToken, user) => {').includes('resetServerCache()'),
+    'sign-in does not clear the previous account cached server responses',
+  );
+
+  // The client must be shared, or the store would reset a different instance
+  // from the one the app renders with.
+  const qc = readCode('lib/queryClient.ts');
+  assert.ok(qc.includes('export const queryClient'), 'no shared query client');
+  assert.ok(qc.includes('export function resetServerCache'), 'no reset helper');
+  const layout = readCode('app/_layout.tsx');
+  assert.ok(layout.includes("from '../lib/queryClient'"), 'provider uses another client');
+  assert.ok(
+    !layout.includes('new QueryClient('),
+    'the layout constructs its own client, so the store resets the wrong one',
+  );
+});
+
 check('the entitlement gate is read from the shared hook, never from a local flag', () => {
   // One source of truth for "is this account Pro". A screen inventing its own
   // boolean is how a client-side bypass gets reintroduced.
