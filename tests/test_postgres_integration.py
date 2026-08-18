@@ -352,3 +352,73 @@ def test_timezone_offsets_survive_a_round_trip_in_postgres(Session):
         assert row.last_event_signed_at < datetime.now(timezone.utc)
     finally:
         db.close()
+
+
+def test_only_one_writer_can_claim_a_refresh_token_under_real_concurrency(Session):
+    """The atomic claim behind refresh-token reuse detection, on real threads.
+
+    /auth/refresh rotates a token with
+    `UPDATE ... WHERE id = :jti AND revoked_at IS NULL`, and treats a row count
+    of 0 as replay. That is the whole of reuse detection: if two racing requests
+    could both report 1, a stolen token used at the same instant as the
+    legitimate device would mint two live sessions and detection would never
+    fire.
+
+    SQLite cannot test this — one shared connection, no real concurrency — so
+    the claim is exercised here against PostgreSQL with eight threads on eight
+    connections.
+    """
+    from app.models.refresh_token import RefreshToken
+    from app.models.user import User
+
+    user_id = _make_user(Session)
+    jti = uuid.uuid4()
+    family = uuid.uuid4()
+
+    db = Session()
+    try:
+        db.add(
+            RefreshToken(
+                id=jti,
+                user_id=user_id,
+                family_id=family,
+                issued_at=datetime.now(timezone.utc),
+                expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    def claim() -> int:
+        s = Session()
+        try:
+            n = (
+                s.query(RefreshToken)
+                .filter(RefreshToken.id == jti, RefreshToken.revoked_at.is_(None))
+                .update(
+                    {"revoked_at": datetime.now(timezone.utc)},
+                    synchronize_session=False,
+                )
+            )
+            s.commit()
+            return n
+        finally:
+            s.close()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda _: claim(), range(8)))
+
+    assert sum(results) == 1, (
+        f"{sum(results)} writers claimed the same refresh token; "
+        f"reuse detection is defeatable by racing it (results={results})"
+    )
+
+    db = Session()
+    try:
+        row = db.query(RefreshToken).filter(RefreshToken.id == jti).one()
+        assert row.revoked_at is not None
+        db.query(User).filter(User.id == user_id).delete()
+        db.commit()
+    finally:
+        db.close()

@@ -197,8 +197,31 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     if user is None:
         raise _INVALID_REFRESH
 
-    record.revoked_at = datetime.now(timezone.utc)
+    # Claim the token with a CONDITIONAL update rather than a read-then-write.
+    #
+    # The check above and this revocation used to be separate statements, so two
+    # requests carrying the same refresh token could both observe
+    # `revoked_at IS NULL`, both write, and both be issued a valid pair — a
+    # stolen token used at the same instant as the legitimate device produced
+    # two live sessions and reuse detection never fired. Racing it defeated the
+    # control that rotation exists to provide.
+    #
+    # `UPDATE ... WHERE id = :jti AND revoked_at IS NULL` makes the database
+    # pick exactly one winner: the row count is 1 for the first writer and 0 for
+    # every other, whatever the interleaving.
+    claimed = (
+        db.query(RefreshToken)
+        .filter(RefreshToken.id == jti, RefreshToken.revoked_at.is_(None))
+        .update({"revoked_at": datetime.now(timezone.utc)}, synchronize_session=False)
+    )
     db.commit()
+    if claimed == 0:
+        # Someone else rotated this token first. Indistinguishable from replay,
+        # and treated as replay on purpose: failing closed on a security control
+        # is right, and a legitimate client already serialises its own refreshes.
+        _revoke_family(db, record.family_id)
+        raise _INVALID_REFRESH
+
     return _token_pair(user.id, db, family_id=record.family_id)
 
 

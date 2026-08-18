@@ -419,3 +419,64 @@ def test_a_duplicate_notification_race_recovers_instead_of_500ing(client, monkey
     finally:
         db.close()
     assert rows == 1, f"{rows} notification rows survived the race"
+
+
+def test_racing_a_refresh_token_cannot_mint_two_live_sessions(client, monkeypatch):
+    """Refresh-token reuse detection must not be defeatable by racing it.
+
+    Rotation records each refresh token by id and marks it revoked on use;
+    presenting an already-rotated token is treated as theft and revokes the
+    whole family. That control is the reason rotation is worth having.
+
+    But the check and the revocation were separate statements. Two requests
+    carrying the SAME refresh token could both read `revoked_at IS NULL`, both
+    write a revocation, and both be issued a fresh, valid pair — so a stolen
+    token used at the same instant as the legitimate device yields two live
+    sessions and detection never fires.
+
+    Simulated deterministically: the row is genuinely revoked, and the endpoint's
+    read is fed the stale pre-revocation snapshot exactly once. That is what the
+    losing request of a real race observes.
+    """
+    from sqlalchemy.orm import Query
+
+    from app.models.refresh_token import RefreshToken
+
+    email = _email_for_race()
+    r = client.post("/auth/register", json={"email": email, "password": "password123"})
+    assert r.status_code == 201, r.text
+    original_refresh = r.json()["refresh_token"]
+
+    # The winner rotates it for real.
+    first = client.post("/auth/refresh", json={"refresh_token": original_refresh})
+    assert first.status_code == 200, first.text
+
+    real_first = Query.first
+    served_stale = {"done": False}
+
+    def stale_once(self):
+        row = real_first(self)
+        if (
+            not served_stale["done"]
+            and row is not None
+            and isinstance(row, RefreshToken)
+            and row.revoked_at is not None
+        ):
+            # What the loser of the race sees: the row before the winner's write.
+            served_stale["done"] = True
+            row.revoked_at = None
+        return row
+
+    monkeypatch.setattr(Query, "first", stale_once)
+    second = client.post("/auth/refresh", json={"refresh_token": original_refresh})
+    monkeypatch.undo()
+
+    assert served_stale["done"], "the race was not actually simulated"
+    assert second.status_code == 401, (
+        f"racing the same refresh token minted a second live session "
+        f"({second.status_code})"
+    )
+
+
+def _email_for_race() -> str:
+    return f"race_{uuid.uuid4().hex[:8]}@landhere-tests.example.com"
