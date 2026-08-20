@@ -1,6 +1,20 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# STAGING blueprint. NOT production.
+#
+# Cut from the tag v0.1.0-rc.5. Every resource name carries a "-staging" suffix
+# so this can never collide with, or be mistaken for, the production stack that
+# render.yaml on the release branch will create.
+#
+# ENV is deliberately still "production": that is what exercises the fail-closed
+# startup guards and disables /docs, both of which this deployment exists to
+# verify. It does NOT mean this is a production environment.
+#
+# Nothing real should ever point at this stack: no store listing, no hosted
+# legal document, no App Store or Play Console notification URL.
+# ─────────────────────────────────────────────────────────────────────────────
 services:
   - type: web
-    name: landhere-api
+    name: landhere-api-staging
     runtime: docker
     dockerfilePath: ./Dockerfile
     # Pinned explicitly rather than relying on Render's default, so the monthly
@@ -9,12 +23,16 @@ services:
     # on 2026-08-17. The Free instance type is deliberately not used: it spins
     # down when idle, and the first request after a sleep is slow enough to be a
     # problem for a mobile client and for an App Review reviewer.
+    # Starter, not Free: a Free instance spins down when idle, and the first
+    # request after a sleep would make the /health/ready check and the
+    # rate-limit verification slow and flaky — the two things this stack exists
+    # to test.
     plan: starter
     healthCheckPath: /health/ready
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: landhere-db
+          name: landhere-db-staging
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
@@ -35,7 +53,7 @@ services:
       - key: REDIS_URL
         fromService:
           type: keyvalue
-          name: landhere-cache
+          name: landhere-cache-staging
           property: connectionString
       - key: TRUST_PROXY_HEADERS
         value: "true"
@@ -96,15 +114,21 @@ services:
 
   # Shared rate-limit backend. Required to run more than one web worker.
   - type: keyvalue
-    name: landhere-cache
-    plan: starter
+    name: landhere-cache-staging
+    # Free is enough here: rate limiting is ephemeral sorted sets, so the 25 MB
+    # and the lack of persistence cost us nothing. Production should use a paid
+    # tier for the connection limit, not for durability.
+    plan: free
     ipAllowList: []   # internal connections only — never expose this publicly
 
 databases:
-  - name: landhere-db
-    databaseName: landhere
-    # ⚠️ DELIBERATELY NOT "free". Render's free PostgreSQL instances are deleted
-    # after a fixed trial window, which would take the production database with
-    # them. Confirm the current plan names and terms on Render's pricing page
-    # before deploying — this file cannot keep itself up to date.
-    plan: basic-256mb
+  - name: landhere-db-staging
+    databaseName: landhere_staging
+    # Free is correct for STAGING and wrong for production. Render deletes free
+    # PostgreSQL instances after a fixed trial window (~30 days) — which is a
+    # feature here, since this stack is disposable, and a data-loss event in
+    # production. The production blueprint keeps basic-256mb for that reason.
+    #
+    # ⚠️ Confirm the current plan names and the trial window on Render's pricing
+    # page before applying; this file cannot keep itself up to date.
+    plan: free
