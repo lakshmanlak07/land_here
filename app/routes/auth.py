@@ -30,7 +30,8 @@ from app.schemas.user import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # Generous per-IP limits: well above any human-driven flow, low enough to
-# blunt automated brute-force / credential stuffing. Fail-open (see rate_limit).
+# blunt automated brute-force / credential stuffing. Fails CLOSED: a limiter
+# error rejects the request with 429 rather than allowing it (see rate_limit).
 _register_limit   = rate_limiter("auth_register",   limit=15,  window_seconds=60)
 _login_limit      = rate_limiter("auth_login",      limit=30,  window_seconds=60)
 # Refresh fires roughly once per access-token lifetime per device.
