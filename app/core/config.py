@@ -207,6 +207,36 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="before")
+    @classmethod
+    def _blank_means_unset(cls, data: object) -> object:
+        """Treat a blank value as absent for every non-string setting.
+
+        A dashboard that declares a variable but leaves it unfilled (Render's
+        `sync: false`, and the obvious way to clear a value later) submits an
+        empty string, not nothing. That turns "I do not have an App Store
+        Connect id yet" into `APPLE_APP_APPLE_ID=""`, which fails int parsing
+        and crashes the boot instead of leaving the endpoint at its intended
+        503.
+
+        Only non-str fields are stripped. "" is a meaningful value for the str
+        settings and must keep reaching the field: REDIS_URL="" selects the
+        in-memory limiter, and CORS_ALLOW_ORIGINS="" must stay a production
+        boot failure rather than silently falling back to the dev default.
+        """
+        if not isinstance(data, dict):
+            return data
+        non_str = {
+            name.lower()
+            for name, field in cls.model_fields.items()
+            if field.annotation is not str
+        }
+        for key in [k for k in data if isinstance(k, str) and k.lower() in non_str]:
+            value = data[key]
+            if isinstance(value, str) and not value.strip():
+                del data[key]
+        return data
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

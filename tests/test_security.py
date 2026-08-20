@@ -359,6 +359,56 @@ def test_production_rejects_localhost_database():
         _prod_settings(DATABASE_URL="postgresql://u:p@localhost:5432/landhere")
 
 
+# ── Blank environment variables ───────────────────────────────────────────────
+#
+# A dashboard that declares a variable but leaves it unfilled submits "", not
+# nothing. For the int/bool settings that used to crash the boot outright,
+# turning "no App Store id yet" into a dead service instead of a 503.
+
+
+def test_blank_typed_vars_fall_back_to_defaults():
+    s = _prod_settings(
+        APPLE_APP_APPLE_ID="",
+        APPLE_ACCEPT_SANDBOX="",
+        GOOGLE_ACCEPT_TEST_PURCHASES="",
+        TRUSTED_PROXY_HOPS="",
+        ACCESS_TOKEN_EXPIRE_MINUTES="",
+    )
+    assert s.APPLE_APP_APPLE_ID is None
+    assert s.APPLE_ACCEPT_SANDBOX is False
+    assert s.GOOGLE_ACCEPT_TEST_PURCHASES is False
+    assert s.TRUSTED_PROXY_HOPS == 1
+    assert s.ACCESS_TOKEN_EXPIRE_MINUTES == 60
+
+
+def test_whitespace_only_typed_var_also_falls_back():
+    assert _prod_settings(APPLE_APP_APPLE_ID="   ").APPLE_APP_APPLE_ID is None
+
+
+def test_blank_never_reaches_a_string_setting():
+    """An empty string is a meaningful value for a str setting and must keep
+    reaching the field rather than being swapped for the default.
+
+    Both fields here default to a NON-empty value on purpose: REDIS_URL and
+    UNSPLASH_ACCESS_KEY default to "" themselves, so stripping them would be
+    indistinguishable from keeping them and would test nothing.
+
+    The case that matters: an operator who deliberately clears the bundle id to
+    stop accepting App Store transactions must not silently get
+    "com.landhere.app" back, which would leave the verifier accepting exactly
+    the transactions they meant to reject.
+    """
+    s = _prod_settings(APPLE_BUNDLE_ID="", GOOGLE_PLAY_PACKAGE_NAME="")
+    assert s.APPLE_BUNDLE_ID == ""
+    assert s.GOOGLE_PLAY_PACKAGE_NAME == ""
+
+
+def test_real_typed_values_still_parse():
+    s = _prod_settings(APPLE_APP_APPLE_ID="6499999999", APPLE_ACCEPT_SANDBOX="true")
+    assert s.APPLE_APP_APPLE_ID == 6499999999
+    assert s.APPLE_ACCEPT_SANDBOX is True
+
+
 def test_development_allows_loose_config():
     """The same values must stay fine in development — the guards are
     production-only by design, so local dev never trips them."""
