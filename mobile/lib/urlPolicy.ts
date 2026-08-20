@@ -96,6 +96,13 @@ export function validateUrl(
     if (isPrivateHost(url.hostname)) {
       return `${name} points at a local/private address ("${url.hostname}"), which is unreachable for real users.`;
     }
+    // A single-label host has no public DNS. This is what an unfilled template
+    // looks like once it parses as a URL: "https://PASTE-THE-RENDER-URL-HERE"
+    // is syntactically valid, https, not private, and matches no placeholder
+    // word, so every other rule here lets it through.
+    if (!url.hostname.includes('.')) {
+      return `${name} has no domain ("${url.hostname}"). A single-label host does not resolve on the public internet — this is usually an unfilled template value.`;
+    }
   } else if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     return `${name} must be an http(s) URL (got "${url.protocol}//").`;
   }

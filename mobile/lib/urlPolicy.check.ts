@@ -124,6 +124,14 @@ check('production rejects non-numeric private hostnames', () => {
   }
 });
 
+check('production rejects an unfilled template that happens to parse', () => {
+  for (const host of ['https://PASTE-THE-RENDER-URL-HERE', 'https://myserver']) {
+    const errors = collectConfigErrors({ ...GOOD, API_URL: host }, { production: true });
+    assert.equal(errors.length, 1, `${host} should be rejected`);
+    assert.match(errors[0], /no domain/);
+  }
+});
+
 check('production still accepts the real staging and production hosts', () => {
   for (const host of [
     'https://landhere-api-staging.onrender.com',
