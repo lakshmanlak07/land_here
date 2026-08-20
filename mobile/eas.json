@@ -10,7 +10,21 @@
     },
     "preview": {
       "distribution": "internal",
-      "ios": { "simulator": false }
+      "ios": {
+        "simulator": false
+      }
+    },
+    "staging": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://landhere-api-staging.onrender.com"
+      }
     },
     "production": {
       "autoIncrement": true,

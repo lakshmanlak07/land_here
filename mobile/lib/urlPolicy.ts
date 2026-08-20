@@ -11,6 +11,30 @@
 /** Hosts that mean "this build only works on the developer's machine". */
 const LOCAL_HOSTNAMES = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]'];
 
+/**
+ * Name suffixes that never resolve on the public internet.
+ *
+ * A numeric RFC1918 check is not enough: the address a developer actually
+ * copies out of the Expo CLI on macOS is an mDNS name like
+ * `https://macbook.local:8000`, which has no private-looking octets at all.
+ * `.internal` covers container and cloud-internal names (host.docker.internal,
+ * *.internal on GCP/Render); a mobile client is always on the public internet,
+ * so none of these is ever a legitimate target.
+ *
+ * `.test`, `.invalid`, `.example` are RFC 6761 reserved and can never resolve.
+ */
+const PRIVATE_SUFFIXES = [
+  '.local',
+  '.localdomain',
+  '.localhost',
+  '.internal',
+  '.lan',
+  '.home.arpa',
+  '.test',
+  '.invalid',
+  '.example',
+];
+
 /** Substrings that mean the value was never filled in. */
 const PLACEHOLDER_MARKERS = [
   'example.com',
@@ -27,6 +51,7 @@ const PLACEHOLDER_MARKERS = [
 export function isPrivateHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
   if (LOCAL_HOSTNAMES.includes(h)) return true;
+  if (PRIVATE_SUFFIXES.some((suffix) => h.endsWith(suffix))) return true;
   // RFC1918 / link-local: 10.x, 192.168.x, 172.16–31.x, 169.254.x
   if (/^10\./.test(h)) return true;
   if (/^192\.168\./.test(h)) return true;

@@ -107,6 +107,33 @@ check('production rejects the LAN URL that shipped in rc.1', () => {
   assert.match(errors[0], /EXPO_PUBLIC_API_URL/);
 });
 
+check('production rejects non-numeric private hostnames', () => {
+  // The RFC1918 octet check misses these entirely: `macbook.local` is what the
+  // Expo CLI prints on macOS, and host.docker.internal is what a containerised
+  // backend advertises. Both are https and neither looks private numerically.
+  for (const host of [
+    'https://macbook.local:8000',
+    'https://host.docker.internal:8000',
+    'https://api.lan',
+    'https://box.home.arpa',
+    'https://api.test',
+  ]) {
+    const errors = collectConfigErrors({ ...GOOD, API_URL: host }, { production: true });
+    assert.equal(errors.length, 1, `${host} should be rejected`);
+    assert.match(errors[0], /local\/private address/);
+  }
+});
+
+check('production still accepts the real staging and production hosts', () => {
+  for (const host of [
+    'https://landhere-api-staging.onrender.com',
+    'https://api.landhere.app',
+  ]) {
+    const errors = collectConfigErrors({ ...GOOD, API_URL: host }, { production: true });
+    assert.deepEqual(errors, [], `${host} should be accepted`);
+  }
+});
+
 check('development needs only the API URL, and allows LAN HTTP', () => {
   const errors = collectConfigErrors(
     { API_URL: 'http://192.168.0.113:8000' },
