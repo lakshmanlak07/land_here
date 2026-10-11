@@ -54,7 +54,18 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/purchases", tags=["purchases"])
+def _purchases_enabled() -> None:
+    """Every purchase route is off unless PURCHASES_ENABLED. 404 rather than 503:
+    for the free launch the feature does not exist, and stores must not retry."""
+    if not settings.PURCHASES_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+
+
+router = APIRouter(
+    prefix="/purchases",
+    tags=["purchases"],
+    dependencies=[Depends(_purchases_enabled)],
+)
 
 # A real user verifies once per purchase and occasionally on restore. Anything
 # beyond this is someone feeding the endpoint candidate blobs.

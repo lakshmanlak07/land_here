@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.deps import get_current_user_optional, require_pro, user_has_pro
+from app.core.deps import get_current_user_optional, require_pro, content_unlocked
 from app.core.rate_limit import rate_limiter
 from app.models.university import University
 from app.models.user import User
@@ -34,7 +34,7 @@ def list_universities(
     current_user: User | None = Depends(get_current_user_optional),
 ):
     response.headers["Cache-Control"] = _CACHE
-    is_pro = user_has_pro(db, current_user)
+    is_pro = content_unlocked(db, current_user)
     scored = db.query(University).filter(University.has_full_score == True)
 
     # The true, unfiltered population — what the upsell is selling. Safe to

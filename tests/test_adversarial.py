@@ -14,6 +14,9 @@ import uuid
 
 import pytest
 
+# Paid-mode suite: the free launch turns the paywall off by default.
+pytestmark = pytest.mark.usefixtures("paid_mode")
+
 import app.core.rate_limit as rl
 from app.core.security import create_access_token
 from tests.test_purchases import _account, _add_universities, _signed, apply_apple_test_settings

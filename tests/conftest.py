@@ -111,3 +111,18 @@ def client(create_tables, seed_test_data):
     with TestClient(fastapi_app) as c:
         yield c
     fastapi_app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def paid_mode(monkeypatch):
+    """Turn the (default-off) paywall and purchase processing back on.
+
+    LandHere launches free: PAYWALL_ENABLED and PURCHASES_ENABLED default to
+    False. The purchase/paywall suites still exercise the dormant paid path so
+    it stays correct if it is ever re-enabled; they opt in with this fixture.
+    """
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "PAYWALL_ENABLED", True)
+    monkeypatch.setattr(settings, "PURCHASES_ENABLED", True)
+    yield

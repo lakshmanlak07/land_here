@@ -25,6 +25,9 @@ from pathlib import Path
 
 import jwt
 import pytest
+
+# Paid-mode suite: the free launch turns the paywall off by default.
+pytestmark = pytest.mark.usefixtures("paid_mode")
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec

@@ -261,14 +261,11 @@ check('the free screens carry no purchase gate', () => {
   }
 });
 
-check('the journey gate is driven by the server response', () => {
-  // Not by a local step count. The old build fetched every step and hid half of
-  // them with `Math.ceil(totalSteps / 2)`, so the "locked" content was in the
-  // payload the whole time. The server now sends only what the account may see.
+check('the journey renders what the server sends, with no paywall', () => {
+  // Free launch: the server sends every phase. The screen must not re-introduce
+  // an upsell or client-side step slicing.
   const code = readCode('app/(tabs)/journey.tsx');
-  assert.ok(code.includes('locked_phases'), 'journey must read locked_phases from the API');
-  assert.ok(code.includes('pro_required'), 'journey must read pro_required from the API');
-  assert.ok(code.includes('/paywall'), 'journey must offer the upgrade path');
+  assert.ok(!code.includes('/paywall'), 'journey must not route to a paywall');
   assert.ok(
     !/freeStepCount|totalSteps\s*\/\s*2/.test(code),
     'journey must not re-introduce client-side step slicing',
@@ -294,7 +291,8 @@ check('purchase UI covers every state a store can return', () => {
   // A paid flow that silently does nothing on cancel, or shows "failed" for a
   // pending payment, reads as broken. Each of these is a distinct outcome the
   // stores actually produce.
-  const paywall = readCode('app/paywall.tsx');
+  // The paywall is parked in future/ for the free launch; keep it correct.
+  const paywall = readCode('future/paywall.tsx');
   for (const [label, needle] of [
     ['cancellation', 'ErrorCode.UserCancelled'],
     ['already-owned', 'ErrorCode.AlreadyOwned'],
@@ -321,7 +319,7 @@ check('API failures are turned into readable messages, not raw errors', () => {
   // something a user can act on. Screens that skip it show "[object Object]".
   const api = readCode('lib/api.ts');
   assert.ok(api.includes('export function getErrorMessage'), 'getErrorMessage missing');
-  for (const rel of ['app/paywall.tsx', 'app/(tabs)/profile.tsx']) {
+  for (const rel of ['app/(tabs)/profile.tsx']) {
     assert.ok(readCode(rel).includes('getErrorMessage'), `${rel} does not map API errors`);
   }
 });
@@ -394,33 +392,27 @@ check('the entitlement gate is read from the shared hook, never from a local fla
 });
 
 // ── LandHere Pro ──────────────────────────────────────────────────────────────
-// These checks used to assert that no purchase existed. The product now HAS a
-// one-time purchase, so they assert the opposite thing — that the purchase is
-// wired up the safe way. The risk moved; it did not go away. What matters now
-// is that the device cannot grant itself Pro and that no Apple credential is in
-// the bundle.
+// Free launch (Oct 2026): purchases are OFF. These checks pin that nothing is
+// sold or gated in shipped screens, while the parked purchase code (future/,
+// lib/purchaseStore.ts) stays correct for a possible later return.
 
-check('purchases are enabled by the feature flag', () => {
-  assert.match(read('lib/features.ts'), /export const PURCHASES_ENABLED = true/);
+check('purchases are disabled by the feature flag (free launch)', () => {
+  assert.match(read('lib/features.ts'), /export const PURCHASES_ENABLED = false/);
 });
 
-check('the paywall route exists under app/ and future/ no longer shadows it', () => {
-  assert.equal(existsSync(join(MOBILE, 'app/paywall.tsx')), true);
-  assert.equal(
-    existsSync(join(MOBILE, 'future/paywall.tsx')),
-    false,
-    'the old paywall copy must be gone so only one screen can drift',
-  );
+check('the paywall is parked in future/, not routable under app/', () => {
+  assert.equal(existsSync(join(MOBILE, 'app/paywall.tsx')), false, 'app/paywall.tsx must not ship');
+  assert.equal(existsSync(join(MOBILE, 'future/paywall.tsx')), true, 'parked paywall missing');
 });
 
-check('a locked surface can reach the paywall', () => {
+check('no shipped surface navigates to the paywall', () => {
   const referrers: string[] = [];
   const visit = (rel: string, code: string) => {
-    if (rel !== 'app/paywall.tsx' && code.includes('/paywall')) referrers.push(rel);
+    if (code.includes('/paywall')) referrers.push(rel);
   };
   eachSource('app', visit);
   eachSource('components', visit);
-  assert.ok(referrers.length > 0, 'nothing navigates to /paywall — the gate is unreachable');
+  assert.deepEqual(referrers, [], 'free launch: nothing may route to /paywall');
 });
 
 check('entitlement is never read from device storage', () => {
@@ -442,7 +434,7 @@ check('entitlement comes from the server endpoints', () => {
 check('both buying and restoring go through server verification', () => {
   // Restore must not be a second, weaker path to Pro. Every transaction —
   // fresh or restored — is submitted to the same verify endpoint.
-  const src = readCode('app/paywall.tsx');
+  const src = readCode('future/paywall.tsx');
   assert.ok(
     src.includes('verifyPurchaseForPlatform'),
     'purchase path does not verify with the server',
@@ -466,32 +458,29 @@ check('each platform has its own verification endpoint', () => {
   );
 });
 
-check('a visible Restore Purchases action is present', () => {
-  // Apple requires a restore mechanism for non-consumables, and it must be
-  // reachable without starting a purchase — hence Settings as well as the
-  // paywall. A user who reinstalls should never have to look at a buy button
-  // to get back what they already paid for.
-  assert.ok(readCode('app/paywall.tsx').includes('Restore Purchases'), 'missing on the paywall');
-  const profile = readCode('app/(tabs)/profile.tsx');
-  assert.ok(profile.includes('Restore Purchases'), 'missing in Settings');
-  assert.ok(
-    profile.includes('verifyPurchaseForPlatform'),
-    'Settings restore must verify with the server, not unlock locally',
-  );
+check('no Pro or Restore Purchases UI ships in the free launch', () => {
+  // Nothing is sold, so there is nothing to restore. A dangling Pro row in
+  // Settings would read as a broken feature to users and App Review.
+  const offenders: string[] = [];
+  const visit = (rel: string, code: string) => {
+    if (/Restore Purchases|LandHere Pro|expo-iap/.test(code)) offenders.push(rel);
+  };
+  eachSource('app', visit);
+  eachSource('components', visit);
+  assert.deepEqual(offenders, []);
 });
 
-check('expo-iap is a dependency and a registered config plugin', () => {
-  // Both halves matter. Without the dependency there is no StoreKit; without
-  // the config-plugin entry the native capability is never generated, and the
-  // purchase silently fails on device — which an Expo export cannot reveal.
+check('no store SDK ships: expo-iap is neither a dependency nor a plugin', () => {
+  // Free launch. Without the module there is no StoreKit / Play Billing in the
+  // binary, and the app runs in Expo Go and plain dev builds.
   const pkg = JSON.parse(readFileSync(join(MOBILE, 'package.json'), 'utf8'));
   const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
-  assert.ok('expo-iap' in deps, 'expo-iap must be a dependency');
+  assert.ok(!('expo-iap' in deps), 'expo-iap must not be a dependency');
 
   const appJson = JSON.parse(readFileSync(join(MOBILE, 'app.json'), 'utf8'));
   const plugins: unknown[] = appJson?.expo?.plugins ?? [];
   const names = plugins.map((p) => (Array.isArray(p) ? p[0] : p));
-  assert.ok(names.includes('expo-iap'), 'expo-iap must be in app.json plugins');
+  assert.ok(!names.includes('expo-iap'), 'expo-iap must not be in app.json plugins');
 });
 
 check('react-native-iap is not used alongside expo-iap', () => {

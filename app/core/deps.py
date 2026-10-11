@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.models.user import User
@@ -82,13 +83,21 @@ def user_has_pro(db: Session, user: User | None) -> bool:
     )
 
 
+def content_unlocked(db: Session, user: User | None) -> bool:
+    """True when this caller may see gated content. With the paywall off (the
+    free launch) that is everyone; otherwise only verified Pro owners."""
+    if not settings.PAYWALL_ENABLED:
+        return True
+    return user_has_pro(db, user)
+
+
 def require_pro(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> User:
     """Gate a route behind LandHere Pro. 401 when signed out, 403 when signed in
     without a purchase — the mobile app routes the 403 to the paywall."""
-    if not user_has_pro(db, current_user):
+    if not content_unlocked(db, current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="LandHere Pro required.",

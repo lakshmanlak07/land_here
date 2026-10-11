@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.core.deps import get_current_user_optional, user_has_pro
+from app.core.deps import get_current_user_optional, content_unlocked
 from app.core.rate_limit import rate_limiter
 from app.models.info_step import InfoStep, VALID_PHASES
 from app.models.user import User
@@ -57,7 +57,7 @@ def get_journey(
     # caller, so a shared cache would eventually hand a Pro response to a free
     # user. Private-only, and revalidated.
     response.headers["Cache-Control"] = "private, no-store"
-    is_pro = user_has_pro(db, current_user)
+    is_pro = content_unlocked(db, current_user)
     destination = destination.upper()
     origin = origin.upper() if origin else None
 

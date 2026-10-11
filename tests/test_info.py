@@ -2,25 +2,23 @@
 Tests for the /info endpoints.
 All read-only — relies on the IN→US steps seeded in conftest.py.
 
-/info/journey became entitlement-aware with LandHere Pro: an anonymous or free
-caller receives only the free phases. The tests that assert the *complete*
-journey therefore authenticate as a Pro user. The free-tier shape is asserted in
-tests/test_purchases.py, so both sides stay covered.
+With the free launch (PAYWALL_ENABLED=False) every caller sees the complete
+journey. The tests below use an ordinary account with NO purchase record, which
+is itself the free-access guarantee. The dormant paid-tier shape is still
+asserted in tests/test_purchases.py under the paid_mode fixture.
 """
 
 import pytest
 
-from tests.test_purchases import _account, _buy, apply_apple_test_settings
+from tests.test_purchases import _account
 
 EXPECTED_PHASES = ["after_acceptance", "visa_process", "before_departure", "after_arrival"]
 
 
 @pytest.fixture
-def pro_headers(client, monkeypatch):
-    """An account that owns LandHere Pro, so it sees the whole journey."""
-    apply_apple_test_settings(monkeypatch)
+def pro_headers(client):
+    """An ordinary free account - no purchase - which must see the whole journey."""
     _, headers, _ = _account(client)
-    assert _buy(client, headers).status_code == 200
     return headers
 
 

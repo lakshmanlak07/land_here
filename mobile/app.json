@@ -32,7 +32,6 @@
       "expo-router",
       "expo-secure-store",
       "expo-web-browser",
-      "expo-iap",
       "expo-font"
     ]
   }

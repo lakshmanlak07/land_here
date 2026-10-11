@@ -137,6 +137,15 @@ class Settings(BaseSettings):
     # Leave empty ("") to use the in-memory fallback (development / single-process).
     REDIS_URL: str = ""
 
+    # Free launch (Oct 2026): LandHere ships free. Both default OFF.
+    # PAYWALL_ENABLED  - when False, every authenticated/anonymous caller gets the
+    #                    full journey and rankings; no route consults purchases.
+    # PURCHASES_ENABLED - when False, every /purchases/* route answers 404, so no
+    #                    store verification or notification processing runs.
+    # The purchase code and tables are kept intact for a possible later return.
+    PAYWALL_ENABLED: bool = False
+    PURCHASES_ENABLED: bool = False
+
     @property
     def is_production(self) -> bool:
         return self.ENV.strip().lower() == "production"

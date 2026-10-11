@@ -8,15 +8,13 @@
 /**
  * In-app purchases / LandHere Pro.
  *
- * ON. The two conditions that had to be met first are met:
- *   1. The server verifies Apple's signed transaction (app/core/appstore.py)
- *      and records it in the `purchases` table; entitlement is read from that
- *      table and nowhere else.
- *   2. Premium content is withheld by the API itself — `require_pro` on
- *      university detail, and phase/row trimming on journey and rankings — so
- *      the client gate is presentation, not protection.
+ * OFF for the free launch (Oct 2026). Every feature is free; the server's
+ * PAYWALL_ENABLED and PURCHASES_ENABLED settings are off too, so the API never
+ * withholds content and every /purchases/* route answers 404. The paywall
+ * screen is parked in future/ and expo-iap is not installed, so no store SDK
+ * ships in the binary.
  *
  * The old AsyncStorage `landhere_purchased` flag is gone and must never come
  * back: a device-writable boolean is not an entitlement.
  */
-export const PURCHASES_ENABLED = true;
+export const PURCHASES_ENABLED = false;

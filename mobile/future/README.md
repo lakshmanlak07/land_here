@@ -3,7 +3,10 @@
 Code kept for future work but **deliberately outside `app/`** so Expo Router
 cannot route to it.
 
-Currently empty of screens.
+Currently holds `paywall.tsx`, parked for the free launch (Oct 2026).
+To bring Pro back: reinstall `expo-iap`, re-add its `app.json` plugin, move
+the screen to `app/`, set `PURCHASES_ENABLED` here and `PAYWALL_ENABLED` /
+`PURCHASES_ENABLED` on the server.
 
 ## History: paywall.tsx
 

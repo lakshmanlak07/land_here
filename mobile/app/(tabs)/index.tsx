@@ -22,8 +22,6 @@ import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import { getCountryName } from '../../constants/countries';
 import api from '../../lib/api';
 
-// Fully-locked premium features (show a lock badge on their Home tile).
-// Rankings and Journey are NOT here — they have free previews (top 10 / first half).
 import type { JourneyOut, CountryOut, InfoStep } from '../../lib/types';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -144,7 +142,7 @@ export default function HomeScreen() {
   }[] = [
     { key: 'necessities', title: 'Necessities', subtitle: 'What to get and do first', icon: 'document-text-outline', onPress: () => router.push('/necessities') },
     { key: 'money', title: 'Money Setup', subtitle: 'Currency and costs abroad', icon: 'card-outline', onPress: () => router.push('/money') },
-    { key: 'rankings', title: 'Rankings', subtitle: '500+ universities, scored', icon: 'trophy-outline', onPress: () => router.push('/(tabs)/rankings') },
+    { key: 'rankings', title: 'Rankings', subtitle: '250+ universities, scored', icon: 'trophy-outline', onPress: () => router.push('/(tabs)/rankings') },
     { key: 'scholarships', title: 'Scholarships', subtitle: 'Official sources only', icon: 'ribbon-outline', onPress: () => router.push('/scholarships') },
     { key: 'work-hours', title: 'Work hours', subtitle: 'Work rules for students', icon: 'briefcase-outline', onPress: () => router.push('/work-hours') },
     { key: 'visa', title: 'Visa steps', subtitle: 'Your step-by-step guide', icon: 'compass-outline', onPress: () => router.push('/(tabs)/journey') },
@@ -242,7 +240,7 @@ export default function HomeScreen() {
           {/* Floating search bar straddling the hero base */}
           <PressableScale style={s.search} onPress={() => router.push('/(tabs)/rankings')}>
             <Ionicons name="search" size={19} color={colors.textTertiary} />
-            <Text style={[s.searchText, { color: colors.textTertiary }]}>Browse 500+ ranked universities</Text>
+            <Text style={[s.searchText, { color: colors.textTertiary }]}>Browse 250+ ranked universities</Text>
           </PressableScale>
         </View>
 

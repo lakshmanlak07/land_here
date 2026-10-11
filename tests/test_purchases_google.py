@@ -26,6 +26,9 @@ import uuid
 
 import pytest
 
+# Paid-mode suite: the free launch turns the paywall off by default.
+pytestmark = pytest.mark.usefixtures("paid_mode")
+
 import app.core.googleplay as gp
 import app.core.rate_limit as rl
 from app.core.config import settings

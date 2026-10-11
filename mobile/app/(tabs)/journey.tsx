@@ -5,7 +5,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '../../lib/api';
 import { useAuthStore } from '../../lib/store';
@@ -40,109 +39,10 @@ const STAGE_TO_PHASE: Record<string, string> = {
 };
 
 
-/**
- * The Pro gate at the end of the free journey.
- *
- * Driven entirely by what the server said: `locked_phases` names the phases it
- * withheld. The steps inside them were never sent, so there is nothing here to
- * unlock client-side — this renders ghost rows and an upsell, not hidden
- * content. That is the difference from the previous paid tier, which shipped
- * every step to the device and hid half of them behind a boolean.
- */
-function JourneyProGate({
-  lockedPhases,
-  colors,
-  onUnlock,
-}: {
-  lockedPhases: string[];
-  colors: ReturnType<typeof useTheme>['colors'];
-  onUnlock: () => void;
-}) {
-  const names = lockedPhases.map((p) => PHASE_META[p]?.label ?? p);
-  return (
-    <View style={jgst.wrapper}>
-      {/* Ghost timeline rows standing in for the withheld steps. */}
-      {[0, 1, 2].map((i) => (
-        <View
-          key={i}
-          style={[jgst.ghostRow, { opacity: Math.max(0.12, 0.35 - i * 0.07) }]}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          <View style={jgst.rail}>
-            <View style={[jgst.ghostNode, { backgroundColor: colors.border }]} />
-            {i < 2 ? <View style={[jgst.ghostLine, { backgroundColor: colors.border }]} /> : null}
-          </View>
-          <View style={[jgst.ghostCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[jgst.ghostBar, { backgroundColor: colors.border, width: '72%' }]} />
-            <View style={[jgst.ghostBar, { backgroundColor: colors.border, width: '45%', marginTop: 9 }]} />
-          </View>
-        </View>
-      ))}
-      <LinearGradient
-        colors={['transparent', colors.bg] as [string, string]}
-        locations={[0, 1]}
-        style={jgst.fade}
-        pointerEvents="none"
-      />
-      <View style={[jgst.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={[jgst.lockIcon, { backgroundColor: colors.primary + '18' }]}>
-          <Ionicons name="lock-closed" size={22} color={colors.primary} />
-        </View>
-        <Text style={[jgst.title, { color: colors.textPrimary }]}>
-          {names.length} more {names.length === 1 ? 'phase' : 'phases'} to go
-        </Text>
-        <Text style={[jgst.sub, { color: colors.textSecondary }]}>
-          {names.join(' · ')} — every remaining step, from the visa process through
-          departure and your first weeks after arrival.
-        </Text>
-        <PressableScale
-          onPress={onUnlock}
-          style={[jgst.btn, { backgroundColor: colors.primary }]}
-          accessibilityRole="button"
-          accessibilityLabel={`Unlock the rest of your journey with LandHere Pro: ${names.join(', ')}`}
-        >
-          <Text style={jgst.btnText}>Unlock Full Journey</Text>
-        </PressableScale>
-        <Text style={[jgst.hint, { color: colors.textTertiary }]}>One-time · No subscription</Text>
-      </View>
-    </View>
-  );
-}
-
-const jgst = StyleSheet.create({
-  wrapper: { position: 'relative', marginTop: 4, marginBottom: 24 },
-  ghostRow: { flexDirection: 'row', gap: 14 },
-  rail: { width: 34, alignItems: 'center', flexShrink: 0 },
-  ghostNode: { width: 30, height: 30, borderRadius: 15 },
-  ghostLine: { width: 2, flex: 1, minHeight: 18, marginVertical: 3 },
-  ghostCard: { flex: 1, marginBottom: 16, borderRadius: 18, borderWidth: 1, padding: 15 },
-  ghostBar: { height: 10, borderRadius: 5 },
-  fade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 120 },
-  card: {
-    borderRadius: 18, borderWidth: 1, padding: 20, alignItems: 'center',
-    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 }, elevation: 4,
-  },
-  lockIcon: {
-    width: 48, height: 48, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
-  },
-  title: { fontSize: 17, fontWeight: '800', textAlign: 'center', marginBottom: 8, letterSpacing: -0.3 },
-  sub: { fontSize: 13, textAlign: 'center', lineHeight: 19, marginBottom: 18, maxWidth: 280 },
-  btn: {
-    width: '100%', borderRadius: 12, paddingVertical: 14, alignItems: 'center',
-    shadowColor: '#A4133C', shadowOpacity: 0.3, shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 }, elevation: 4,
-  },
-  btnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  hint: { fontSize: 11.5, marginTop: 10 },
-});
 
 export default function JourneyScreen() {
   const { colors, spacing, radius, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const user = useAuthStore((st) => st.user);
   const { toggle, isCompleted } = useProgressStore();
 
@@ -164,8 +64,6 @@ export default function JourneyScreen() {
   // and hid half of them locally, which meant the "locked" content was sitting
   // in the response the whole time.
   const displayPhases = data?.phases ?? [];
-  const lockedPhases = data?.locked_phases ?? [];
-  const proRequired = data?.pro_required === true;
 
   // Flattened for global step numbering and the auto-scroll anchor. Counts
   // cover the steps actually delivered, so a free user's progress bar reads
@@ -413,13 +311,6 @@ export default function JourneyScreen() {
               </View>
             );
           })}
-          {proRequired && lockedPhases.length > 0 ? (
-            <JourneyProGate
-              lockedPhases={lockedPhases}
-              colors={colors}
-              onUnlock={() => router.push('/paywall')}
-            />
-          ) : null}
         </View>
 
         {/* FTC / AI disclosure — required by FTC guidelines for AI-assisted content */}
