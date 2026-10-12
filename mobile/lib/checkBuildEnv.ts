@@ -55,12 +55,18 @@ const leaked = Object.keys({ ...process.env, ...fileEnv }).filter(
   (k) => /^EXPO_PUBLIC_.*(KEY|SECRET|TOKEN|PASSWORD)$/.test(k),
 );
 
-const errors = collectConfigErrors(env, { production });
+// An EAS *development* build is a dev client: it embeds no app JS (that is
+// served by the developer's local Metro, which reads the local mobile/.env),
+// so URL rules do not apply on the build machine. The credential check above
+// still does. Every other profile (staging, preview, production) is checked.
+const devClientBuild = process.env.EAS_BUILD_PROFILE === 'development';
+
+const errors = devClientBuild ? [] : collectConfigErrors(env, { production });
 for (const k of leaked) {
   errors.push(`${k} looks like a credential. EXPO_PUBLIC_* values ship inside the app bundle and are readable by anyone — move it server-side.`);
 }
 
-const mode = production ? 'production' : 'development';
+const mode = devClientBuild ? 'development-client' : production ? 'production' : 'development';
 if (errors.length > 0) {
   console.error(`\n✖ Environment is not valid for a ${mode} build:\n`);
   for (const e of errors) console.error(`  - ${e}`);
