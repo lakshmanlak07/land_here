@@ -934,7 +934,7 @@ def seed():
                 needs_sync = True
         if needs_sync:
             db.commit()
-            print("[seed] Country flags synced to live corridors (IN→US/CA/UK).")
+            print("[seed] Country flags synced to live corridors (IN->US/CA/UK).")
 
 
         # Check if IN->US steps already exist

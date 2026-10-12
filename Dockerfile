@@ -24,5 +24,9 @@ COPY . .
 # multiple workers without a shared (Redis) rate-limit backend — in-memory
 # limits don't coordinate across processes, so N workers = N× every limit.
 # Railway / Render inject PORT; default to 8000 for local Docker runs.
-RUN chmod +x /app/start.sh
+RUN chmod +x /app/start.sh \
+    && useradd --system --uid 10001 --no-create-home --home-dir /app appuser \
+    && chown -R appuser /app
+# Run as an unprivileged user: a compromise of the API process must not be root.
+USER appuser
 CMD ["/app/start.sh"]

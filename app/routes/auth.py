@@ -16,6 +16,7 @@ from app.core.security import (
     create_refresh_token,
     decode_refresh_claims,
 )
+from app.models.country import Country
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.schemas.user import (
@@ -103,6 +104,17 @@ _DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 _REGISTER_REJECTED = "Unable to register with these details."
 
 
+def _require_known_countries(db: Session, *codes: str | None) -> None:
+    """422 for a country code that is not in `countries`, instead of letting the
+    foreign key fail at commit time as a 500."""
+    for code in codes:
+        if code is not None and db.query(Country.id).filter(Country.code == code).first() is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Unknown country code.",
+            )
+
+
 @router.post(
     "/register",
     response_model=TokenOut,
@@ -110,6 +122,7 @@ _REGISTER_REJECTED = "Unable to register with these details."
     dependencies=[Depends(_register_limit)],
 )
 def register(body: UserRegister, db: Session = Depends(get_db)):
+    _require_known_countries(db, body.origin_country_code, body.destination_country_code)
     # body.email is already normalized (trimmed + lower-cased) by the schema, so
     # this pre-check and the unique constraint both compare the canonical form.
     if db.query(User).filter(User.email == body.email).first():
@@ -259,7 +272,11 @@ def update_me(
 ):
     # exclude_unset → apply only the fields the client actually sent. An omitted
     # field is left untouched; a field sent explicitly as null clears that value.
-    for field, value in body.model_dump(exclude_unset=True).items():
+    updates = body.model_dump(exclude_unset=True)
+    _require_known_countries(
+        db, updates.get("origin_country_code"), updates.get("destination_country_code")
+    )
+    for field, value in updates.items():
         setattr(current_user, field, value)
     db.commit()
     db.refresh(current_user)

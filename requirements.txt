@@ -5,12 +5,10 @@ uvicorn[standard]
 sqlalchemy
 alembic
 psycopg2-binary
-python-jose[cryptography]
-# python-jose pulls `ecdsa`, which carries PYSEC-2026-1325 with NO upstream fix
-# as of 2026-08-18. Assessed and accepted: this app signs and verifies JWTs with
-# HS256 only (app/core/config.py ALGORITHM), which is HMAC — the ecdsa package's
-# EC code paths are never reached, and no attacker-controlled EC key or
-# signature ever enters the process. Revisit if ALGORITHM ever becomes ES*.
+# JWT: PyJWT (maintained). Replaced python-jose in Oct 2026 - jose was
+# unmaintained, carried CVE-2026-85394 with no fix, and pulled in `ecdsa`
+# (PYSEC-2026-1325, no fix). HS256 only; algorithms are pinned on decode.
+PyJWT>=2.15.0
 passlib[bcrypt]
 bcrypt==4.0.1
 python-dotenv
@@ -30,3 +28,6 @@ app-store-server-library>=3.1,<4
 google-auth>=2.35,<3
 # Transitive via google-auth. Floor set for PYSEC-2026-3455/3456/3457.
 pyasn1>=0.6.4
+# Transitive floors set for advisories found 2026-10-11 (pip-audit).
+urllib3>=2.8.0
+anyio>=4.14.2

@@ -1,0 +1,44 @@
+# Keep secrets, local state and the mobile app out of the API image.
+# The image needs only: app/, alembic/, alembic.ini, requirements.txt,
+# start.sh, vendor/ (Apple root CA dir).
+.env
+.env.*
+*.env
+!.env.example
+**/.env
+**/.env.*
+.git
+.gitignore
+.github
+.claude
+.venv
+venv
+env
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.log
+mobile
+tests
+LAUNCH
+web
+*.md
+!vendor/apple-root-ca/README.md
+_lookup*.py
+lookup_*.py
+run_ingest.py
+*.bat
+*.dump
+*.sql
+*.key
+*.pem
+*.p8
+*.p12
+*.jks
+*.keystore
+Dockerfile
+.dockerignore
+render.yaml
+railway.toml

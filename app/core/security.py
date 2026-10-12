@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError as JWTError
 from passlib.context import CryptContext
 
 from app.core.config import settings
@@ -73,7 +74,7 @@ def _decode_claims(token: str, expected_type: str) -> dict | None:
 
 def _decode_token(token: str, expected_type: str) -> str | None:
     """Return the token subject iff the signature/expiry are valid AND the token
-    is of the expected type; otherwise None. jose verifies `exp` automatically."""
+    is of the expected type; otherwise None. PyJWT verifies `exp` automatically."""
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]

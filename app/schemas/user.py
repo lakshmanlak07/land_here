@@ -22,13 +22,22 @@ def _normalize_email(value: str) -> str:
 # already-valid address. Reused by every auth model so the rule lives in one place.
 NormalizedEmail = Annotated[EmailStr, AfterValidator(_normalize_email)]
 
+# Country codes as stored in `countries.code` (e.g. "US", "IN", "UK"). Shape is
+# checked here; existence is checked against the table in the route, so an
+# unknown code is a 422 instead of a foreign-key error (500).
+CountryCode = Annotated[
+    str,
+    AfterValidator(lambda v: v.strip().upper()),
+    Field(min_length=2, max_length=10, pattern=r"^\s*[A-Za-z]{2,10}\s*$"),
+]
+
 
 class UserRegister(BaseModel):
     email: NormalizedEmail
     password: str = Field(min_length=8, max_length=_MAX_PASSWORD_LEN)
-    full_name: str | None = None
-    origin_country_code: str | None = None
-    destination_country_code: str | None = None
+    full_name: str | None = Field(None, max_length=200)
+    origin_country_code: CountryCode | None = None
+    destination_country_code: CountryCode | None = None
 
 
 class UserLogin(BaseModel):
@@ -69,16 +78,20 @@ class UserOnboarding(BaseModel):
     one answer at a time. Only fields actually present in the request body are
     applied (see PATCH /auth/me); unset fields are left untouched."""
 
-    origin_country_code: str | None = None
-    destination_country_code: str | None = None
+    origin_country_code: CountryCode | None = None
+    destination_country_code: CountryCode | None = None
     stage: StageEnum | None = None
     wants_to_work: bool | None = None
     wants_scholarships: bool | None = None
-    concerns: list[str] | None = None
-    first_month_priority: str | None = None
+    # Bounded so one account cannot store arbitrarily large JSON.
+    concerns: list[Annotated[str, Field(min_length=1, max_length=40)]] | None = Field(
+        None, max_length=12
+    )
+    # Column is String(30); reject longer values with a 422, not a DB error.
+    first_month_priority: str | None = Field(None, max_length=30)
     first_timer: bool | None = None
-    confidence: int | None = None
-    primary_goal: str | None = None
+    confidence: int | None = Field(None, ge=1, le=10)
+    primary_goal: str | None = Field(None, max_length=30)
 
 
 class TokenOut(BaseModel):
