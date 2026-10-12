@@ -6,13 +6,15 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "node": "22.14.0"
     },
     "preview": {
       "distribution": "internal",
       "ios": {
         "simulator": false
-      }
+      },
+      "node": "22.14.0"
     },
     "staging": {
       "distribution": "internal",
@@ -24,7 +26,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://landhere-api-staging.onrender.com"
-      }
+      },
+      "node": "22.14.0"
     },
     "production": {
       "autoIncrement": true,
@@ -33,7 +36,8 @@
         "EXPO_PUBLIC_PRIVACY_POLICY_URL": "SET_IN_EAS_DASHBOARD",
         "EXPO_PUBLIC_TERMS_URL": "SET_IN_EAS_DASHBOARD",
         "EXPO_PUBLIC_SUPPORT_URL": "SET_IN_EAS_DASHBOARD"
-      }
+      },
+      "node": "22.14.0"
     }
   },
   "submit": {
