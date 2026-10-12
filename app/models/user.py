@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, ForeignKey, DateTime, Boolean, Integer, JSON
+from sqlalchemy import String, ForeignKey, DateTime, Boolean, Integer, JSON, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -8,6 +8,12 @@ from app.core.database import Base
 
 class User(Base):
     __tablename__ = "users"
+    # Mirrors the indexes the migrations create, so `alembic check` and
+    # autogenerate see no drift (and never propose dropping them).
+    __table_args__ = (
+        Index("ix_users_origin_country_code", "origin_country_code"),
+        Index("ix_users_destination_country_code", "destination_country_code"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)

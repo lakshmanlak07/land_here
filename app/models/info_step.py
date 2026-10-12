@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, Integer, Boolean, Text, ForeignKey
+from sqlalchemy import String, Integer, Boolean, Text, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -15,6 +15,13 @@ VALID_PHASES = (
 
 class InfoStep(Base):
     __tablename__ = "info_steps"
+    # Mirrors the indexes the migrations create, so `alembic check` and
+    # autogenerate see no drift (and never propose dropping them).
+    __table_args__ = (
+        Index("ix_info_steps_destination_code", "destination_code"),
+        Index("ix_info_steps_origin_code", "origin_code"),
+        Index("ix_info_steps_destination_phase_step", "destination_code", "phase", "step_number"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     origin_code: Mapped[str | None] = mapped_column(String(10), nullable=True)

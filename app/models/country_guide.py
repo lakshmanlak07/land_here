@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, Boolean, Text, ForeignKey
+from sqlalchemy import String, Boolean, Text, ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -17,6 +17,11 @@ VALID_SECTIONS = (
 
 class CountryGuide(Base):
     __tablename__ = "country_guides"
+    # Mirrors the indexes the migrations create, so `alembic check` and
+    # autogenerate see no drift (and never propose dropping them).
+    __table_args__ = (
+        Index("ix_country_guides_country_code", "country_code"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     country_code: Mapped[str] = mapped_column(

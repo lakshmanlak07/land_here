@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, Integer, Float, DateTime
+from sqlalchemy import String, Boolean, Integer, Float, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -8,6 +8,13 @@ from app.core.database import Base
 
 class University(Base):
     __tablename__ = "universities"
+    # Mirrors the indexes the migrations create, so `alembic check` and
+    # autogenerate see no drift (and never propose dropping them).
+    __table_args__ = (
+        Index("ix_universities_full_score_landhere", "has_full_score", "landhere_score"),
+        Index("ix_universities_state", "state"),
+        Index("ix_universities_tuition_out_of_state", "tuition_out_of_state"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
 
