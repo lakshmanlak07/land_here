@@ -33,6 +33,13 @@
       "expo-secure-store",
       "expo-web-browser",
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c86c69e6-8064-400c-a3af-d3533dc1f4b8"
+      }
+    },
+    "owner": "lakshmaaan77"
   }
 }
