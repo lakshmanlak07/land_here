@@ -144,6 +144,17 @@ class Settings(BaseSettings):
     #                    store verification or notification processing runs.
     # The purchase code and tables are kept intact for a possible later return.
     PAYWALL_ENABLED: bool = False
+    # Password recovery email (stdlib SMTP; any provider with SMTP works —
+    # Resend, Postmark, SES...). With SMTP_HOST unset the forgot-password
+    # endpoint still answers 202 (no enumeration) but no email is sent.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = ""
+    # Link placed in the email; the app handles landhere://reset-password.
+    PASSWORD_RESET_URL: str = "landhere://reset-password"
+    PASSWORD_RESET_TTL_MINUTES: int = 30
     PURCHASES_ENABLED: bool = False
 
     @property

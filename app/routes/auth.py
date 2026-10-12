@@ -1,8 +1,9 @@
+import hashlib
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,7 +17,10 @@ from app.core.security import (
     create_refresh_token,
     decode_refresh_claims,
 )
+from app.core.config import settings
+from app.core.mailer import send_email
 from app.models.country import Country
+from app.models.password_reset import PasswordResetToken
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.schemas.user import (
@@ -26,6 +30,8 @@ from app.schemas.user import (
     UserOnboarding,
     TokenOut,
     RefreshRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -281,3 +287,121 @@ def update_me(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+# ── Password recovery ─────────────────────────────────────────────────────────
+# forgot: always 202 with the same body, whether or not the email has an
+# account (no enumeration). The email is sent in a background task so the
+# response time does not reveal it either. Tokens are 256-bit random, stored
+# only as SHA-256, single use, short-lived; issuing a new one invalidates the
+# older ones. reset: sets the password and revokes EVERY refresh-token family,
+# signing out all devices (incl. whoever may have had the old password).
+
+_forgot_ip_limit = rate_limiter("auth_forgot", limit=10, window_seconds=600)
+_reset_limit = rate_limiter("auth_reset", limit=20, window_seconds=600)
+
+_FORGOT_ACCEPTED = {
+    "detail": "If an account exists for that email, a reset link is on its way."
+}
+_RESET_INVALID = HTTPException(
+    status_code=status.HTTP_400_BAD_REQUEST,
+    detail="This reset link is invalid or has expired. Request a new one.",
+)
+
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _reset_email_text(token: str) -> str:
+    link = f"{settings.PASSWORD_RESET_URL}?token={token}"
+    return "\n".join(
+        [
+            "Someone asked to reset the password for your LandHere account.",
+            "",
+            "Open this link on your phone to choose a new password:",
+            link,
+            "",
+            'Or open LandHere, tap "Forgot password?", then "I have a code", and paste:',
+            token,
+            "",
+            f"It expires in {settings.PASSWORD_RESET_TTL_MINUTES} minutes and works once.",
+            "If you didn't ask for this, ignore this email; your password stays the same.",
+        ]
+    )
+
+
+@router.post(
+    "/password/forgot",
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(_forgot_ip_limit)],
+)
+def forgot_password(
+    body: ForgotPasswordRequest,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    # Per-address cap too, so one inbox cannot be flooded from many IPs.
+    enforce_limit(f"rl:auth_forgot_email:{body.email}", limit=3, window_seconds=900)
+    user = db.query(User).filter(User.email == body.email).first()
+    if user is None:
+        return _FORGOT_ACCEPTED
+
+    now = datetime.now(timezone.utc)
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id,
+        PasswordResetToken.used_at.is_(None),
+    ).update({"used_at": now}, synchronize_session=False)
+    token = secrets.token_urlsafe(32)
+    db.add(
+        PasswordResetToken(
+            user_id=user.id,
+            token_hash=_hash_reset_token(token),
+            expires_at=now + timedelta(minutes=settings.PASSWORD_RESET_TTL_MINUTES),
+        )
+    )
+    db.commit()
+    background.add_task(
+        send_email, user.email, "Reset your LandHere password", _reset_email_text(token)
+    )
+    return _FORGOT_ACCEPTED
+
+
+@router.post(
+    "/password/reset",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(_reset_limit)],
+)
+def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
+    now = datetime.now(timezone.utc)
+    # Claim the token atomically: exactly one request can flip used_at.
+    record = (
+        db.query(PasswordResetToken)
+        .filter(PasswordResetToken.token_hash == _hash_reset_token(body.token))
+        .first()
+    )
+    if record is None or record.used_at is not None:
+        raise _RESET_INVALID
+    expires_at = record.expires_at
+    if expires_at.tzinfo is None:  # SQLite drops tz info
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= now:
+        raise _RESET_INVALID
+    claimed = (
+        db.query(PasswordResetToken)
+        .filter(PasswordResetToken.id == record.id, PasswordResetToken.used_at.is_(None))
+        .update({"used_at": now}, synchronize_session=False)
+    )
+    if claimed == 0:
+        db.rollback()
+        raise _RESET_INVALID
+    user = db.query(User).filter(User.id == record.user_id).first()
+    if user is None:
+        db.rollback()
+        raise _RESET_INVALID
+    user.hashed_password = hash_password(body.new_password)
+    db.query(RefreshToken).filter(
+        RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None)
+    ).update({"revoked_at": now}, synchronize_session=False)
+    db.commit()
+    return None

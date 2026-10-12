@@ -32,6 +32,7 @@ import app.models.info_step  # noqa: F401
 import app.models.country_guide  # noqa: F401
 import app.models.refresh_token  # noqa: F401
 import app.models.purchase  # noqa: F401
+import app.models.password_reset  # noqa: F401
 from app.core.database import Base, get_db
 from app.main import app as fastapi_app
 

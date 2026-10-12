@@ -21,6 +21,7 @@ import app.models.country_guide  # noqa: E402, F401
 import app.models.university  # noqa: E402, F401
 import app.models.refresh_token  # noqa: E402, F401
 import app.models.purchase  # noqa: E402, F401
+import app.models.password_reset  # noqa: E402, F401
 
 target_metadata = Base.metadata
 

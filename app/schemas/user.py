@@ -106,6 +106,15 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: NormalizedEmail
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    new_password: str = Field(min_length=8, max_length=_MAX_PASSWORD_LEN)
+
+
 class AccountDeleteRequest(BaseModel):
     # Re-entering the password is the irreversible-action confirmation: deletion
     # must require proof of identity beyond merely possessing the token (e.g. an

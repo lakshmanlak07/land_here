@@ -149,6 +149,15 @@ export default function LoginScreen() {
               </View>
             </View>
 
+            <Pressable
+              style={{ alignSelf: 'flex-end', marginTop: 12 }}
+              onPress={() => router.push('/(auth)/reset-password')}
+              hitSlop={8}
+              accessibilityRole="button"
+            >
+              <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.primary }}>Forgot password?</Text>
+            </Pressable>
+
             <PressableScale style={[s.cta, { backgroundColor: colors.primary }, loading && { opacity: 0.6 }]} onPress={handleLogin} disabled={loading} haptic>
               {loading ? <ActivityIndicator color="#fff" /> : (
                 <>
