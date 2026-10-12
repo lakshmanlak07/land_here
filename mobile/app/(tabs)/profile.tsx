@@ -3,7 +3,6 @@ import {
   View, Text, StyleSheet, Switch, ScrollView,
   Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, Linking, Alert,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -65,9 +64,9 @@ export default function ProfileScreen() {
     setError(null);
     try {
       await api.delete('/account', { data: { password } });
+      // The account is gone: drop its on-device progress too, then sign out.
+      if (user?.id) await useProgressStore.getState().forget(user.id);
       logout();
-      useProgressStore.setState({ completedIds: {} });
-      AsyncStorage.removeItem('journey_completed_ids').catch(() => {});
       setConfirmOpen(false);
       router.replace('/(auth)/login');
     } catch (e) {
@@ -79,8 +78,7 @@ export default function ProfileScreen() {
   }
 
   function handleLogout() {
-    useProgressStore.setState({ completedIds: {} });
-    AsyncStorage.removeItem('journey_completed_ids').catch(() => {});
+    // Progress is per-account and re-bound by the root layout on sign-out.
     logout();
     router.replace('/(auth)/login');
   }

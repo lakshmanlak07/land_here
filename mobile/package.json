@@ -42,7 +42,7 @@
     "web": "expo start --web",
     "check:env": "node --experimental-strip-types lib/checkBuildEnv.ts",
     "check:env:dev": "node --experimental-strip-types lib/checkBuildEnv.ts --dev",
-    "check": "node --experimental-strip-types lib/urlPolicy.check.ts",
+    "check": "node --experimental-strip-types lib/urlPolicy.check.ts && node --experimental-strip-types lib/session.check.ts",
     "eas-build-pre-install": "node --experimental-strip-types lib/checkBuildEnv.ts",
     "lint": "eslint ."
   },

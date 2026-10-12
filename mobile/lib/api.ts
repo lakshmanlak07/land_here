@@ -3,7 +3,7 @@
 // import/no-named-as-default-member rule expects. Behaviour is identical.
 import { create as createAxios, isAxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from './store';
-import type { TokenOut } from './types';
+import { requestRefresh } from './sessionPolicy';
 
 /**
  * The backend base URL. Read and validated in lib/config.ts, which is the one
@@ -48,27 +48,15 @@ async function performRefresh(): Promise<string | null> {
     logout();
     return null;
   }
-  try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    if (!res.ok) {
-      logout();
-      return null;
-    }
-    const pair = (await res.json()) as TokenOut;
-    if (pair?.access_token && pair?.refresh_token) {
-      setTokens(pair.access_token, pair.refresh_token);
-      return pair.access_token;
-    }
-    logout();
-    return null;
-  } catch {
-    logout();
-    return null;
+  const result = await requestRefresh(fetch, API_URL, refreshToken);
+  if (result.kind === 'ok') {
+    setTokens(result.pair.access_token, result.pair.refresh_token);
+    return result.pair.access_token;
   }
+  // Only a definitive rejection ends the session. A network error, timeout or
+  // 5xx keeps the stored credentials; the request fails and is retried later.
+  if (result.kind === 'invalid') logout();
+  return null;
 }
 
 api.interceptors.response.use(

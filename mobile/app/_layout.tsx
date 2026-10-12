@@ -63,13 +63,19 @@ function ThemedNavigation() {
 
 export default function RootLayout() {
   const hydrate = useAuthStore((s) => s.hydrate);
-  const hydrateProgress = useProgressStore((s) => s.hydrate);
+  const userId = useAuthStore((s) => s.user?.id ?? null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     hydrate();
-    hydrateProgress();
-  }, [hydrate, hydrateProgress]);
+  }, [hydrate]);
+
+  // Journey progress follows the signed-in account. Re-binding on every user-id
+  // change isolates progress on ALL sign-out paths (button, expired or revoked
+  // session, account deletion) — see lib/progressCore.ts.
+  useEffect(() => {
+    useProgressStore.getState().setUser(userId);
+  }, [userId]);
 
   return (
     // GestureHandlerRootView must wrap the whole app so gesture-handler and

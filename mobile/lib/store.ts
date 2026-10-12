@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { API_URL } from './config';
-import type { TokenOut, UserOut } from './types';
+import type { UserOut } from './types';
 import { resetServerCache } from './queryClient';
+import { requestRefresh } from './sessionPolicy';
 
 const TOKEN_KEY = 'auth_token';
 // Long-lived refresh token. Stored alongside the access token so a cold start
@@ -15,6 +16,24 @@ const REFRESH_TOKEN_KEY = 'refresh_token';
 // — we track it explicitly here. Device-local by design; a fresh install or a
 // new device re-shows the flow.
 const ONBOARDED_KEY = 'onboarding_complete';
+// Last /auth/me profile, so an offline or server-down launch keeps the user
+// signed in with their own data instead of bouncing them to login. Profile
+// fields only (no credentials). Cleared on sign-out.
+const USER_KEY = 'auth_user';
+
+function cacheUser(user: UserOut | null) {
+  if (user) SecureStore.setItemAsync(USER_KEY, JSON.stringify(user)).catch(() => {});
+  else SecureStore.deleteItemAsync(USER_KEY).catch(() => {});
+}
+
+async function readCachedUser(): Promise<UserOut | null> {
+  try {
+    const raw = await SecureStore.getItemAsync(USER_KEY);
+    return raw ? (JSON.parse(raw) as UserOut) : null;
+  } catch {
+    return null;
+  }
+}
 
 interface AuthState {
   token: string | null;
@@ -43,6 +62,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // survive an identity change — see resetServerCache.
     resetServerCache();
     set({ token: accessToken, refreshToken, user });
+    cacheUser(user);
     SecureStore.setItemAsync(TOKEN_KEY, accessToken).catch(() => {});
     SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken).catch(() => {});
   },
@@ -58,7 +78,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // Merge updated fields into the current user (e.g. after PATCH /auth/me).
   // No-op when signed out, so callers needn't guard against a null user.
   patchUser: (fields) =>
-    set((state) => (state.user ? { user: { ...state.user, ...fields } } : {})),
+    set((state) => {
+      if (!state.user) return {};
+      const user = { ...state.user, ...fields };
+      cacheUser(user);
+      return { user };
+    }),
 
   // Mark onboarding done for this device and persist the flag so it survives
   // relaunches. Called when the flow finishes or is skipped.
@@ -93,108 +118,97 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
     SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch(() => {});
     SecureStore.deleteItemAsync(ONBOARDED_KEY).catch(() => {});
+    cacheUser(null);
   },
 
   hydrate: async () => {
-    // Read the onboarding flag up front so every settle-path below carries it.
     const onboarded = (await SecureStore.getItemAsync(ONBOARDED_KEY).catch(() => null)) === '1';
     const settleSignedOut = () =>
       set({ token: null, refreshToken: null, user: null, hydrated: true, onboarded });
-    const clearStoredTokens = async () => {
+    const clearStoredSession = async () => {
       await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
       await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch(() => {});
+      await SecureStore.deleteItemAsync(USER_KEY).catch(() => {});
+    };
+    // Keep the stored session when the server could not be reached: the
+    // credentials may be perfectly valid. The api.ts interceptor refreshes on
+    // the first 401 once the network is back.
+    const settleOffline = async (token: string, refreshTok: string | null) => {
+      set({ token, refreshToken: refreshTok, user: await readCachedUser(), hydrated: true, onboarded });
     };
 
     try {
       const token = await SecureStore.getItemAsync(TOKEN_KEY);
       const refreshTok = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY).catch(() => null);
       const apiUrl = API_URL;
-      // Guard a missing API URL: without it we'd fetch `undefined/auth/me` and
-      // fail confusingly. api.ts already logs the misconfiguration loudly at
-      // startup; here we just skip the call and settle into signed-out.
-      if (token && apiUrl) {
-        // Bounded /auth/me with a given access token. Returns the user on 200,
-        // 'unauthorized' on 401, or null on any network/timeout failure — so a
-        // dead token (refreshable) is distinguishable from "backend unreachable".
-        const fetchMe = async (
-          accessToken: string,
-        ): Promise<UserOut | 'unauthorized' | null> => {
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 10000);
-          try {
-            const res = await fetch(`${apiUrl}/auth/me`, {
-              headers: { Authorization: `Bearer ${accessToken}` },
-              signal: controller.signal,
-            });
-            if (res.ok) return (await res.json()) as UserOut;
-            if (res.status === 401) return 'unauthorized';
-            return null;
-          } catch {
-            return null;
-          } finally {
-            clearTimeout(timer);
-          }
-        };
-
-        const me = await fetchMe(token);
-        if (me && me !== 'unauthorized') {
-          set({ token, refreshToken: refreshTok, user: me, hydrated: true, onboarded });
-          return;
-        }
-
-        // Access token rejected (401). Attempt exactly ONE refresh, then retry
-        // /auth/me with the new access token. (A null `me` is a network failure —
-        // we keep the tokens and just settle signed-out, mirroring prior behaviour.)
-        if (me === 'unauthorized') {
-          if (refreshTok) {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 10000);
-            let pair: TokenOut | null = null;
-            try {
-              const res = await fetch(`${apiUrl}/auth/refresh`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh_token: refreshTok }),
-                signal: controller.signal,
-              });
-              if (res.ok) pair = (await res.json()) as TokenOut;
-            } catch {
-              // network/timeout — pair stays null, falls through to sign-out below.
-            } finally {
-              clearTimeout(timer);
-            }
-
-            if (pair?.access_token && pair?.refresh_token) {
-              // Persist the rotated pair before using it, so it survives even if
-              // the immediate /auth/me retry hits a transient network failure.
-              await SecureStore.setItemAsync(TOKEN_KEY, pair.access_token).catch(() => {});
-              await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, pair.refresh_token).catch(() => {});
-              const me2 = await fetchMe(pair.access_token);
-              if (me2 && me2 !== 'unauthorized') {
-                set({
-                  token: pair.access_token,
-                  refreshToken: pair.refresh_token,
-                  user: me2,
-                  hydrated: true,
-                  onboarded,
-                });
-                return;
-              }
-              // Refresh worked but the retry didn't: a 401 means the new token is
-              // somehow bad → clear; a null means network → keep the stored pair
-              // for next launch. Either way settle signed-out for this boot.
-              if (me2 === 'unauthorized') await clearStoredTokens();
-              settleSignedOut();
-              return;
-            }
-          }
-          // Refresh failed or no refresh token → both tokens are dead. Clear them.
-          await clearStoredTokens();
-          settleSignedOut();
-          return;
-        }
+      if (!token || !apiUrl) {
+        settleSignedOut();
+        return;
       }
-    } catch {}
-    settleSignedOut();
+
+      const fetchMe = async (accessToken: string): Promise<UserOut | 'unauthorized' | null> => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 10000);
+        try {
+          const res = await fetch(`${apiUrl}/auth/me`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: controller.signal,
+          });
+          if (res.ok) return (await res.json()) as UserOut;
+          if (res.status === 401) return 'unauthorized';
+          return null; // 5xx / 429 etc.: no verdict on the token
+        } catch {
+          return null; // offline / timeout
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+
+      const me = await fetchMe(token);
+      if (me && me !== 'unauthorized') {
+        set({ token, refreshToken: refreshTok, user: me, hydrated: true, onboarded });
+        cacheUser(me);
+        return;
+      }
+      if (me === null) {
+        await settleOffline(token, refreshTok);
+        return;
+      }
+
+      // 401: the access token expired (normal after 60 min). Try the refresh.
+      if (!refreshTok) {
+        await clearStoredSession();
+        settleSignedOut();
+        return;
+      }
+      const result = await requestRefresh(fetch, apiUrl, refreshTok);
+      if (result.kind === 'invalid') {
+        await clearStoredSession();
+        settleSignedOut();
+        return;
+      }
+      if (result.kind === 'transient') {
+        await settleOffline(token, refreshTok);
+        return;
+      }
+      const { access_token, refresh_token } = result.pair;
+      await SecureStore.setItemAsync(TOKEN_KEY, access_token).catch(() => {});
+      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refresh_token).catch(() => {});
+      const me2 = await fetchMe(access_token);
+      if (me2 === 'unauthorized') {
+        // A freshly minted token rejected means the account is gone.
+        await clearStoredSession();
+        settleSignedOut();
+        return;
+      }
+      if (me2 === null) {
+        await settleOffline(access_token, refresh_token);
+        return;
+      }
+      set({ token: access_token, refreshToken: refresh_token, user: me2, hydrated: true, onboarded });
+      cacheUser(me2);
+    } catch {
+      settleSignedOut();
+    }
   },
 }));

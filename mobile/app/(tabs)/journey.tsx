@@ -44,7 +44,9 @@ export default function JourneyScreen() {
   const { colors, spacing, radius, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const user = useAuthStore((st) => st.user);
-  const { toggle, isCompleted } = useProgressStore();
+  const toggle = useProgressStore((st) => st.toggle);
+  const completedIds = useProgressStore((st) => st.completedIds);
+  const isCompleted = (id: string) => !!completedIds[id];
 
   const { data, isLoading, isError, refetch, isRefetching } = useQuery<JourneyOut>({
     queryKey: ['journey', user?.origin_country_code, user?.destination_country_code],
