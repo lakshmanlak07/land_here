@@ -147,6 +147,8 @@ class Settings(BaseSettings):
     # Password recovery email (stdlib SMTP; any provider with SMTP works —
     # Resend, Postmark, SES...). With SMTP_HOST unset the forgot-password
     # endpoint still answers 202 (no enumeration) but no email is sent.
+    # Preferred: Resend HTTP API (https://resend.com). Server-side secret only.
+    RESEND_API_KEY: str = ""
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""

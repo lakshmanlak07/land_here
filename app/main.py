@@ -93,6 +93,14 @@ app.include_router(universities.router)
 app.include_router(images.router)
 app.include_router(purchases.router)
 
+from app.core.mailer import email_configured  # noqa: E402
+
+if settings.is_production and not email_configured():
+    logger.warning(
+        "ENV=production with no email provider: password-reset emails will NOT be "
+        "delivered. Set EMAIL_FROM and RESEND_API_KEY (or SMTP_*)."
+    )
+
 if settings.is_production and not settings.REDIS_URL:
     # Without REDIS_URL the rate limiter is in-memory and per-process: with
     # multiple workers or instances the effective limit multiplies and resets on

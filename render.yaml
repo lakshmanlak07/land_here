@@ -66,6 +66,13 @@ services:
       # Server-side Unsplash key for GET /images/city. Never an EXPO_PUBLIC_ var.
       - key: UNSPLASH_ACCESS_KEY
         sync: false
+      # Password-reset email via Resend. Secret: set in the Render dashboard only.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: PASSWORD_RESET_URL
+        value: landhere://reset-password
 
       # ── LandHere Pro / App Store verification ─────────────────────────────
       # None of these is a secret; see .env.example. No Apple private key,
