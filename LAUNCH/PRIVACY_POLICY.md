@@ -11,7 +11,7 @@
 
 # LandHere Privacy Policy
 
-_Draft revised: August 16, 2026 · Contact: lakshmanlak07@gmail.com_
+_Draft revised: October 13, 2026 · Contact: lakshmanlak07@gmail.com_
 
 This policy describes how the LandHere app ("we", "us", "our") handles your
 information. It is written to reflect what the app actually does today, based on a
@@ -50,69 +50,15 @@ information and step-by-step guidance only.
 **Your checklist progress stays on your device.** The steps you mark as done are
 saved locally on your phone, not on our servers, and are cleared when you sign out.
 
-## Purchases
+## Price
 
-LandHere is free to download and free to use. It offers one optional **one-time,
-non-consumable in-app purchase** called **LandHere Pro** (product identifier
-`com.landhere.app.pro`), priced at **US $1.99** or the equivalent your app store
-shows in your country. **There is no subscription and no recurring charge.**
-
-The payment itself is processed entirely by **Apple (App Store)** on iPhone, or
-by **Google (Google Play)** on Android. We never see or store your card number,
-billing address, or any payment details from either.
-
-**We do record that your account owns Pro.** When you buy or restore Pro, the App
-Store gives the app a receipt signed by Apple. The app sends that receipt to our
-server, which checks Apple's signature and then stores:
-
-- the store's identifiers for that purchase — Apple's `originalTransactionId`
-  and `transactionId`, or Google's purchase token and order id. These are
-  random-looking identifiers issued by the store, not payment data
-- which store the purchase came from
-- the product identifier (`com.landhere.app.pro`)
-- whether the purchase came from Apple's production or sandbox environment
-- the purchase date, the date we verified it, and — if Apple later tells us the
-  purchase was refunded or revoked — that date
-
-This record is linked to your LandHere account. We need that link because Pro
-content is withheld by our server, not merely hidden in the app, so the server
-has to know which account is entitled. The store's identifier is stored
-**uniquely per store**, which means one purchase entitles one LandHere account.
-
-**On Android**, verifying a purchase means our server asks Google whether your
-purchase token is valid. That request identifies the purchase, not you — we send
-Google no LandHere account information.
-
-- **Restoring:** "Restore Purchases" (on the Pro screen and in Settings) asks
-  Apple for your past purchases and re-verifies them with our server.
-- **Refunds** are requested from and decided by **Apple**, under Apple's policies.
-  We cannot issue, approve, or refuse a refund. Apple notifies our server when a
-  refund is granted, and Pro access ends at that point.
-
-**We also keep a short log of the messages Apple sends us** about purchases —
-for example, that a particular purchase was refunded. Each entry holds Apple's
-message identifier, the type of message, Apple's transaction identifier, and the
-time we received it. It contains no name, email, or payment information.
-
-⚠️ _[Lawyer to review — this is the one place our deletion promise is
-incomplete.]_ That log is intentionally **not** deleted when you delete your
-account. It exists so that if Apple re-sends the same message (which Apple does
-until it receives a confirmation), we recognise it as one we have already
-handled. After your account is deleted the entry is an orphan: Apple's
-transaction identifier with nothing left to connect it to you. We keep it
-because deleting it would mean a re-sent message could be processed twice.
-- **If you delete your account,** the purchase record above is deleted with it.
-  Your purchase still exists in your Apple account, and you can restore it — but
-  restoring it onto a *different* LandHere account is not possible while the
-  original record exists, because one purchase maps to one account.
-
-_[Lawyer to review: the deletion/restore interaction immediately above, and
-whether the one-purchase-one-account rule needs to be stated in the Terms as
-well as here.]_
+LandHere is **free**. There are no in-app purchases, subscriptions or ads, and the
+app does not contain any app-store payment code. We collect no payment information.
 
 ## How we use your information
 
 - To create, secure, and sign you in to your account.
+- To send you a password-reset email when you ask for one (see "What we share").
 - To personalise the guidance you see (for example, the journey steps and content for
   your selected origin → destination corridor, and the order of features on your
   home screen).
@@ -136,20 +82,24 @@ device. These requests do **not** include your name, email, or account details:
 
 - **Currency rates (Frankfurter / European Central Bank data):** when you use the
   currency converter, the app sends only the currency codes you choose.
-- **Photos (Unsplash):** to show city and campus images, the app sends only a search
-  term such as a city or university name.
 
 As with any internet request from your device, these providers can see your device's
 IP address; we do not control their handling of it — see their own privacy policies.
+
+**Photos (Unsplash):** to show city and campus images, the app asks **our server**,
+which asks Unsplash using only a search term such as a city or university name.
+Unsplash does not receive your IP address or any account details for these lookups.
 
 Our university and country information comes from public data sources (U.S. College
 Scorecard and OpenAlex), fetched in bulk on our side. These contain no user data —
 your information is never sent to them.
 
-**Apple.** When you buy or restore LandHere Pro, our server verifies Apple's
-signed receipt. That verification checks Apple's certificate chain and, as part
-of confirming the certificate has not been revoked, contacts Apple. We send Apple
-no account information of yours in that request.
+**Password-reset email (Resend).** If you tap "Forgot password?", our server asks
+**Resend** (resend.com), our email delivery provider, to send a reset link to your
+account email address. Resend receives your email address and the message text,
+which contains a single-use reset code that expires after 30 minutes. We send
+nothing else. If the email address is not registered, no email is sent.
+_[Lawyer to confirm Resend's data-processing terms and region.]_
 
 We also rely on infrastructure providers to operate the app:
 
@@ -184,22 +134,13 @@ We keep your account information for as long as your account exists.
 
 **You can delete your account from within the app** (Profile → Delete account, with
 password confirmation). Deleting your account permanently removes your account record
-from our database, together with your sign-in sessions and **your LandHere Pro
-purchase record**. _[Confirm any short-lived backup retention with your hosting
+from our database, together with your sign-in sessions and any unused
+password-reset codes. Your journey progress ticks are stored only on your device,
+separately for each account, and are removed from the device when you delete your
+account. _[Confirm any short-lived backup retention with your hosting
 provider before publishing.]_ You can also contact us at **lakshmanlak07@gmail.com**
 for help with access, correction, or deletion requests. We aim to respond within 30
 days.
-
-Deleting your LandHere account does **not** cancel or refund your Apple purchase,
-and does not delete anything held by Apple. See "Purchases" above for what that
-means if you later create a new account.
-
-**One exception to the deletion above,** stated plainly rather than buried: the
-log of messages Apple has sent us about purchases is not deleted. It keeps
-Apple's transaction identifier but nothing that links it to you once your account
-is gone. "Purchases" above explains why. ⚖️ _Lawyer to confirm whether this is
-acceptable, whether it must be time-limited, and whether the retained identifier
-counts as personal data once the account it referred to no longer exists._
 
 ## Children
 
