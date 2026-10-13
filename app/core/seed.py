@@ -249,16 +249,16 @@ IN_CA_STEPS = [
         "step_number": 2,
         "title": "Obtain Your Provincial or Territorial Attestation Letter (PAL/TAL)",
         "explanation": (
-            "Most study permit applicants must now include a Provincial or Territorial "
-            "Attestation Letter (PAL or, in Quebec, a TAL) - a document confirming you are "
-            "counted within the province's allocation of study permit applications. This "
-            "requirement was introduced in 2024 and has no US F-1 equivalent. The province or "
-            "your DLI issues the PAL/TAL; processes differ by province, so follow the "
-            "instructions your institution gives you. Without it (where required) IRCC will "
-            "return your application, so secure it before you apply."
+            "Most study permit applicants need a provincial or territorial attestation "
+            "letter (PAL/TAL): a letter from the province or territory where you will study "
+            "confirming there is space for you at your designated learning institution "
+            "(DLI). You get it through your school, and it is linked to that school. In most "
+            "cases it must be used in the year it was issued. Some applicants are exempt, and "
+            "studying in Quebec involves its own process (the CAQ). Use IRCC's questions on "
+            "the official page to check whether you need one before you apply."
         ),
-        "official_source_name": "IRCC – Provincial/territorial attestation letter",
-        "official_source_url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit/get-documents/provincial-territorial-attestation-letter.html",
+        "official_source_name": "IRCC – Provincial or territorial attestation letter (PAL/TAL)",
+        "official_source_url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/study-canada/study-permit/get-documents/provincial-attestation-letter.html",
     },
     # ── visa_process ──────────────────────────────────────────────────────────
     {
@@ -664,6 +664,31 @@ IN_UK_STEPS = [
 ]
 
 
+def _sync_corridor(db, destination: str, steps: list[dict]) -> None:
+    """Insert or update the IN-><destination> InfoSteps so the DB matches the
+    reviewed content in this repo (rows matched on phase + step_number).
+    Idempotent: a re-run with unchanged content makes no writes."""
+    rows = {
+        (r.phase, r.step_number): r
+        for r in db.query(InfoStep).filter(
+            InfoStep.origin_code == "IN", InfoStep.destination_code == destination
+        )
+    }
+    inserted = updated = 0
+    for step in steps:
+        row = rows.get((step["phase"], step["step_number"]))
+        if row is None:
+            db.add(InfoStep(origin_code="IN", destination_code=destination, **step))
+            inserted += 1
+            continue
+        for field, value in step.items():
+            if getattr(row, field) != value:
+                setattr(row, field, value)
+                updated += 1
+    db.commit()
+    print(f"[seed] IN->{destination}: {inserted} inserted, {updated} field updates.")
+
+
 def seed():
     db = SessionLocal()
     try:
@@ -697,86 +722,9 @@ def seed():
             print("[seed] Country flags synced to live corridors (IN->US/CA/UK).")
 
 
-        # Check if IN->US steps already exist
-        existing_steps = (
-            db.query(InfoStep)
-            .filter(InfoStep.origin_code == "IN", InfoStep.destination_code == "US")
-            .count()
-        )
-        if existing_steps == 0:
-            steps = [
-                InfoStep(origin_code="IN", destination_code="US", **s)
-                for s in IN_US_STEPS
-            ]
-            db.add_all(steps)
-            db.commit()
-            print(f"[seed] Inserted {len(steps)} IN->US InfoSteps.")
-        else:
-            # Sync existing rows (matched on phase + step_number) to the
-            # current reviewed content so a re-run applies corrections.
-            changed = 0
-            rows = {
-                (r.phase, r.step_number): r
-                for r in db.query(InfoStep).filter(
-                    InfoStep.origin_code == "IN", InfoStep.destination_code == "US"
-                )
-            }
-            for step in IN_US_STEPS:
-                row = rows.get((step["phase"], step["step_number"]))
-                if row is None:
-                    db.add(InfoStep(origin_code="IN", destination_code="US", **step))
-                    changed += 1
-                    continue
-                for field, value in step.items():
-                    if getattr(row, field) != value:
-                        setattr(row, field, value)
-                        changed += 1
-            db.commit()
-            print(f"[seed] IN->US steps synced ({changed} field updates).")
-
-        # Check if IN->CA steps already exist (study permit corridor)
-        existing_ca_steps = (
-            db.query(InfoStep)
-            .filter(InfoStep.origin_code == "IN", InfoStep.destination_code == "CA")
-            .count()
-        )
-        if existing_ca_steps == 0:
-            ca_steps = [
-                InfoStep(
-                    origin_code="IN",
-                    destination_code="CA",
-                    is_verified=True,
-                    **s,
-                )
-                for s in IN_CA_STEPS
-            ]
-            db.add_all(ca_steps)
-            db.commit()
-            print(f"[seed] Inserted {len(ca_steps)} IN->CA InfoSteps.")
-        else:
-            print("[seed] IN->CA steps already seeded - skipping.")
-
-        # Check if IN->UK steps already exist (Student visa corridor)
-        existing_uk_steps = (
-            db.query(InfoStep)
-            .filter(InfoStep.origin_code == "IN", InfoStep.destination_code == "UK")
-            .count()
-        )
-        if existing_uk_steps == 0:
-            uk_steps = [
-                InfoStep(
-                    origin_code="IN",
-                    destination_code="UK",
-                    is_verified=True,
-                    **s,
-                )
-                for s in IN_UK_STEPS
-            ]
-            db.add_all(uk_steps)
-            db.commit()
-            print(f"[seed] Inserted {len(uk_steps)} IN->UK InfoSteps.")
-        else:
-            print("[seed] IN->UK steps already seeded - skipping.")
+        _sync_corridor(db, "US", IN_US_STEPS)
+        _sync_corridor(db, "CA", [{"is_verified": True, **x} for x in IN_CA_STEPS])
+        _sync_corridor(db, "UK", [{"is_verified": True, **x} for x in IN_UK_STEPS])
 
         print("[seed] Done.")
     finally:
