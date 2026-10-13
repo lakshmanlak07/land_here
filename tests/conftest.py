@@ -89,7 +89,7 @@ def seed_test_data(create_tables):
         db.commit()
 
         for step_data in IN_US_STEPS:
-            db.add(InfoStep(origin_code="IN", destination_code="US", is_verified=False, **step_data))
+            db.add(InfoStep(origin_code="IN", destination_code="US", **step_data))
         db.commit()
     finally:
         db.close()
