@@ -1,78 +1,49 @@
-# Verification Checklist — India → United States (F-1) Visa Steps
+# Verification Record — India → United States (F-1)
 
-Source: live seed data in `app/core/seed.py` (`IN_US_STEPS`, 15 steps).
-These steps are seeded with `is_verified=False`. This file only lays out each step's
-text and the official source it cites, with an empty box to tick once you've checked
-it against that source yourself. No step text or source was rewritten, improved, or
-filled in. (For reference, every step here cites an official source URL — none are
-MISSING SOURCE.)
+Review date: **2026-10-13**. Reviewer: Claude (automated review in a real browser; read-only).
+Content: `app/core/content_in_us.py`. Guard tests: `tests/test_content_in_us.py`.
 
----
+**Result: 9 verified · 6 not verified** (2 blocked or need legal review, 4 general tips with no government source).
+"Verified" means every claim in the rewritten text was matched to the cited page on the review date. It is not legal advice, and a human should spot-check before launch.
 
-## Phase: after_acceptance
+## Findings that forced rewrites
+- **13 of the 15 original source links were dead or wrong.** These included 9 Study in the States URLs (that site has been restructured), the CFPB and FCC pages, and two ustraveldocs India pages that pointed at the wrong steps (`step-2` was used for fees, `step-3` for scheduling).
+- **New requirement:** the US Mission in India instructs F-1 applicants to set all social-media privacy settings to "public" (in.usembassy.gov/visas, checked 2026-10-13). This was missing from the old text.
+- **The I-20 must be signed** by the student (and by a parent if the student is under 18). This was missing.
+- **Old step 7 said to bring a photo.** That is wrong for most applicants: the photo is uploaded with the DS-160.
+- **Old step 13 said students can monitor SEVIS themselves.** That is wrong; the claim has been removed.
+- **Old step 3 listed "electronic check".** DHS lists only a credit card online for most nationalities.
+- **Old steps 14 and 15 named specific banks, fintechs and carriers.** These endorsements have been removed.
+- **DHS final rule, Federal Register 2026-14439, published 2026-07-17.** F students are admitted for a fixed period (program length, not to exceed 4 years, plus 30 days for arrival and 30 days for departure) instead of "duration of status". Extensions are filed on Form I-539.
+  - The Federal Register lists the **effective date as 2026-09-15**. It is a major rule subject to congressional review, and DHS will publish a notice if that date changes.
+  - **I did not confirm its status after that review. Flagged for qualified review.**
 
-- [ ] verified against source — **Step 1 · Receive Your Form I-20 from Your University**
-  - Step text: "Once you have been admitted, your university's Designated School Official (DSO) will issue you a Form I-20 - the Certificate of Eligibility for Nonimmigrant Student Status. This document is the legal foundation of your F-1 visa. Without it, you cannot pay the SEVIS fee, complete the DS-160 visa application, or attend your visa interview. The I-20 will arrive by mail or secure electronic delivery, depending on your school. Guard this document carefully - you will need the original at your visa interview and when you enter the US."
-  - Source: Study in the States – DHS — https://studyinthestates.dhs.gov/students/get-started
+## Pages that could not be checked
+- **travel.state.gov and ceac.state.gov:** they show a Cloudflare "verify you are human" CAPTCHA. I did not attempt it. **A human should check the State Department's student-visa page for step V5 (the list of interview documents).**
 
-- [ ] verified against source — **Step 2 · Review Your I-20 for Accuracy**
-  - Step text: "Before taking any other steps, carefully check every detail on your I-20: your full legal name (must match your passport exactly), date of birth, program start and end dates, and your SEVIS ID number (which begins with N). If any information is wrong, contact your DSO immediately for a corrected I-20. Errors on this form can cause delays or complications at your visa interview or US port of entry. The SEVIS ID number on your I-20 is what you will use when paying the SEVIS fee."
-  - Source: Study in the States – Understanding Your I-20 — https://studyinthestates.dhs.gov/students/prepare/understanding-the-form-i-20
+## Per-step record
 
-## Phase: visa_process
+| ID | Step (new title) | Required change vs. old text | Source | Result | Notes |
+|---|---|---|---|---|---|
+| A1 | Receive and Sign Your Form I-20 | Dead link; adds signing requirement | studyinthestates.dhs.gov/students/prepare/students-and-the-form-i-20 | **Verified** | Page last updated 2025-04-29 |
+| A2 | Check the Details on Your I-20 | Dead link; dropped "SEVIS ID begins with N" and "must match passport exactly" (not on the source) | same | **Verified** | |
+| V1 | Pay the I-901 SEVIS Fee | Payment methods corrected; "non-refundable" removed (not on the source) | studyinthestates.dhs.gov/students/prepare/paying-the-i-901-sevis-fee | **Verified** | Fee amount deliberately not stated |
+| V2 | Complete the DS-160 | ceac.state.gov blocked; re-sourced; added AA barcode and 20-minute timeout | ustraveldocs.com/in/en/step-2 | **Verified** | ustraveldocs is the State Dept.'s official appointment service for India; the Embassy links to it |
+| V3 | Pay the Visa Application (MRV) Fee | Wrong link fixed; added payment methods, 365-day validity, no double payment | ustraveldocs.com/in/en/step-3 | **Verified** | The page lists F visas at $185; the amount is deliberately not stated in the app |
+| V4 | Book Your Biometrics and Interview Appointments | Wrong link fixed; added VAC appointment (≥2 business days before interview), country-of-residence rule, 365-day issuance | ustraveldocs.com/in/en/step-4 + DHS I-20 page | **Verified** | Removed the "March–June peak" claim (not on the source) |
+| V5 | Attend Your Visa Interview | Removed photo claim; added No-Show, banned items, social-media rule, 221(g) | ustraveldocs.com/in/en/step-5; in.usembassy.gov/visas | **Not verified** | The full document list ("evidence of how you will pay") is on travel.state.gov, which was blocked |
+| D1 | Arrange Housing Through Your University | Rewritten as general guidance | DHS School Search | **Not verified** — general tip | No government source covers housing |
+| D2 | Check Your University's Health Insurance Requirement | Rewritten: insurance is set by the school, not a single US rule | DHS School Search | **Not verified** — general tip | |
+| D3 | Plan Your Arrival Within the 30-Day Window | Dead link; added that the 2026 rule keeps the 30-day period | studyinthestates.dhs.gov/students/travel/getting-to-the-united-states | **Verified** | The rule's quick-facts page states the 30-day arrival period continues |
+| D4 | Carry Your Key Documents in Your Hand Luggage | Old "must carry" list overstated; limited to passport, visa, I-20 plus the copies advice | same | **Verified** | |
+| R1 | Report to Your School by the Program Start Date | Old "within a day or two" replaced by the DHS rule (report by program start date) | same | **Verified** | |
+| R2 | Check Your I-94 Record and Your Admit Until Date | Replaces the incorrect "SEVIS check-in" step | DHS final-rule quick facts; i94.cbp.dhs.gov | **Not verified** — legal review | Matches the DHS text; rule status after congressional review not confirmed |
+| R3 | Open a US Bank Account | Brand names removed; dead link replaced | consumerfinance.gov/consumer-tools/bank-accounts/ | **Not verified** — general tip | |
+| R4 | Get a US Phone Number | Brand names and the SSN claim removed; dead link replaced | fcc.gov/consumer-guides | **Not verified** — general tip | |
 
-- [ ] verified against source — **Step 3 · Pay the SEVIS I-901 Fee**
-  - Step text: "SEVIS stands for Student and Exchange Visitor Information System - the US government's database that tracks international students. Before you can apply for your visa, you must pay a fee to register in this system. You pay this fee directly on the official FMJFEE website using your SEVIS ID from your I-20. Save your payment confirmation receipt, as you must bring it to your visa interview. This fee is separate from the visa application fee and is non-refundable. Payment is accepted by credit/debit card or electronic check."
-  - Source: SEVIS I-901 Fee Payment – FMJFEE — https://www.fmjfee.com/i901fee/index.html
+## To reach 15/15
+1. **V5:** a human opens travel.state.gov → Study & Exchange → Student Visa, confirms the documents list, adjusts the text, and sets `is_verified=True`.
+2. **R2:** qualified review of the final rule's current status. Then set `is_verified=True`.
+3. **D1, D2, R3, R4:** these will never have a government source. Decide whether to show them as "General tip" (current behaviour: "Unverified" tag) or move them out of the visa journey.
 
-- [ ] verified against source — **Step 4 · Complete the DS-160 Online Visa Application**
-  - Step text: "The DS-160 is the US government's official online nonimmigrant visa application form. You complete it on the Consular Electronic Application Center (CEAC) website. It collects your personal background, travel history, purpose of travel, and security-related questions. At the end, you will receive a DS-160 barcode confirmation page - print this and bring it to your interview. Take your time answering accurately; your interview officer will have access to your DS-160 responses. Do not leave the application idle for long as it may time out."
-  - Source: DS-160 Online Application – CEAC — https://ceac.state.gov/genniv/
-
-- [ ] verified against source — **Step 5 · Pay the MRV Visa Application Fee**
-  - Step text: "The Machine Readable Visa (MRV) fee is the non-refundable fee charged by the US government for processing your visa application. For applicants in India, this fee is paid through the US Travel Docs portal, which manages US visa appointments in India. After paying, you will receive a payment receipt with a unique barcode that you need to schedule your interview. Keep this receipt safe - you will present it at the consulate on the day of your interview."
-  - Source: US Travel Docs – India — https://www.ustraveldocs.com/in/en/step-2
-
-- [ ] verified against source — **Step 6 · Schedule Your Visa Interview at a US Consulate in India**
-  - Step text: "After paying the MRV fee, you schedule your F-1 visa interview through the US Travel Docs portal. There are US consulates and the embassy in India at multiple locations - Mumbai, Delhi, Chennai, Hyderabad, and Kolkata. Choose the location most convenient for you. Interview slots can fill up quickly, especially during peak summer application season (March–June for fall enrollment), so schedule as early as possible after receiving your I-20. You will select a date and time on the portal and receive a confirmation."
-  - Source: US Travel Docs – Schedule Appointment (India) — https://www.ustraveldocs.com/in/en/step-3
-
-- [ ] verified against source — **Step 7 · Attend the F-1 Visa Interview**
-  - Step text: "On your interview day, arrive at the US consulate with all required documents: your valid passport, DS-160 confirmation page, MRV fee receipt, SEVIS I-901 fee receipt, printed I-20, university admission letter, financial evidence showing you can support yourself during your studies, and a recent passport-size photo. The interview itself is typically brief - a few minutes - and a consular officer will ask about your study plans, financial situation, and ties to India. If approved, your passport will be retained for visa stamping and returned to you, usually within a few business days via courier."
-  - Source: US Visa Interview – travel.state.gov — https://travel.state.gov/content/travel/en/us-visas/visa-information-resources/prepare-for-your-interview.html
-
-## Phase: before_departure
-
-- [ ] verified against source — **Step 8 · Arrange Housing Before You Arrive**
-  - Step text: "Secure your housing before leaving India - arriving without a confirmed address is stressful and risky, as off-campus rentals can be competitive and expensive last-minute. Most universities offer on-campus housing for new international students; apply through your university's housing portal as soon as you are admitted. If you opt for off-campus housing, research options thoroughly and confirm the lease in writing before you travel. You will need a US address for your Social Security Number application and other administrative tasks when you arrive."
-  - Source: Study in the States – Prepare for Departure — https://studyinthestates.dhs.gov/students/prepare/prepare-for-departure
-
-- [ ] verified against source — **Step 9 · Obtain Health Insurance Coverage**
-  - Step text: "Most US universities require international students to have health insurance, and many automatically enroll you in their student health plan. Healthcare in the US is very expensive without insurance - even a routine doctor visit can be costly. Check whether your university has a mandatory insurance program, and if so, review what it covers. If you are purchasing your own plan, ensure it is valid in the US and meets your school's minimum coverage requirements. Carry proof of insurance with you when you travel."
-  - Source: Study in the States – Health Insurance — https://studyinthestates.dhs.gov/students/prepare/health-insurance-and-your-f-and-m-student-status
-
-- [ ] verified against source — **Step 10 · Book Your Flight Within the Allowed Entry Window**
-  - Step text: "Your F-1 visa allows you to enter the United States no earlier than 30 days before the program start date listed on your I-20. Arriving too early means you may be denied entry at the border. Check your I-20 for the program start date and plan your travel accordingly. Book your flights through a reputable airline or travel agent. Keep your flight booking confirmation to present at the US port of entry if asked."
-  - Source: Study in the States – Entering the US — https://studyinthestates.dhs.gov/students/prepare/entering-the-united-states
-
-- [ ] verified against source — **Step 11 · Organise the Documents You Must Carry in Your Hand Luggage**
-  - Step text: "When you travel to the US, carry all critical documents in your hand luggage - never check them in. You must have with you: your valid passport (with F-1 visa), your original signed I-20, your SEVIS I-901 fee payment receipt, your university acceptance letter, proof of financial support (bank statements), housing confirmation, health insurance proof, and your DS-160 confirmation page. At the US port of entry (airport immigration), a Customs and Border Protection (CBP) officer will review these documents and officially admit you into the country."
-  - Source: Study in the States – Documents to Carry — https://studyinthestates.dhs.gov/students/prepare/documents-to-carry-when-entering-the-united-states
-
-## Phase: after_arrival
-
-- [ ] verified against source — **Step 12 · Report to Your University's International Student Office**
-  - Step text: "Within a day or two of arriving, visit your university's International Student and Scholar Services (ISSS) or equivalent office. This is a required step - your school's DSO needs to verify your arrival and update your SEVIS record. Bring your original I-20, passport, and visa. The ISSS office is also your primary resource for questions about maintaining your student status, work authorisation, travel, and any changes to your program."
-  - Source: Study in the States – Reporting to Your DSO — https://studyinthestates.dhs.gov/students/study/report-to-your-dso
-
-- [ ] verified against source — **Step 13 · Complete Your SEVIS Check-In**
-  - Step text: "Your DSO is required to update your record in the SEVIS database to confirm that you have arrived and begun your studies. This happens automatically when you report to the ISSS office. If your SEVIS record is not updated in time, your student status can be at risk. Make this your top priority in the first week. You can monitor your SEVIS status through the Study in the States portal once you have access."
-  - Source: Study in the States – SEVIS — https://studyinthestates.dhs.gov/students/study/sevis-check-in
-
-- [ ] verified against source — **Step 14 · Open a US Bank Account**
-  - Step text: "Having a US bank account is essential for paying rent, tuition, and everyday expenses without incurring international transfer or foreign transaction fees. Most US banks allow students to open a basic checking account with your passport, I-20, and a US address. Some banks, such as Bank of America and Chase, have campus branches that are experienced with international student accounts. Some fintech apps (like Wise or Revolut) also offer US account numbers without a Social Security Number, which can be useful before you obtain your SSN."
-  - Source: Consumer Financial Protection Bureau – Banking Basics — https://www.consumerfinance.gov/consumer-tools/banking/
-
-- [ ] verified against source — **Step 15 · Get a US SIM Card**
-  - Step text: "Having a local US phone number is practically necessary for setting up bank accounts, registering with your university, and day-to-day life. Major carriers include AT&T, T-Mobile, and Verizon, with prepaid options available at most convenience stores and carrier retail locations - no SSN is required for prepaid plans. Many students opt for prepaid plans initially, then switch to a postpaid plan once they have established some US credit history. Coverage and price vary by carrier and your campus location."
-  - Source: FCC – Choosing a Wireless Carrier — https://www.fcc.gov/consumers/guides/choosing-wireless-carrier-or-reseller
+Re-verify every 90 days, or immediately on news of rule changes.
