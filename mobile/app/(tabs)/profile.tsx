@@ -169,7 +169,18 @@ export default function ProfileScreen() {
               <InfoRow icon="person-outline" accent={colors.primary} label="Full name" value={user?.full_name} />
               <InfoRow icon="mail-outline" accent={colors.after_acceptance} label="Email" value={user?.email} />
               <InfoRow icon="location-outline" accent={colors.before_departure} label="Origin" value={origin ? getCountryName(origin) : undefined} />
-              <InfoRow icon="airplane-outline" accent={colors.visa_process} label="Destination" value={destination ? getCountryName(destination) : undefined} last />
+              <InfoRow icon="airplane-outline" accent={colors.visa_process} label="Destination" value={destination ? getCountryName(destination) : undefined} />
+              <InfoRow icon="school-outline" accent={colors.after_arrival} label="University" value={user?.university_name} />
+              <PressableScale
+                style={[s.row, { borderBottomWidth: 0 }]}
+                onPress={() => router.push('/edit-profile')}
+                accessibilityRole="button"
+                accessibilityLabel="Edit profile"
+              >
+                <IconBadge icon="create-outline" color={colors.primary} tone="soft" size={34} style={{ marginRight: spacing.md }} />
+                <Text style={[s.rowLabel, { color: colors.textPrimary }]}>Edit profile</Text>
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+              </PressableScale>
             </View>
           </FadeInView>
 

@@ -144,3 +144,10 @@ def test_university_choice_can_be_cleared(client, university_id):
     client.patch("/auth/me", headers=h, json={"university_id": university_id})
     r = client.patch("/auth/me", headers=h, json={"university_id": None})
     assert r.status_code == 200 and r.json()["university_id"] is None
+
+
+def test_full_name_can_be_updated_and_bounded(client):
+    _, h, _ = _account(client)
+    r = client.patch("/auth/me", headers=h, json={"full_name": "Asha Rao"})
+    assert r.status_code == 200 and r.json()["full_name"] == "Asha Rao"
+    assert client.patch("/auth/me", headers=h, json={"full_name": "x" * 201}).status_code == 422

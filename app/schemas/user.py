@@ -79,6 +79,7 @@ class UserOnboarding(BaseModel):
     """Partial onboarding profile — every field optional so callers can PATCH
     one answer at a time. Only fields actually present in the request body are
     applied (see PATCH /auth/me); unset fields are left untouched."""
+    full_name: str | None = Field(None, max_length=200)
 
     origin_country_code: CountryCode | None = None
     destination_country_code: CountryCode | None = None
