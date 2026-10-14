@@ -1,4 +1,8 @@
-import { QueryClient } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import { QueryClient, type Query } from '@tanstack/react-query';
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * The app's single React Query client.
@@ -6,33 +10,47 @@ import { QueryClient } from '@tanstack/react-query';
  * Exported from here rather than created in app/_layout.tsx so that non-React
  * code — specifically the auth store — can reset it. That reset is a security
  * control, not housekeeping: see `resetServerCache`.
+ *
+ * gcTime is a week so content restored from the on-device cache (below) is not
+ * garbage-collected before the screen that needs it mounts.
  */
 export const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 300_000 } },
+  defaultOptions: { queries: { retry: 1, staleTime: 300_000, gcTime: WEEK_MS } },
 });
 
 /**
- * Drop every cached server response. Call on ANY change of identity.
+ * Offline cache. Only reference content is persisted to the device — journey
+ * steps, countries, rankings and university details — never profile, progress
+ * or anything else account-specific (progress has its own per-account store).
+ * The cache is wiped on every identity change (resetServerCache).
+ */
+const PERSISTED_ROOTS = new Set(['journey', 'countries', 'universities', 'university']);
+
+export const queryPersister = createAsyncStoragePersister({
+  storage: AsyncStorage,
+  key: 'landhere_query_cache_v1',
+  throttleTime: 1000,
+});
+
+export const persistOptions = {
+  persister: queryPersister,
+  maxAge: WEEK_MS,
+  dehydrateOptions: {
+    shouldDehydrateQuery: (q: Query) =>
+      q.state.status === 'success' && PERSISTED_ROOTS.has(String(q.queryKey[0])),
+  },
+};
+
+/**
+ * Drop every cached server response — in memory and on the device. Call on ANY
+ * change of identity.
  *
- * The cache is keyed by what was requested, never by who requested it, and
- * several responses differ per account because the API withholds Pro content
- * from free callers:
- *
- *   ['journey', origin, destination]      trimmed to the free phases
- *   ['universities', search, maxTuition]  clamped to the top 25
- *   ['university', id]                    Pro only
- *   ['entitlements']                      the entitlement itself
- *
- * The client outlives sign-out (it is created once, above the auth gate), so
- * without this a Pro user's cached journey — visa, departure and arrival steps
- * — is rendered to whoever signs in next on the same device with the same
- * corridor, before any refetch. The server gated it correctly; the cache handed
- * it over anyway.
- *
- * Clearing everything, rather than scoping each key by user id, is deliberate:
- * per-key scoping only works if every future query remembers to do it, and the
- * failure mode of forgetting is silent.
+ * The cache is keyed by what was requested, never by who requested it. Clearing
+ * everything, rather than scoping each key by user id, is deliberate: per-key
+ * scoping only works if every future query remembers to do it, and the failure
+ * mode of forgetting is silent.
  */
 export function resetServerCache(): void {
   queryClient.clear();
+  void queryPersister.removeClient();
 }

@@ -275,7 +275,7 @@ export default function RankingsScreen() {
         </View>
       )}
 
-      {isError && (
+      {isError && !data && (
         <View style={s.centered}>
           <Ionicons name="alert-circle-outline" size={44} color={colors.danger} style={{ marginBottom: 12 }} />
           <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Couldn't load rankings</Text>
@@ -285,7 +285,7 @@ export default function RankingsScreen() {
         </View>
       )}
 
-      {!isLoading && !isError && (
+      {!isLoading && !!data && (
         <FadeInView style={{ flex: 1 }}>
           <FlatList
             data={rows}

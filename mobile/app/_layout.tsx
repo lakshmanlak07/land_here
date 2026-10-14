@@ -7,8 +7,8 @@ import {
   DefaultTheme as NavDefaultTheme,
   DarkTheme as NavDarkTheme,
 } from '@react-navigation/native';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { queryClient } from '../lib/queryClient';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { persistOptions, queryClient } from '../lib/queryClient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '../lib/store';
 import { useProgressStore } from '../lib/progressStore';
@@ -91,7 +91,7 @@ export default function RootLayout() {
     // Reanimated work everywhere. flex:1 lets it fill the screen.
     <GestureHandlerRootView style={styles.root}>
       <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
+        <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
           <SafeAreaProvider>
             {/* Stack mounts/routes underneath so the first real screen is ready
                 the instant the splash dismisses — no second flash. Navigation is
@@ -103,7 +103,7 @@ export default function RootLayout() {
               </View>
             )}
           </SafeAreaProvider>
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

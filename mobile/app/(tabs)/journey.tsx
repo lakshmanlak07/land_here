@@ -150,7 +150,9 @@ export default function JourneyScreen() {
     );
   }
 
-  if (isError || !data) {
+  // With a saved copy (offline cache) we keep showing it; the error screen is
+  // only for when there is nothing to show.
+  if (!data) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         <Header><Text style={s.heroTitle}>Your journey</Text></Header>
@@ -193,6 +195,15 @@ export default function JourneyScreen() {
             </View>
           </View>
         </Header>
+
+        {isError && (
+          <View style={[s.offlineNote, { backgroundColor: colors.surface, borderColor: colors.border }]} accessibilityRole="alert">
+            <Ionicons name="cloud-offline-outline" size={16} color={colors.textSecondary} />
+            <Text style={[s.offlineText, { color: colors.textSecondary }]}>
+              Offline: showing your saved journey. Pull down to refresh when you&apos;re connected.
+            </Text>
+          </View>
+        )}
 
         {/* Legend */}
         <View style={s.legend}>
@@ -337,6 +348,8 @@ function styles(
   radius: ReturnType<typeof useTheme>['radius'],
 ) {
   return StyleSheet.create({
+    offlineNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 12, padding: 12, borderRadius: 12, borderWidth: 1 },
+    offlineText: { flex: 1, fontSize: 12.5, lineHeight: 17 },
     hero: { paddingHorizontal: spacing.lg, paddingBottom: 24 },
     heroTop: { flexDirection: 'row', alignItems: 'center' },
     glassBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.2)' },
