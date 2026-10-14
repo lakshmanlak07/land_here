@@ -4,6 +4,7 @@ from sqlalchemy import String, ForeignKey, DateTime, Boolean, Integer, JSON, Ind
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.models.university import University  # noqa: F401  (relationship target)
 
 
 class User(Base):
@@ -13,6 +14,7 @@ class User(Base):
     __table_args__ = (
         Index("ix_users_origin_country_code", "origin_country_code"),
         Index("ix_users_destination_country_code", "destination_country_code"),
+        Index("ix_users_university_id", "university_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -41,6 +43,11 @@ class User(Base):
     # What the user most wants their plan to lead with:
     # deadlines / saving / prepared / smooth_landing.
     primary_goal: Mapped[str | None] = mapped_column(String(30))
+    # The university the student picked in onboarding / profile. SET NULL so a
+    # rankings refresh that drops a school never deletes the user.
+    university_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("universities.id", ondelete="SET NULL"), nullable=True
+    )
 
     origin_country: Mapped["Country | None"] = relationship(  # noqa: F821
         "Country", foreign_keys=[origin_country_code], back_populates="users_from"
@@ -48,3 +55,8 @@ class User(Base):
     destination_country: Mapped["Country | None"] = relationship(  # noqa: F821
         "Country", foreign_keys=[destination_country_code], back_populates="users_to"
     )
+    university: Mapped["University | None"] = relationship("University")  # noqa: F821
+
+    @property
+    def university_name(self) -> str | None:
+        return self.university.name if self.university is not None else None

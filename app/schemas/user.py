@@ -61,6 +61,8 @@ class UserOut(BaseModel):
     first_timer: bool | None
     confidence: int | None
     primary_goal: str | None
+    university_id: uuid.UUID | None = None
+    university_name: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -92,6 +94,7 @@ class UserOnboarding(BaseModel):
     first_timer: bool | None = None
     confidence: int | None = Field(None, ge=1, le=10)
     primary_goal: str | None = Field(None, max_length=30)
+    university_id: uuid.UUID | None = None
 
 
 class TokenOut(BaseModel):

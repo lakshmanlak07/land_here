@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.core.mailer import send_email
 from app.models.country import Country
 from app.models.password_reset import PasswordResetToken
+from app.models.university import University
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.schemas.user import (
@@ -282,6 +283,8 @@ def update_me(
     _require_known_countries(
         db, updates.get("origin_country_code"), updates.get("destination_country_code")
     )
+    if updates.get("university_id") is not None and db.get(University, updates["university_id"]) is None:
+        raise HTTPException(status_code=422, detail="Unknown university.")
     for field, value in updates.items():
         setattr(current_user, field, value)
     db.commit()
