@@ -11,8 +11,10 @@ import assert from 'node:assert/strict';
 import {
   createProgressStore,
   LEGACY_PROGRESS_KEY,
+  pendingStorageKey,
   progressStorageKey,
   type KeyValueStorage,
+  type ProgressRemote,
 } from './progressCore.ts';
 import { requestRefresh } from './sessionPolicy.ts';
 
@@ -126,6 +128,116 @@ await check('a slow load for a previous user cannot overwrite the current user',
   await pending;
   assert.equal(store.getState().userId, 'user-b');
   assert.deepEqual(store.getState().completedIds, {});
+});
+
+console.log('Server sync (offline-first)');
+
+/** Fake server: per-user completed sets; `online` toggles failures. */
+function fakeServer() {
+  const db = new Map<string, Set<string>>();
+  let online = true;
+  const calls: string[] = [];
+  const remoteFor = (user: string): ProgressRemote => ({
+    async fetch() {
+      calls.push('fetch');
+      if (!online) throw new Error('offline');
+      return [...(db.get(user) ?? new Set())];
+    },
+    async push(changes) {
+      calls.push('push');
+      if (!online) throw new Error('offline');
+      const set = db.get(user) ?? new Set<string>();
+      for (const c of changes) {
+        if (c.completed) set.add(c.step_id);
+        else set.delete(c.step_id);
+      }
+      db.set(user, set);
+      return [...set];
+    },
+  });
+  return { db, calls, remoteFor, setOnline: (v: boolean) => { online = v; } };
+}
+
+await check('a tick made online reaches the server', async () => {
+  const srv = fakeServer();
+  const store = createProgressStore(memoryStorage(), srv.remoteFor('u1'));
+  await store.getState().setUser('u1');
+  store.getState().toggle('s1');
+  await store.getState().flush();
+  assert.deepEqual([...srv.db.get('u1')!], ['s1']);
+  assert.deepEqual(store.getState().pending, {});
+});
+
+await check('offline ticks are kept, survive a restart, and sync on reconnect', async () => {
+  const srv = fakeServer();
+  const storage = memoryStorage();
+  const s1 = createProgressStore(storage, srv.remoteFor('u1'));
+  await s1.getState().setUser('u1');
+  srv.setOnline(false);
+  s1.getState().toggle('a');
+  s1.getState().toggle('b');
+  await s1.getState().flush();
+  assert.deepEqual(s1.getState().completedIds, { a: true, b: true }, 'local ticks lost while offline');
+  assert.ok(storage.data.has(pendingStorageKey('u1')), 'pending queue not persisted');
+  // App restart while still offline: a new store instance over the same storage.
+  const s2 = createProgressStore(storage, srv.remoteFor('u1'));
+  await s2.getState().setUser('u1');
+  assert.deepEqual(s2.getState().completedIds, { a: true, b: true });
+  srv.setOnline(true);
+  await s2.getState().flush();
+  assert.deepEqual([...srv.db.get('u1')!].sort(), ['a', 'b']);
+  assert.deepEqual(s2.getState().pending, {});
+});
+
+await check('server progress appears on a fresh device (reinstall)', async () => {
+  const srv = fakeServer();
+  srv.db.set('u1', new Set(['x', 'y']));
+  const store = createProgressStore(memoryStorage(), srv.remoteFor('u1'));
+  await store.getState().setUser('u1');
+  assert.deepEqual(store.getState().completedIds, { x: true, y: true });
+});
+
+await check('a pending offline un-tick is not overwritten by older server state', async () => {
+  const srv = fakeServer();
+  srv.db.set('u1', new Set(['x']));
+  const storage = memoryStorage();
+  const store = createProgressStore(storage, srv.remoteFor('u1'));
+  await store.getState().setUser('u1');
+  srv.setOnline(false);
+  store.getState().toggle('x'); // un-tick offline
+  await store.getState().flush();
+  assert.equal(store.getState().isCompleted('x'), false);
+  srv.setOnline(true);
+  await store.getState().setUser(null);
+  await store.getState().setUser('u1'); // re-login pulls; pending must win
+  assert.equal(store.getState().isCompleted('x'), false);
+  assert.equal(srv.db.get('u1')!.has('x'), false, 'server not updated');
+});
+
+await check('existing device ticks are uploaded on the first sync', async () => {
+  const srv = fakeServer();
+  const storage = memoryStorage({ [progressStorageKey('u1')]: JSON.stringify({ old1: true }) });
+  const store = createProgressStore(storage, srv.remoteFor('u1'));
+  await store.getState().setUser('u1');
+  assert.deepEqual([...srv.db.get('u1')!], ['old1']);
+});
+
+await check('sync never mixes accounts on one device', async () => {
+  const srv = fakeServer();
+  const storage = memoryStorage();
+  let current = 'a';
+  const remote: ProgressRemote = {
+    fetch: () => srv.remoteFor(current).fetch(),
+    push: (c) => srv.remoteFor(current).push(c),
+  };
+  const store = createProgressStore(storage, remote);
+  await store.getState().setUser('a');
+  store.getState().toggle('s');
+  await store.getState().flush();
+  current = 'b';
+  await store.getState().setUser('b');
+  assert.deepEqual(store.getState().completedIds, {});
+  assert.equal(srv.db.get('b')?.size ?? 0, 0);
 });
 
 console.log('Refresh classification');

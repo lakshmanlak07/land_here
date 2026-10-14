@@ -55,6 +55,8 @@ export interface UserOut {
   first_timer: boolean | null;
   confidence: number | null;
   primary_goal: string | null;
+  university_id?: string | null;
+  university_name?: string | null;
 }
 
 export interface TokenOut {

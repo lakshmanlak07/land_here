@@ -288,6 +288,7 @@ export default function OnboardingScreen() {
     if (answers.firstTimer) p.first_timer = answers.firstTimer === 'yes';
     if (answers.primaryGoal) p.primary_goal = answers.primaryGoal;
     if (answers.confidence != null) p.confidence = answers.confidence;
+    if (answers.uniId) p.university_id = answers.uniId;
     return p;
   }
 

@@ -9,6 +9,14 @@
  * covers EVERY sign-out path (button, expired session, revoked refresh,
  * account deletion), not just the ones that remember to clear it.
  * While no user is bound, progress is empty and nothing is persisted.
+ *
+ * Sync (offline-first): every tick is applied locally first and queued as a
+ * pending change under `journey_pending:<userId>`. `flush()` sends the queue to
+ * the server (POST /progress) whenever it can; failures keep the queue for the
+ * next attempt (next tick, app foreground, next launch). `pull` merges the
+ * server's set with any still-pending local changes, so an offline edit is
+ * never overwritten by older server state. The first sync for an account on a
+ * device uploads that device's existing ticks (marker `journey_synced:<userId>`).
  */
 import { createStore } from 'zustand/vanilla';
 
@@ -23,6 +31,44 @@ export const LEGACY_PROGRESS_KEY = 'journey_completed_ids';
 
 export function progressStorageKey(userId: string): string {
   return `${LEGACY_PROGRESS_KEY}:${userId}`;
+}
+
+export function pendingStorageKey(userId: string): string {
+  return `journey_pending:${userId}`;
+}
+
+export function syncedMarkerKey(userId: string): string {
+  return `journey_synced:${userId}`;
+}
+
+export interface ProgressRemote {
+  /** Server's completed step ids for the signed-in user. Throws when offline. */
+  fetch(): Promise<string[]>;
+  /** Apply changes; returns the server's full completed set. Throws when offline. */
+  push(changes: { step_id: string; completed: boolean }[]): Promise<string[]>;
+}
+
+function parsePending(raw: string | null): Record<string, boolean> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, boolean> = {};
+    for (const [k, v] of Object.entries(parsed)) if (typeof v === 'boolean') out[k] = v;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function applyPending(base: string[], pending: Record<string, boolean>): Record<string, true> {
+  const out: Record<string, true> = {};
+  for (const id of base) out[id] = true;
+  for (const [id, done] of Object.entries(pending)) {
+    if (done) out[id] = true;
+    else delete out[id];
+  }
+  return out;
 }
 
 export function parseProgress(raw: string | null): Record<string, true> {
@@ -41,6 +87,8 @@ export function parseProgress(raw: string | null): Record<string, true> {
 export interface ProgressState {
   userId: string | null;
   completedIds: Record<string, true>;
+  /** Local changes not yet confirmed by the server. */
+  pending: Record<string, boolean>;
   /** True once the bound user's progress has been loaded. */
   hydrated: boolean;
   toggle: (id: string) => void;
@@ -48,48 +96,115 @@ export interface ProgressState {
   completedCount: (ids: string[]) => number;
   /** Bind to a user (or null when signed out) and load their progress. */
   setUser: (userId: string | null) => Promise<void>;
+  /** Send pending changes to the server; keeps them on failure. */
+  flush: () => Promise<void>;
   /** Delete a user's stored progress (account deletion). */
   forget: (userId: string) => Promise<void>;
 }
 
-export function createProgressStore(storage: KeyValueStorage) {
-  return createStore<ProgressState>((set, get) => ({
-    userId: null,
-    completedIds: {},
-    hydrated: false,
+export function createProgressStore(storage: KeyValueStorage, remote?: ProgressRemote) {
+  let flushing: Promise<void> | null = null;
 
-    toggle: (id) => {
-      const { userId, completedIds } = get();
-      const next = { ...completedIds };
-      if (next[id]) delete next[id];
-      else next[id] = true;
-      set({ completedIds: next });
-      if (userId) storage.setItem(progressStorageKey(userId), JSON.stringify(next)).catch(() => {});
-    },
+  return createStore<ProgressState>((set, get) => {
+    const persist = (userId: string) => {
+      const { completedIds, pending } = get();
+      storage.setItem(progressStorageKey(userId), JSON.stringify(completedIds)).catch(() => {});
+      storage.setItem(pendingStorageKey(userId), JSON.stringify(pending)).catch(() => {});
+    };
 
-    isCompleted: (id) => !!get().completedIds[id],
-
-    completedCount: (ids) => ids.filter((id) => !!get().completedIds[id]).length,
-
-    setUser: async (userId) => {
-      // Clear immediately so the previous account's ticks are never on screen
-      // for the next one, even for a frame while storage loads.
-      set({ userId, completedIds: {}, hydrated: false });
-      // The old shared key cannot be attributed to an account; drop it.
-      await storage.removeItem(LEGACY_PROGRESS_KEY).catch(() => {});
-      if (!userId) {
-        set({ hydrated: true });
-        return;
+    const doFlush = async () => {
+      const userId = get().userId;
+      if (!remote || !userId) return;
+      const sending = { ...get().pending };
+      const changes = Object.entries(sending).map(([step_id, completed]) => ({ step_id, completed }));
+      try {
+        const server = changes.length ? await remote.push(changes) : await remote.fetch();
+        if (get().userId !== userId) return;
+        // Drop only what was sent and not changed again meanwhile.
+        const still = { ...get().pending };
+        for (const [id, v] of Object.entries(sending)) if (still[id] === v) delete still[id];
+        set({ pending: still, completedIds: applyPending(server, still) });
+        persist(userId);
+        storage.setItem(syncedMarkerKey(userId), '1').catch(() => {});
+      } catch {
+        // Offline / server error: keep the queue; the next trigger retries.
       }
-      const raw = await storage.getItem(progressStorageKey(userId)).catch(() => null);
-      // Ignore a load that finished after the user changed again.
-      if (get().userId !== userId) return;
-      set({ completedIds: parseProgress(raw), hydrated: true });
-    },
+    };
 
-    forget: async (userId) => {
-      await storage.removeItem(progressStorageKey(userId)).catch(() => {});
-      if (get().userId === userId) set({ completedIds: {} });
-    },
-  }));
+    return {
+      userId: null,
+      completedIds: {},
+      pending: {},
+      hydrated: false,
+
+      toggle: (id) => {
+        const { userId, completedIds, pending } = get();
+        const next = { ...completedIds };
+        const done = !next[id];
+        if (done) next[id] = true;
+        else delete next[id];
+        set({ completedIds: next, pending: { ...pending, [id]: done } });
+        if (userId) {
+          persist(userId);
+          void get().flush();
+        }
+      },
+
+      isCompleted: (id) => !!get().completedIds[id],
+
+      completedCount: (ids) => ids.filter((id) => !!get().completedIds[id]).length,
+
+      setUser: async (userId) => {
+        // Clear immediately so the previous account's ticks are never on screen
+        // for the next one, even for a frame while storage loads.
+        set({ userId, completedIds: {}, pending: {}, hydrated: false });
+        // The old shared key cannot be attributed to an account; drop it.
+        await storage.removeItem(LEGACY_PROGRESS_KEY).catch(() => {});
+        if (!userId) {
+          set({ hydrated: true });
+          return;
+        }
+        const [raw, rawPending, synced] = await Promise.all([
+          storage.getItem(progressStorageKey(userId)).catch(() => null),
+          storage.getItem(pendingStorageKey(userId)).catch(() => null),
+          storage.getItem(syncedMarkerKey(userId)).catch(() => null),
+        ]);
+        // Ignore a load that finished after the user changed again.
+        if (get().userId !== userId) return;
+        const local = parseProgress(raw);
+        const pending = parsePending(rawPending);
+        if (!synced) {
+          // First sync of this account on this device: upload existing ticks.
+          for (const id of Object.keys(local)) if (!(id in pending)) pending[id] = true;
+        }
+        set({ completedIds: local, pending, hydrated: true });
+        await get().flush();
+      },
+
+      flush: async () => {
+        // Single-flight, and drain: changes made while a request was in flight
+        // are sent by a follow-up round (bounded, so a failing server cannot spin).
+        for (let round = 0; round < 3; round++) {
+          if (!flushing) {
+            flushing = doFlush().finally(() => {
+              flushing = null;
+            });
+          }
+          const before = JSON.stringify(get().pending);
+          await flushing;
+          const after = JSON.stringify(get().pending);
+          if (after === '{}' || after === before) break;
+        }
+      },
+
+      forget: async (userId) => {
+        await Promise.all([
+          storage.removeItem(progressStorageKey(userId)).catch(() => {}),
+          storage.removeItem(pendingStorageKey(userId)).catch(() => {}),
+          storage.removeItem(syncedMarkerKey(userId)).catch(() => {}),
+        ]);
+        if (get().userId === userId) set({ completedIds: {}, pending: {} });
+      },
+    };
+  });
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import {
@@ -76,6 +76,15 @@ export default function RootLayout() {
   useEffect(() => {
     useProgressStore.getState().setUser(userId);
   }, [userId]);
+
+  // Retry queued progress changes whenever the app comes back to the
+  // foreground (typically after regaining connectivity).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void useProgressStore.getState().flush();
+    });
+    return () => sub.remove();
+  }, []);
 
   return (
     // GestureHandlerRootView must wrap the whole app so gesture-handler and
