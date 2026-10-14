@@ -27,4 +27,8 @@ fi
 exec uvicorn app.main:app \
   --host 0.0.0.0 \
   --port "${PORT:-8000}" \
-  --workers "$WORKERS"
+  --workers "$WORKERS" \
+  --no-access-log
+# --no-access-log: uvicorn's own access log records full URLs (query strings)
+# and client IPs. The app writes a privacy-safe access log instead
+# (app/core/middleware.py).

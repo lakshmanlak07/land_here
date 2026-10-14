@@ -144,6 +144,13 @@ class Settings(BaseSettings):
     #                    store verification or notification processing runs.
     # The purchase code and tables are kept intact for a possible later return.
     PAYWALL_ENABLED: bool = False
+
+    # Database connection pool (PostgreSQL only). Per process:
+    # DB_POOL_SIZE + DB_MAX_OVERFLOW connections. Render Basic-256mb allows 100.
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 5
+    # Log level for app loggers (access log is INFO).
+    LOG_LEVEL: str = "INFO"
     # Password recovery email (stdlib SMTP; any provider with SMTP works —
     # Resend, Postmark, SES...). With SMTP_HOST unset the forgot-password
     # endpoint still answers 202 (no enumeration) but no email is sent.

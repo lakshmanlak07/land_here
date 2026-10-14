@@ -9,6 +9,8 @@ from app.core.config import settings
 from app.routes import account, auth, countries, images, info, guides, progress, purchases, universities
 
 logger = logging.getLogger("landhere")
+if not logging.getLogger().handlers:
+    logging.basicConfig(level=settings.LOG_LEVEL.upper(), format="%(levelname)s %(name)s %(message)s")
 
 from contextlib import asynccontextmanager
 
@@ -76,6 +78,8 @@ assert not (_allow_credentials and "*" in _cors_origins), (
 # headers to every response — including gzip-compressed bodies and error
 # responses — and answer preflight OPTIONS.
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+# Outermost: every response (including CORS preflights and 500s) gets a request
+# id and security headers, and is access-logged.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -83,6 +87,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from app.core.middleware import RequestContextMiddleware  # noqa: E402
+
+app.add_middleware(RequestContextMiddleware)
 
 app.include_router(auth.router)
 app.include_router(account.router)

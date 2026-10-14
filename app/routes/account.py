@@ -8,14 +8,13 @@ single place a user's account is destroyed, so it is intentionally strict:
   * Confirmation — requires re-entering the account password.
   * Complete     — removes ALL data tied to the user (see ACCOUNT_DELETION.md).
 
-Data model note: one table references `users` — `refresh_tokens.user_id`, added
-later by migration d4e6f8a0b2c4 for replay-safe refresh rotation. It is declared
-ON DELETE CASCADE, so deleting the `users` row removes that user's token rows
-with it and leaves nothing orphaned; the cascade is the only thing doing this,
-which is why it is covered by
-tests/test_security.py::test_account_deletion_leaves_no_orphaned_refresh_tokens.
-Everything else the User row touches is shared `countries` reference data, which
-is never user-owned.
+Data model note: these tables reference `users`, all ON DELETE CASCADE, so
+deleting the `users` row removes the user's rows in each and leaves nothing
+orphaned: `refresh_tokens`, `password_reset_tokens`, `user_step_progress` and
+`purchases` (dormant in the free launch). Covered by
+tests/test_security.py::test_account_deletion_leaves_no_orphaned_refresh_tokens,
+tests/test_password_reset.py and tests/test_progress_and_profile.py.
+Everything else the User row touches is shared reference data.
 
 Deletion also invalidates the user's credentials immediately and from both
 directions: `get_current_user` looks the user up by id on every request and
