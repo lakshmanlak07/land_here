@@ -4,7 +4,8 @@
 
 Creates `landhere_migcheck` on the server named by the admin URL (default: the
 DATABASE_URL in .env with its database swapped for `postgres`), then runs
-upgrade head -> seed (twice, must be idempotent) -> downgrade base ->
+upgrade head -> seed x2 -> university dataset load x2 (both must be
+idempotent) -> downgrade base ->
 upgrade head -> alembic check (no model/migration drift), and drops the
 scratch database. Never touches any other database.
 """
@@ -42,6 +43,8 @@ def main() -> int:
         ["-m", "alembic", "upgrade", "head"],
         ["-m", "app.core.seed"],
         ["-m", "app.core.seed"],
+        ["-m", "app.core.universities_dataset", "load"],
+        ["-m", "app.core.universities_dataset", "load"],
         ["-m", "alembic", "downgrade", "base"],
         ["-m", "alembic", "upgrade", "head"],
         ["-m", "alembic", "check"],
@@ -57,8 +60,8 @@ def main() -> int:
                 print(f"FAIL  {label}\n      " + "\n      ".join(tail))
                 break
             print(f"PASS  {label}")
-            if args[-1] == "app.core.seed" and "inserted" in r.stdout:
-                print("      " + " | ".join(l for l in r.stdout.splitlines() if "IN->" in l))
+            if "inserted" in r.stdout:
+                print("      " + " | ".join(l for l in r.stdout.splitlines() if "inserted" in l))
     finally:
         cur.execute(f"DROP DATABASE IF EXISTS {SCRATCH}")
         conn.close()
