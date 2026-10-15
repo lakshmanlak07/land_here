@@ -55,6 +55,7 @@ export const persistOptions = {
  * mode of forgetting is silent.
  */
 export function resetServerCache(): void {
+  void queryClient.cancelQueries(); // in-flight answers for the previous account are dropped, not cached
   queryClient.clear();
   void queryPersister.removeClient();
 }

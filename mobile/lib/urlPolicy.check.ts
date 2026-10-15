@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { collectConfigErrors, isPrivateHost, validateUrl } from './urlPolicy.ts';
+import { collectConfigErrors, isPrivateHost, isSafeExternalUrl, validateUrl } from './urlPolicy.ts';
 
 const HERE = new URL('.', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const MOBILE = join(HERE, '..');
@@ -625,4 +625,14 @@ console.log(
     ? '\nAll checks passed.\n'
     : `\n${failures} check(s) FAILED.\n`,
 );
-process.exit(failures === 0 ? 0 : 1);
+process.exit(failures === 0 ? 0 : 1);check('server links open only as https', () => {
+  assert.equal(isSafeExternalUrl('https://www.uscis.gov/'), true);
+  for (const bad of ['http://example.com', 'tel:123', 'sms:1', 'intent://x#Intent;end', 'javascript:alert(1)', 'https://user:pw@example.com', '', null, undefined, 'not a url']) {
+    assert.equal(isSafeExternalUrl(bad as string), false, String(bad));
+  }
+  for (const f of ["app/(tabs)/journey.tsx","app/country/[code].tsx","app/necessities.tsx","app/scholarships.tsx","app/university/[id].tsx","app/work-hours.tsx"]) {
+    assert.ok(!/Linking\.openURL/.test(readFileSync(join(MOBILE, f), 'utf8')), f + ' opens a server URL without the https check');
+  }
+});
+
+

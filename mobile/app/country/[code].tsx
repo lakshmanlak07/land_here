@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet, Linking, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,7 @@ import { CAMPUS_QUERIES } from '../../constants/campusQueries';
 import { getWorkRule } from '../../constants/workRules';
 import { resolveCurrency } from '../../constants/currencies';
 import type { CountryOut } from '../../lib/types';
+import { openExternal } from '../../lib/openExternal';
 
 const WORK_DISCLAIMER =
   'Work rules change often and depend on your exact visa and course. This is ' +
@@ -138,7 +139,7 @@ export default function CountryDetailScreen() {
 
                   <Pressable
                     style={[s.sourceBtn, { borderColor: colors.border }]}
-                    onPress={() => Linking.openURL(rule.source.url).catch(() => {})}
+                    onPress={() => openExternal(rule.source.url)}
                   >
                     <Text style={[s.sourceBtnText, { color: colors.primary }]}>{rule.source.name}  ↗</Text>
                   </Pressable>
@@ -161,7 +162,7 @@ export default function CountryDetailScreen() {
             {data.official_immigration_url && (
               <Pressable
                 style={[s.officialBtn, { backgroundColor: colors.primary, borderRadius: radius.button }]}
-                onPress={() => Linking.openURL(data.official_immigration_url!).catch(() => {})}
+                onPress={() => openExternal(data.official_immigration_url)}
                 accessibilityRole="link"
                 accessibilityLabel="Open official immigration site"
               >

@@ -131,8 +131,18 @@ export function createProgressStore(storage: KeyValueStorage, remote?: ProgressR
         persist(userId);
         storage.setItem(syncedMarkerKey(userId), '1').catch(() => {});
         return true;
-      } catch {
-        // Offline / server error: keep the queue; the next trigger retries.
+      } catch (e) {
+        const status = (e as { response?: { status?: number } })?.response?.status;
+        if ((status === 400 || status === 413 || status === 422) && get().userId === userId) {
+          // The server refused the request itself (bad batch): retrying it would block every later change.
+          // Drop it from the queue. A 403/404 from a proxy or misdeploy keeps the queue (could be temporary).
+          const still = { ...get().pending };
+          for (const [id, v] of Object.entries(sending)) if (still[id] === v) delete still[id];
+          set({ pending: still });
+          persist(userId);
+          return true;
+        }
+        // Offline / server error / auth: keep the queue; the next trigger retries.
         return false;
       }
     };

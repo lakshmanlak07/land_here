@@ -138,3 +138,14 @@ export function collectConfigErrors(
     })
     .filter((e): e is string => e !== null);
 }
+
+/** A link from server data that the app may open in the browser: https only, with a host. */
+export function isSafeExternalUrl(url: string | null | undefined): url is string {
+  if (!url) return false;
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && !!u.hostname && !u.username && !u.password;
+  } catch {
+    return false;
+  }
+}

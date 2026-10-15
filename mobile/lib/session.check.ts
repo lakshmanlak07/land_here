@@ -362,8 +362,53 @@ await check('hydrate keeps the session when the server is unreachable', () => {
 await check('password-answer 401s never refresh or sign out', () => {
   const api = src('lib/api.ts');
   assert.match(api, /login\|register\|refresh\|password/);
-  assert.match(api, /url\.startsWith\('\/account'\)/);
+  // Only the wrong-password answer from /account is exempt; an expired token on DELETE /account refreshes.
+  assert.match(api, /url\.startsWith\('\/account'\) && detail === WRONG_PASSWORD/);
+  assert.match(src('../app/routes/account.py'), /detail="Incorrect password\."/);
+  assert.match(api, /WRONG_PASSWORD = 'Incorrect password\.'/);
   assert.ok(!/cfg\._retry[^}]*logout\(\)/.test(api), 'retry branch must not sign out');
+});
+
+await check('a refresh that lands after the account changed is ignored', () => {
+  const api = src('lib/api.ts');
+  assert.match(api, /if \(useAuthStore\.getState\(\)\.refreshToken !== refreshToken\) return null;/);
+  const i = api.indexOf('refreshToken !== refreshToken');
+  assert.ok(i > 0 && i < api.indexOf("result.kind === 'ok'"), 'the account check must run before tokens are applied');
+});
+
+await check('sign-out clears abandoned onboarding answers; failed answer save stays on screen', () => {
+  assert.match(src('lib/store.ts'), /removeItem\('onboarding_answers'\)/);
+  const ob = src('app/(auth)/onboarding.tsx');
+  // A failed save after sign-up returns to the plan screen (whose button runs finish()), never the account form.
+  assert.match(ob, /setAccountOpen\(false\);\s*setError\(getErrorMessage\(e, "Your account is ready/);
+  // finish() clears the device buffer once the answers are on the account.
+  assert.match(ob, /removeItem\(ANSWERS_BUFFER_KEY\)\.catch\(\(\) => \{\}\); \/\/ saved on the account now\s*completeOnboarding/);
+});
+
+await check('a malformed id or a permanently refused batch never blocks sync', async () => {
+  const storage = memoryStorage();
+  const good = '11111111-1111-4111-8111-111111111111';
+  let pushes = 0;
+  let refuse = true;
+  const remote: ProgressRemote = {
+    async fetch() { return []; },
+    async push(changes) {
+      pushes++;
+      if (refuse) { refuse = false; throw Object.assign(new Error('422'), { response: { status: 422 } }); }
+      return changes.filter((c) => c.completed).map((c) => c.step_id);
+    },
+  };
+  const store = createProgressStore(storage, remote);
+  await store.getState().setUser('u1');
+  store.getState().toggle('not-a-uuid');
+  store.getState().toggle(good);
+  await store.getState().flush();
+  assert.deepEqual(store.getState().pending, {}, 'a batch the server refuses (here: one malformed id) leaves the queue');
+  assert.equal(store.getState().completedIds[good], true, 'local tick is kept');
+  store.getState().toggle('22222222-2222-4222-8222-222222222222');
+  await store.getState().flush();
+  assert.deepEqual(store.getState().pending, {}, 'later changes sync');
+  assert.ok(pushes >= 2);
 });
 
 await check('root layout re-binds progress to the signed-in user id', () => {

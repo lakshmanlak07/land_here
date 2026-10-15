@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Linking, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from '../components/PressableScale';
+import { openExternal } from '../lib/openExternal';
 import {
   getNecessities, NECESSITIES_BY_COUNTRY,
   type NecessityItem, type NecessitySection,
@@ -182,7 +183,7 @@ function ItemCard({ item, accent, order }: { item: NecessityItem; accent: string
         )}
         <Text style={[s.explanation, { color: colors.textSecondary }]}>{item.explanation}</Text>
         {item.source && (
-          <Pressable style={[s.sourceBtn, { borderColor: colors.border }]} onPress={() => Linking.openURL(item.source!.url).catch(() => {})} accessibilityRole="link" accessibilityLabel={`Open ${item.source!.name}`}>
+          <Pressable style={[s.sourceBtn, { borderColor: colors.border }]} onPress={() => openExternal(item.source!.url)} accessibilityRole="link" accessibilityLabel={`Open ${item.source!.name}`}>
             <Ionicons name="open-outline" size={13} color={accent} />
             <Text style={[s.sourceBtnText, { color: accent }]}>{item.source.name}</Text>
           </Pressable>

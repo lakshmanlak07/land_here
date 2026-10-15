@@ -42,6 +42,9 @@ let refreshPromise: Promise<string | null> | null = null;
  * recurse). Returns the new access token, or null if refresh isn't possible; on
  * any failure it logs the user out so the app routes back to login.
  */
+/** The server's answer to a wrong password on DELETE /account (app/routes/account.py). */
+export const WRONG_PASSWORD = 'Incorrect password.';
+
 async function performRefresh(): Promise<string | null> {
   const { refreshToken, setTokens, logout } = useAuthStore.getState();
   if (!refreshToken || !API_URL) {
@@ -49,6 +52,8 @@ async function performRefresh(): Promise<string | null> {
     return null;
   }
   const result = await requestRefresh(fetch, API_URL, refreshToken);
+  // The session changed while this request was in flight: its answer belongs to the old one.
+  if (useAuthStore.getState().refreshToken !== refreshToken) return null;
   if (result.kind === 'ok') {
     setTokens(result.pair.access_token, result.pair.refresh_token);
     return result.pair.access_token;
@@ -76,7 +81,8 @@ api.interceptors.response.use(
     // 401s that are answers about a password, not about the session: wrong
     // password on login or account deletion, bad reset code. Never refresh or
     // sign out for these.
-    if (/\/auth\/(login|register|refresh|password\/)/.test(url) || url.startsWith('/account')) {
+    const detail = isAxiosError(error) ? (error.response?.data as { detail?: unknown } | undefined)?.detail : undefined;
+    if (/\/auth\/(login|register|refresh|password\/)/.test(url) || (url.startsWith('/account') && detail === WRONG_PASSWORD)) {
       return Promise.reject(error);
     }
 

@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View, Text, Pressable, Linking, StyleSheet, RefreshControl, ScrollView,
-} from 'react-native';
+import { View, Text, Pressable, StyleSheet, RefreshControl, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +12,7 @@ import { PressableScale } from '../../components/PressableScale';
 import { getCountryName } from '../../constants/countries';
 import { SkeletonCard } from '../../components/Skeleton';
 import type { JourneyOut, InfoStep } from '../../lib/types';
+import { openExternal } from '../../lib/openExternal';
 
 const PHASE_META: Record<string, { label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }> = {
   // before_applying is one of the two free phases the API serves, so it needs a
@@ -308,7 +307,7 @@ export default function JourneyScreen() {
                           {step.official_source_url ? (
                             <Pressable
                               style={[s.sourcePill, { backgroundColor: colors.bg, borderColor: colors.border }]}
-                              onPress={() => Linking.openURL(step.official_source_url!).catch(() => {})}
+                              onPress={() => openExternal(step.official_source_url)}
                               accessibilityRole="link"
                               accessibilityLabel={`Open ${step.official_source_name}`}
                             >

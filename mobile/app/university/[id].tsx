@@ -1,8 +1,6 @@
 import React, { useMemo } from 'react';
 import { isAxiosError } from 'axios';
-import {
-  View, Text, Pressable, StyleSheet, Linking, Share, ScrollView,
-} from 'react-native';
+import { View, Text, Pressable, StyleSheet, Share, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
@@ -20,6 +18,7 @@ import {
   formatScore, formatCurrency, formatPercent, formatCount, initials,
 } from '../../lib/format';
 import type { UniversityDetail } from '../../lib/types';
+import { openExternal } from '../../lib/openExternal';
 
 function lookupLinks(name: string) {
   const lookup = (domain: string) =>
@@ -261,7 +260,7 @@ export default function UniversityDetailScreen() {
             {/* ───────── Links ───────── */}
             <View style={[s.linksCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               {data.official_url && (
-                <Pressable style={s.linkRow} onPress={() => Linking.openURL(data.official_url!).catch(() => {})}>
+                <Pressable style={s.linkRow} onPress={() => openExternal(data.official_url)}>
                   <View style={[s.linkIcon, { backgroundColor: colors.primarySubtle }]}>
                     <Ionicons name="globe-outline" size={18} color={colors.primary} />
                   </View>
@@ -276,7 +275,7 @@ export default function UniversityDetailScreen() {
                 <Pressable
                   key={l.key}
                   style={[s.linkRow, (i > 0 || data.official_url) ? { borderTopWidth: 1, borderTopColor: colors.border } : null]}
-                  onPress={() => Linking.openURL(l.url).catch(() => {})}
+                  onPress={() => openExternal(l.url)}
                 >
                   <View style={[s.linkIcon, { backgroundColor: colors.primarySubtle }]}>
                     <Ionicons name="open-outline" size={18} color={colors.primary} />

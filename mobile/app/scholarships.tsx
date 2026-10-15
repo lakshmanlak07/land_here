@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Linking, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../context/ThemeContext';
 import { PressableScale } from '../components/PressableScale';
 import { SCHOLARSHIP_SOURCES, SCHOLARSHIP_DISCLAIMER } from '../constants/scholarshipSources';
+import { openExternal } from '../lib/openExternal';
 
 
 /**
@@ -104,7 +105,7 @@ export default function ScholarshipsScreen() {
               // "All" view. Qualify the key with the region group, which is.
               key={`${item.region}-${item.url}`}
               style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => Linking.openURL(item.url).catch(() => {})}
+              onPress={() => openExternal(item.url)}
               accessibilityRole="link"
               accessibilityLabel={`${item.name}. ${item.region}. Opens the official source.`}
             >

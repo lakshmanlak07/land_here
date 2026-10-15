@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from './config';
 import type { UserOut } from './types';
 import { resetServerCache } from './queryClient';
@@ -125,6 +126,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
     SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY).catch(() => {});
     SecureStore.deleteItemAsync(ONBOARDED_KEY).catch(() => {});
+    AsyncStorage.removeItem('onboarding_answers').catch(() => {}); // abandoned signup answers (onboarding.tsx)
     cacheUser(null);
   },
 

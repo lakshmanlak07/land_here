@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet, Linking, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { Card } from '../components/Card';
 import { withAlpha } from '../lib/color';
+import { openExternal } from '../lib/openExternal';
 import {
   WORK_HOURS_COUNTRIES,
   WORK_HOURS_FOOTER,
@@ -83,7 +84,7 @@ function CountryCard({ entry }: { entry: WorkHoursEntry }) {
   const okInk = isDark ? '#46C88A' : '#1E8A5A';
 
   return (
-    <Card onPress={rule ? () => Linking.openURL(rule.source.url).catch(() => {}) : undefined} style={{ marginBottom: spacing.md }}>
+    <Card onPress={rule ? () => openExternal(rule.source.url) : undefined} style={{ marginBottom: spacing.md }}>
       <View style={s.cardHead}>
         <View style={[s.tile, { backgroundColor: entry.accent }]}>
           <Text style={s.tileText}>{entry.badge}</Text>

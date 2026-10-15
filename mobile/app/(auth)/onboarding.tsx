@@ -302,6 +302,7 @@ export default function OnboardingScreen() {
         const { data } = await api.patch<UserOut>('/auth/me', payload);
         patchUser(data);
       }
+      await AsyncStorage.removeItem(ANSWERS_BUFFER_KEY).catch(() => {}); // saved on the account now
       completeOnboarding();
       router.replace('/(tabs)');
     } catch (e) {
@@ -353,8 +354,13 @@ export default function OnboardingScreen() {
         patchUser(data);
       }
       await AsyncStorage.removeItem(ANSWERS_BUFFER_KEY);
-    } catch {
-      // Leave the buffer in place; answers aren't lost, just not synced yet.
+    } catch (e) {
+      // Account created, answers not saved yet: back to the plan screen (signed in now), whose button runs
+      // finish() and retries the save. Never re-submit the account form (that would re-register: 409).
+      setAccountOpen(false);
+      setError(getErrorMessage(e, "Your account is ready, but we couldn't save your answers. Tap again to retry."));
+      setSubmitting(false);
+      return;
     }
     completeOnboarding();
     router.replace('/(tabs)');
