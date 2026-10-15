@@ -19,6 +19,7 @@ import uuid
 from app.core.config import settings
 
 access_logger = logging.getLogger("landhere.access")
+error_logger = logging.getLogger("landhere.errors")
 
 _SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 
@@ -45,11 +46,12 @@ class RequestContextMiddleware:
         request_id = incoming if _SAFE_REQUEST_ID.fullmatch(incoming) else uuid.uuid4().hex
         scope.setdefault("state", {})["request_id"] = request_id
         started = time.perf_counter()
-        status_holder = {"status": 500}
+        status_holder = {"status": 500, "started": False}
 
         async def send_wrapper(message):
             if message["type"] == "http.response.start":
                 status_holder["status"] = message["status"]
+                status_holder["started"] = True
                 headers = list(message.get("headers") or [])
                 present = {k.lower() for k, _ in headers}
                 headers.append((b"x-request-id", request_id.encode("latin-1")))
@@ -63,9 +65,22 @@ class RequestContextMiddleware:
 
         try:
             await self.app(scope, receive, send_wrapper)
+        except Exception:
+            # Answer here so even a 500 carries the request id and security headers; never leak details.
+            error_logger.exception("Unhandled error request_id=%s", request_id)
+            if status_holder["started"]:
+                raise
+            body = b'{"detail":"Internal server error"}'
+            await send_wrapper({
+                "type": "http.response.start",
+                "status": 500,
+                "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())],
+            })
+            await send_wrapper({"type": "http.response.body", "body": body})
         finally:
             route = scope.get("route")
-            path = getattr(route, "path", None) or scope.get("path", "")
+            # Unmatched paths are attacker-chosen text: log a constant, never the raw path.
+            path = getattr(route, "path", None) or "<unmatched>"
             access_logger.info(
                 json.dumps(
                     {

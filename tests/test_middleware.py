@@ -82,3 +82,30 @@ def test_concurrency_limit_queues_then_sheds_with_503():
     status, headers, health, after = asyncio.run(scenario())
     assert status == 503 and headers[b"retry-after"] == b"2"
     assert health == 200 and after == 200
+
+
+def test_unhandled_error_keeps_request_id_and_headers_without_leaking():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    async def boom():
+        raise RuntimeError("secret internal detail")
+
+    app.add_api_route("/__test_boom", boom, methods=["GET"])
+    try:
+        r = TestClient(app, raise_server_exceptions=False).get("/__test_boom")
+    finally:
+        app.router.routes = [rt for rt in app.router.routes if getattr(rt, "path", None) != "/__test_boom"]
+    assert r.status_code == 500
+    assert r.json() == {"detail": "Internal server error"}
+    assert "secret internal detail" not in r.text
+    assert len(r.headers["x-request-id"]) >= 8
+    assert r.headers["x-content-type-options"] == "nosniff"
+
+
+def test_unmatched_paths_are_not_logged_verbatim(client, caplog):
+    with caplog.at_level(logging.INFO, logger="landhere.access"):
+        client.get("/nonexistent/secrettoken123")
+    blob = " ".join(r.getMessage() for r in caplog.records if r.name == "landhere.access")
+    assert "secrettoken123" not in blob
+    assert "<unmatched>" in blob

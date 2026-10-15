@@ -93,14 +93,17 @@ def update_progress(
     for sid in unknown:
         del final[sid]
 
-    try:
-        _apply(db, current_user, final)
-    except IntegrityError:
-        # A concurrent request (another device) inserted one of the same rows
-        # first. Roll back and apply once more: the second pass sees that row
-        # as existing, so the whole batch still lands.
-        db.rollback()
-        _apply(db, current_user, final)
+    for attempt in range(3):
+        try:
+            _apply(db, current_user, final)
+            break
+        except IntegrityError:
+            # A concurrent request (another device) inserted one of the same rows
+            # first. Roll back and apply again: the next pass sees that row as
+            # existing, so the whole batch still lands.
+            db.rollback()
+            if attempt == 2:
+                raise
     out = _progress_for(db, current_user)
     out.ignored_step_ids = sorted(unknown, key=str)
     return out
