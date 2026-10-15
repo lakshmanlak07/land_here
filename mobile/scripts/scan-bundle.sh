@@ -69,7 +69,9 @@ done
 # into every RN binary and are never contacted in a release build.
 ALLOW='^http://localhost:8081$|^http://localhost:3000$'
 found_private=$(
-  echo "$FILES" | xargs strings -n 4 2>/dev/null \
+  # Portable stand-in for `strings` (absent in Git Bash, which made this check
+  # pass vacuously): keep printable runs only, then search them.
+  echo "$FILES" | xargs cat 2>/dev/null | LC_ALL=C tr -c '[:print:]' '\n' \
     | grep -oE 'https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|10\.[0-9]+\.[0-9]+\.[0-9]+|192\.168\.[0-9]+\.[0-9]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+)(:[0-9]+)?' \
     | sort -u | grep -vE "$ALLOW" || true
 )
