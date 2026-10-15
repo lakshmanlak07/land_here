@@ -11,6 +11,8 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { persistOptions, queryClient } from '../lib/queryClient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuthStore } from '../lib/store';
+import api from '../lib/api';
+import type { UserOut } from '../lib/types';
 import { useProgressStore } from '../lib/progressStore';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { SplashScreen } from '../components/SplashScreen';
@@ -81,7 +83,22 @@ export default function RootLayout() {
   // foreground (typically after regaining connectivity).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void useProgressStore.getState().flush();
+      if (state !== 'active') return;
+      void useProgressStore.getState().flush();
+      // A session restored offline may have a stale or missing profile; fetch
+      // it again now that the app is back (the api interceptor refreshes the
+      // token if needed and signs out only on a definitive rejection).
+      if (useAuthStore.getState().token) {
+        api
+          .get<UserOut>('/auth/me')
+          .then(({ data }) => {
+            // Ignore the answer if the user signed out, or another account
+            // signed in, while it was in flight.
+            const now = useAuthStore.getState();
+            if (now.token && (!now.user || now.user.id === data.id)) now.setUser(data);
+          })
+          .catch(() => {});
+      }
     });
     return () => sub.remove();
   }, []);

@@ -86,7 +86,7 @@ export default function EditProfileScreen() {
       const { data } = await api.patch<UserOut>('/auth/me', payload);
       patchUser(data);
       // Journey content depends on origin/destination.
-      await qc.invalidateQueries({ queryKey: ['journey'] });
+      void qc.invalidateQueries({ queryKey: ['journey'] });
       router.back();
     } catch (e) {
       setError(getErrorMessage(e, 'Could not save your profile. Please try again.'));

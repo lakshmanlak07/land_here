@@ -102,8 +102,12 @@ export interface ProgressState {
   forget: (userId: string) => Promise<void>;
 }
 
+/** Server cap per POST /progress batch. */
+export const MAX_BATCH = 200;
+
 export function createProgressStore(storage: KeyValueStorage, remote?: ProgressRemote) {
-  let flushing: Promise<void> | null = null;
+  // Single-flight per account: a flush started for A is never joined by B.
+  let flushing: { userId: string; promise: Promise<boolean> } | null = null;
 
   return createStore<ProgressState>((set, get) => {
     const persist = (userId: string) => {
@@ -112,22 +116,24 @@ export function createProgressStore(storage: KeyValueStorage, remote?: ProgressR
       storage.setItem(pendingStorageKey(userId), JSON.stringify(pending)).catch(() => {});
     };
 
-    const doFlush = async () => {
-      const userId = get().userId;
-      if (!remote || !userId) return;
-      const sending = { ...get().pending };
+    /** One round: push up to MAX_BATCH pending changes (or pull). true = server answered. */
+    const doFlush = async (userId: string): Promise<boolean> => {
+      if (!remote) return false;
+      const sending = Object.fromEntries(Object.entries(get().pending).slice(0, MAX_BATCH));
       const changes = Object.entries(sending).map(([step_id, completed]) => ({ step_id, completed }));
       try {
         const server = changes.length ? await remote.push(changes) : await remote.fetch();
-        if (get().userId !== userId) return;
+        if (get().userId !== userId) return false;
         // Drop only what was sent and not changed again meanwhile.
         const still = { ...get().pending };
         for (const [id, v] of Object.entries(sending)) if (still[id] === v) delete still[id];
         set({ pending: still, completedIds: applyPending(server, still) });
         persist(userId);
         storage.setItem(syncedMarkerKey(userId), '1').catch(() => {});
+        return true;
       } catch {
         // Offline / server error: keep the queue; the next trigger retries.
+        return false;
       }
     };
 
@@ -138,7 +144,10 @@ export function createProgressStore(storage: KeyValueStorage, remote?: ProgressR
       hydrated: false,
 
       toggle: (id) => {
-        const { userId, completedIds, pending } = get();
+        const { userId, completedIds, pending, hydrated } = get();
+        // Before this account's progress has loaded, a tap would persist a
+        // one-tick snapshot over the stored set. Ignore it (UI shows loading).
+        if (userId && !hydrated) return;
         const next = { ...completedIds };
         const done = !next[id];
         if (done) next[id] = true;
@@ -182,18 +191,20 @@ export function createProgressStore(storage: KeyValueStorage, remote?: ProgressR
       },
 
       flush: async () => {
-        // Single-flight, and drain: changes made while a request was in flight
-        // are sent by a follow-up round (bounded, so a failing server cannot spin).
-        for (let round = 0; round < 3; round++) {
-          if (!flushing) {
-            flushing = doFlush().finally(() => {
-              flushing = null;
+        // Drain: keep sending while the server answers and changes remain
+        // (including ones made during an in-flight request, and queues larger
+        // than one batch). Bounded so a misbehaving server cannot spin.
+        for (let round = 0; round < 10; round++) {
+          const userId = get().userId;
+          if (!userId) return;
+          if (!flushing || flushing.userId !== userId) {
+            const promise = doFlush(userId).finally(() => {
+              if (flushing?.promise === promise) flushing = null;
             });
+            flushing = { userId, promise };
           }
-          const before = JSON.stringify(get().pending);
-          await flushing;
-          const after = JSON.stringify(get().pending);
-          if (after === '{}' || after === before) break;
+          const ok = await flushing.promise;
+          if (!ok || Object.keys(get().pending).length === 0) return;
         }
       },
 

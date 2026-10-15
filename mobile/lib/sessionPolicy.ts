@@ -21,9 +21,13 @@ export type RefreshResult =
   /** Could not get an answer: keep the session, try again later. */
   | { kind: 'transient' };
 
-/** Statuses from /auth/refresh that mean the refresh token is no good. */
+/**
+ * Statuses from /auth/refresh that mean the refresh token is no good. The API
+ * answers every invalid, expired, revoked or replayed refresh token with 401;
+ * a 400/403 would come from a proxy or WAF, not a verdict on the token.
+ */
 export function isDefinitiveAuthFailure(status: number): boolean {
-  return status === 400 || status === 401 || status === 403;
+  return status === 401;
 }
 
 type FetchLike = (

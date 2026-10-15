@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { QueryClient, type Query } from '@tanstack/react-query';
+import Constants from 'expo-constants';
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -35,6 +36,9 @@ export const queryPersister = createAsyncStoragePersister({
 export const persistOptions = {
   persister: queryPersister,
   maxAge: WEEK_MS,
+  // A cache written by a different app version is discarded, not restored
+  // into code that may expect a different response shape.
+  buster: Constants.expoConfig?.version ?? 'dev',
   dehydrateOptions: {
     shouldDehydrateQuery: (q: Query) =>
       q.state.status === 'success' && PERSISTED_ROOTS.has(String(q.queryKey[0])),

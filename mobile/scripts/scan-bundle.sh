@@ -52,17 +52,15 @@ do
   fi
 done
 
-# ── 1b. Purchase machinery that MUST be present ───────────────────────────────
-# The mirror of the check above. A build that silently dropped the paywall or
-# the product id would ship a paid app with nothing to buy — and an export
-# succeeds either way, so only an explicit assertion catches it.
-for pat in 'com.landhere.app.pro' 'Restore Purchases' '/purchases/verify' \
-  '/purchases/verify/google'
+# ── 1b. Purchase machinery that must be ABSENT (free launch) ──────────────────
+# LandHere ships free: no product id, restore button or verify call may reach
+# the bundle. (Inverted from the paid release, where they had to be present.)
+for pat in 'com.landhere.app.pro' 'Restore Purchases' '/purchases/verify'
 do
   if echo "$FILES" | xargs grep -l -F -- "$pat" 2>/dev/null | grep -q .; then
-    note "✔" "present: $pat"
+    note "✖" "purchase machinery present in a free build: $pat"; fail=1
   else
-    note "✖" "purchase machinery MISSING from bundle: $pat"; fail=1
+    note "✔" "absent: $pat"
   fi
 done
 

@@ -71,12 +71,18 @@ api.interceptors.response.use(
     }
 
     const cfg = original as InternalAxiosRequestConfig & { _retry?: boolean };
-    const isRefreshCall = (cfg.url ?? '').includes('/auth/refresh');
+    const url = cfg.url ?? '';
 
-    // Already retried once, or it was the refresh request itself that 401'd: the
-    // session can't be salvaged. Sign out and propagate the original error.
-    if (cfg._retry || isRefreshCall) {
-      useAuthStore.getState().logout();
+    // 401s that are answers about a password, not about the session: wrong
+    // password on login or account deletion, bad reset code. Never refresh or
+    // sign out for these.
+    if (/\/auth\/(login|register|refresh|password\/)/.test(url) || url.startsWith('/account')) {
+      return Promise.reject(error);
+    }
+
+    // Already retried with a freshly minted token and still 401: propagate. The
+    // refresh itself already signed out if the session was genuinely invalid.
+    if (cfg._retry) {
       return Promise.reject(error);
     }
 

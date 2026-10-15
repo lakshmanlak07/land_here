@@ -240,6 +240,66 @@ await check('sync never mixes accounts on one device', async () => {
   assert.equal(srv.db.get('b')?.size ?? 0, 0);
 });
 
+await check('a tick made while the first pull is in flight is still sent', async () => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => { release = r; });
+  const pushed: string[][] = [];
+  const server = new Set<string>();
+  const remote: ProgressRemote = {
+    async fetch() { await gate; return [...server]; },
+    async push(changes) {
+      pushed.push(changes.map((c) => c.step_id));
+      for (const c of changes) {
+        if (c.completed) server.add(c.step_id);
+        else server.delete(c.step_id);
+      }
+      return [...server];
+    },
+  };
+  const store = createProgressStore(memoryStorage({ ['journey_synced:u1']: '1' }), remote);
+  const binding = store.getState().setUser('u1');
+  await flush();
+  assert.equal(store.getState().hydrated, true, 'local load should finish before the pull');
+  store.getState().toggle('late'); // during the in-flight initial pull
+  release();
+  await binding;
+  await store.getState().flush();
+  assert.deepEqual(pushed.flat(), ['late'], 'tick made mid-pull was never sent');
+  assert.equal(store.getState().isCompleted('late'), true);
+  assert.deepEqual(store.getState().pending, {});
+});
+
+await check('queues larger than one batch are sent in chunks of 200', async () => {
+  const sizes: number[] = [];
+  const remote: ProgressRemote = {
+    async fetch() { return []; },
+    async push(changes) { sizes.push(changes.length); return []; },
+  };
+  const many: Record<string, true> = {};
+  for (let i = 0; i < 450; i++) many[`s${i}`] = true;
+  const store = createProgressStore(
+    memoryStorage({ [progressStorageKey('u1')]: JSON.stringify(many) }),
+    remote,
+  );
+  await store.getState().setUser('u1');
+  assert.deepEqual(sizes, [200, 200, 50]);
+  assert.deepEqual(store.getState().pending, {});
+});
+
+await check('taps before the account has loaded are ignored', async () => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => { release = r; });
+  const base = memoryStorage({ [progressStorageKey('u1')]: JSON.stringify({ a: true, b: true }) });
+  const storage: KeyValueStorage = { ...base, async getItem(k) { await gate; return base.getItem(k); } };
+  const store = createProgressStore(storage);
+  const binding = store.getState().setUser('u1');
+  store.getState().toggle('c');
+  release();
+  await binding;
+  assert.deepEqual(store.getState().completedIds, { a: true, b: true });
+  assert.deepEqual(JSON.parse(base.data.get(progressStorageKey('u1'))!), { a: true, b: true });
+});
+
 console.log('Refresh classification');
 
 await check('network error is transient (credentials kept)', async () => {
@@ -247,14 +307,14 @@ await check('network error is transient (credentials kept)', async () => {
   assert.equal(r.kind, 'transient');
 });
 
-for (const status of [500, 502, 503, 429, 408]) {
+for (const status of [500, 502, 503, 429, 408, 400, 403]) {
   await check(`HTTP ${status} is transient`, async () => {
     const r = await requestRefresh(async () => respond(status), 'https://x', 't');
     assert.equal(r.kind, 'transient');
   });
 }
 
-for (const status of [400, 401, 403]) {
+for (const status of [401]) {
   await check(`HTTP ${status} is a definitive rejection (sign out)`, async () => {
     const r = await requestRefresh(async () => respond(status), 'https://x', 't');
     assert.equal(r.kind, 'invalid');
@@ -297,6 +357,13 @@ await check('hydrate keeps the session when the server is unreachable', () => {
   const store = src('lib/store.ts');
   assert.match(store, /if \(me === null\) \{\s*await settleOffline/);
   assert.match(store, /result\.kind === 'transient'\) \{\s*await settleOffline/);
+});
+
+await check('password-answer 401s never refresh or sign out', () => {
+  const api = src('lib/api.ts');
+  assert.match(api, /login\|register\|refresh\|password/);
+  assert.match(api, /url\.startsWith\('\/account'\)/);
+  assert.ok(!/cfg\._retry[^}]*logout\(\)/.test(api), 'retry branch must not sign out');
 });
 
 await check('root layout re-binds progress to the signed-in user id', () => {

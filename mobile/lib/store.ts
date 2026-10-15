@@ -44,6 +44,8 @@ interface AuthState {
   setAuth: (accessToken: string, refreshToken: string, user: UserOut) => void;
   setTokens: (accessToken: string, refreshToken: string) => void;
   patchUser: (fields: Partial<UserOut>) => void;
+  /** Replace the profile after a successful /auth/me (also caches it). */
+  setUser: (user: UserOut) => void;
   completeOnboarding: () => void;
   logout: () => void;
   hydrate: () => Promise<void>;
@@ -77,6 +79,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // Merge updated fields into the current user (e.g. after PATCH /auth/me).
   // No-op when signed out, so callers needn't guard against a null user.
+  setUser: (user) => {
+    set({ user });
+    cacheUser(user);
+  },
+
   patchUser: (fields) =>
     set((state) => {
       if (!state.user) return {};

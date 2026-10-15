@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, Pressable, StyleSheet,
   KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Alert,
@@ -35,7 +35,18 @@ export default function ResetPasswordScreen() {
   const [error, setError] = useState<string | null>(null);
   const s = styles(colors, radius);
 
+  // A reset link opened while this screen is already mounted arrives as a new
+  // param, not a new screen.
+  useEffect(() => {
+    if (params.token) {
+      setToken(params.token);
+      setStep('reset');
+      setError(null);
+    }
+  }, [params.token]);
+
   async function requestLink() {
+    if (loading) return;
     setError(null);
     if (!EMAIL_RE.test(email.trim())) {
       setError('Please enter a valid email address.');
@@ -53,6 +64,7 @@ export default function ResetPasswordScreen() {
   }
 
   async function resetPassword() {
+    if (loading) return;
     setError(null);
     if (token.trim().length < 20) return setError('Paste the full code from the email.');
     if (password.length < 8) return setError('Use at least 8 characters for your new password.');
@@ -154,7 +166,7 @@ export default function ResetPasswordScreen() {
 
           <Pressable
             style={s.footer}
-            onPress={() => { setError(null); setStep(step === 'request' ? 'reset' : 'request'); }}
+            onPress={() => { setError(null); setSent(false); setStep(step === 'request' ? 'reset' : 'request'); }}
             accessibilityRole="button"
           >
             <Text style={[s.footerText, { color: colors.primary }]}>
