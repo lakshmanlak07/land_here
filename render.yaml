@@ -53,9 +53,11 @@ services:
       - key: PURCHASES_ENABLED
         value: "false"
       - key: DB_POOL_SIZE
-        value: "5"
+        value: "10"
       - key: DB_MAX_OVERFLOW
-        value: "5"
+        value: "10"
+      - key: THREADPOOL_SIZE
+        value: "20"
       # Countries, journeys and the 267-school ranking dataset are loaded by
       # start.sh on every boot (idempotent upserts from the repo).
       - key: LOAD_REFERENCE_DATA

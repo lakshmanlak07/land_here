@@ -129,6 +129,10 @@ def _require_known_countries(db: Session, *codes: str | None) -> None:
     dependencies=[Depends(_register_limit)],
 )
 def register(body: UserRegister, db: Session = Depends(get_db)):
+    # Hash BEFORE touching the database: bcrypt takes ~0.2 s of CPU, and doing it
+    # while a pooled connection is checked out starves the pool under sign-up
+    # bursts (measured: QueuePool exhaustion at 150 concurrent users).
+    hashed_password = hash_password(body.password)
     _require_known_countries(db, body.origin_country_code, body.destination_country_code)
     # body.email is already normalized (trimmed + lower-cased) by the schema, so
     # this pre-check and the unique constraint both compare the canonical form.
@@ -136,7 +140,7 @@ def register(body: UserRegister, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=_REGISTER_REJECTED)
     user = User(
         email=body.email,
-        hashed_password=hash_password(body.password),
+        hashed_password=hashed_password,
         full_name=body.full_name,
         origin_country_code=body.origin_country_code,
         destination_country_code=body.destination_country_code,
@@ -172,11 +176,14 @@ def login(body: UserLogin, db: Session = Depends(get_db)):
     # Always run exactly one password verification — against the real hash when
     # the account exists, otherwise a dummy hash — so a non-existent email and a
     # wrong password are indistinguishable in time (no user enumeration).
+    user_id = user.id if user else None
     hashed = user.hashed_password if user else _DUMMY_PASSWORD_HASH
+    # Return the connection to the pool before the ~0.2 s bcrypt check.
+    db.rollback()
     password_ok = verify_password(body.password, hashed)
-    if not user or not password_ok:
+    if user_id is None or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    return _token_pair(user.id, db)
+    return _token_pair(user_id, db)
 
 
 @router.post(

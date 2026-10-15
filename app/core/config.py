@@ -147,8 +147,12 @@ class Settings(BaseSettings):
 
     # Database connection pool (PostgreSQL only). Per process:
     # DB_POOL_SIZE + DB_MAX_OVERFLOW connections. Render Basic-256mb allows 100.
-    DB_POOL_SIZE: int = 5
-    DB_MAX_OVERFLOW: int = 5
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 10
+    # Max concurrent sync request handlers per process (AnyIO thread limiter;
+    # FastAPI's default is 40). Kept <= DB_POOL_SIZE + DB_MAX_OVERFLOW so a
+    # handler never waits on a database connection that cannot exist.
+    THREADPOOL_SIZE: int = 20
     # Log level for app loggers (access log is INFO).
     LOG_LEVEL: str = "INFO"
     # Read by start.sh (shell), declared here so a .env copied from

@@ -16,6 +16,10 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    # Bound concurrent sync handlers to what the DB pool can serve.
+    import anyio.to_thread
+
+    anyio.to_thread.current_default_thread_limiter().total_tokens = settings.THREADPOOL_SIZE
     # ── Startup checks ───────────────────────────────────────────────────────
     if "*" in settings.cors_allow_origins:
         logger.warning(
@@ -39,6 +43,21 @@ app = FastAPI(
     redoc_url=None if settings.is_production else "/redoc",
     openapi_url=None if settings.is_production else "/openapi.json",
 )
+
+
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError  # noqa: E402
+
+
+@app.exception_handler(PoolTimeoutError)
+async def pool_timeout_handler(request: Request, exc: PoolTimeoutError):
+    """Database pool exhausted: the server is overloaded, not broken. Tell the
+    client to retry shortly instead of returning an opaque 500."""
+    logger.warning("DB pool exhausted on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "The service is busy. Please try again in a moment."},
+        headers={"Retry-After": "2"},
+    )
 
 
 @app.exception_handler(Exception)
@@ -88,8 +107,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from app.core.middleware import RequestContextMiddleware  # noqa: E402
+from app.core.middleware import ConcurrencyLimitMiddleware, RequestContextMiddleware  # noqa: E402
 
+# In-flight requests <= DB connections per process (see the class docstring).
+app.add_middleware(
+    ConcurrencyLimitMiddleware,
+    limit=settings.DB_POOL_SIZE + settings.DB_MAX_OVERFLOW,
+)
 app.add_middleware(RequestContextMiddleware)
 
 app.include_router(auth.router)

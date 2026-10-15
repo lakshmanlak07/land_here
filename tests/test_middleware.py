@@ -41,3 +41,44 @@ def test_access_log_has_no_query_string_or_personal_data(client, caplog):
     assert email not in blob
     assert "password" not in blob
     assert all(set(l) == {"request_id", "method", "path", "status", "duration_ms"} for l in lines)
+
+
+def test_concurrency_limit_queues_then_sheds_with_503():
+    """In-flight cap: with limit=1, a second request waits; past queue_timeout it
+    gets 503 + Retry-After. Health checks bypass the cap. The slot is released."""
+    import asyncio
+
+    from app.core.middleware import ConcurrencyLimitMiddleware
+
+    release = asyncio.Event()
+
+    async def slow_app(scope, receive, send):
+        if scope["path"] == "/slow":
+            await release.wait()
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    async def call(app, path):
+        sent = []
+
+        async def send(message):
+            sent.append(message)
+
+        await app({"type": "http", "path": path, "method": "GET", "headers": []}, None, send)
+        start = next(m for m in sent if m["type"] == "http.response.start")
+        return start["status"], dict(start["headers"])
+
+    async def scenario():
+        app = ConcurrencyLimitMiddleware(slow_app, limit=1, queue_timeout=0.2)
+        first = asyncio.create_task(call(app, "/slow"))
+        await asyncio.sleep(0.05)
+        status, headers = await call(app, "/other")          # queued, then shed
+        health, _ = await call(app, "/health/live")           # bypasses the cap
+        release.set()
+        assert (await first)[0] == 200
+        after, _ = await call(app, "/other")                  # slot released
+        return status, headers, health, after
+
+    status, headers, health, after = asyncio.run(scenario())
+    assert status == 503 and headers[b"retry-after"] == b"2"
+    assert health == 200 and after == 200

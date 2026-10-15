@@ -31,7 +31,18 @@ class Base(DeclarativeBase):
     pass
 
 
-def get_db():
+async def get_db():
+    """Request-scoped session.
+
+    Deliberately an *async* generator even though the session is sync: FastAPI
+    runs sync generator dependencies' setup and teardown in the thread pool, so
+    under load a finished request could not return its connection (close) until
+    a thread was free, while every thread was blocked waiting for a connection -
+    a deadlock broken only by the pool timeout. Measured with
+    scripts/load_test.py at 150 concurrent users. Creating and closing the
+    session on the event loop needs no thread, so connections are always
+    returned promptly. Handlers still run the queries in the thread pool.
+    """
     db = SessionLocal()
     try:
         yield db

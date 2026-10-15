@@ -77,3 +77,54 @@ class RequestContextMiddleware:
                     }
                 )
             )
+
+
+class ConcurrencyLimitMiddleware:
+    """Cap the number of requests being processed at once.
+
+    Why: a sync FastAPI request hops between worker threads (dependencies,
+    handler, response serialization) and can hold a pooled DB connection while
+    waiting for the next hop. With more requests in flight than connections,
+    queued requests pin every connection while running threads wait for one -
+    a deadlock broken only by the pool timeout. Measured with
+    scripts/load_test.py: collapse at 150 concurrent users.
+
+    Bounding in-flight requests to the pool size makes that impossible: each
+    in-flight request holds at most one connection. Excess requests wait here,
+    holding nothing, and receive 503 + Retry-After if they wait longer than
+    `queue_timeout`. Health checks bypass the limit so an overloaded instance
+    is reported busy, not dead.
+    """
+
+    def __init__(self, app, limit: int, queue_timeout: float = 10.0):
+        import asyncio
+
+        self.app = app
+        self.queue_timeout = queue_timeout
+        self._sem = asyncio.Semaphore(limit)
+
+    async def __call__(self, scope, receive, send):
+        import asyncio
+
+        if scope["type"] != "http" or scope.get("path", "").startswith("/health"):
+            await self.app(scope, receive, send)
+            return
+        try:
+            await asyncio.wait_for(self._sem.acquire(), timeout=self.queue_timeout)
+        except asyncio.TimeoutError:
+            body = b'{"detail":"The service is busy. Please try again in a moment."}'
+            await send({
+                "type": "http.response.start",
+                "status": 503,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"retry-after", b"2"),
+                    (b"content-length", str(len(body)).encode()),
+                ],
+            })
+            await send({"type": "http.response.body", "body": body})
+            return
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            self._sem.release()
