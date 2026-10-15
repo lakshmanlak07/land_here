@@ -1,125 +1,75 @@
 # LandHere
 
-**LandHere** is an information-first mobile companion for international students. It guides students through every step of relocating to study abroad — from accepting an admission offer, through the visa process and departure prep, to settling in after arrival — with plain-English explanations and direct links to official government sources.
+A free mobile companion for international students, from university acceptance to
+settling in abroad. It walks a student through the visa process, departure and
+first weeks for **India → United States, United Kingdom and Canada**, in plain
+English, with every step linked to its official government source.
 
-The app deliberately does not give legal or immigration advice. Every piece of information is tied to an official source URL and an `is_verified` flag so the team can track what has been human-checked.
+LandHere gives **no legal or immigration advice**. Each journey step carries an
+`is_verified` flag and a cited source. Unverified steps are labelled in the app.
+Verification records: `VERIFY_visa_india_us.md`, `VERIFY_visa_IN_UK.md`, `VERIFY_visa_IN_CA.md`.
 
----
+> Legal documents in `LAUNCH/` are **drafts awaiting review by a qualified lawyer**.
 
-## Product model
+## What the app does
+- **Account:** email/password with refresh-token rotation, password reset by email
+  (Resend), profile editing, in-app account deletion.
+- **Onboarding:** destination, origin, university, stage and goals.
+- **Visa journeys:** IN→US, IN→UK and IN→CA. Progress is offline-first and per-account,
+  and syncs across devices.
+- **LandHere Score rankings:** 267 scored U.S. universities (500 ingested). See the
+  in-app methodology screen and `data/README.md`.
+- **Money and preparation:** currency converter (ECB rates via Frankfurter),
+  scholarships, work-hour rules, necessities checklists.
+- **Offline:** saved journeys and rankings stay readable without a connection.
+- **Price:** the app is **free**. Paid-tier code is parked behind `PAYWALL_ENABLED` and
+  `PURCHASES_ENABLED`, both off, and no store SDK ships.
 
-LandHere is **free to download and free to use**, with one optional in-app
-purchase. **iOS and Android** purchase paths are both implemented; neither has
-run on a real device.
-
-| | |
-|---|---|
-| App bundle id | `com.landhere.app` |
-| IAP product id | `com.landhere.app.pro` — a **different** identifier from the bundle id / package name |
-| Android package | `com.landhere.app` |
-| Type | One-time **non-consumable**. No subscription, ever. |
-| Price | US $1.99, set in App Store Connect |
-
-**Free for everyone:** journey phases 1–2, the top 25 ranked universities, the
-complete scholarship directory, the complete student work-hour rules, the scoring
-methodology, country guides, arrival necessities, and the currency/cost tools.
-
-**LandHere Pro adds:** journey phases 3–5 (visa process, before departure, after
-arrival), ranked universities beyond the top 25, and university detail pages.
-
-The gate is **enforced by the API**, not by the app — withheld content is never
-sent to a free user's device. Refunds and revocations arrive as App Store Server
-Notifications and end access automatically. See `ARCHITECTURE.md` § "Purchases
-and entitlement", and `LAUNCH/DEPLOYMENT_RUNBOOK.md` for provisioning.
-
-> Legal documents in `LAUNCH/` are **drafts awaiting review by a qualified
-> lawyer**. Nothing in this repository has legal sign-off, and no compliance
-> claim is made anywhere in it.
-
----
-
-## Tech stack
-
+## Stack
 | Layer | Technology |
 |---|---|
-| Mobile | Expo (SDK 54) + React Native 0.81 + TypeScript |
-| Navigation | Expo Router v6 (file-system routing) |
-| State / data-fetching | Zustand (auth), TanStack Query v5 (server state) |
-| Backend | Python 3.12 + FastAPI |
-| ORM / migrations | SQLAlchemy 2 + Alembic |
-| Database | PostgreSQL (local dev: `land_here` db) |
-| Auth | JWT (python-jose) + bcrypt (passlib) |
-| HTTP client | Axios (mobile → backend) |
+| Mobile | Expo SDK 54, React Native 0.81, TypeScript, Expo Router 6, Zustand, TanStack Query (persisted) |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2, Alembic, PyJWT (HS256), passlib/bcrypt |
+| Database | PostgreSQL 16+ (tests: SQLite in-memory plus a PostgreSQL integration suite) |
+| Email | Resend HTTP API (SMTP fallback) |
+| Hosting target | Render (`render.yaml`), Docker |
 
----
-
-## Folder structure
-
-```
-land_here/               ← repo root
-├── app/                 ← FastAPI application
-│   ├── main.py          ← app factory, middleware, router registration
-│   ├── core/
-│   │   ├── config.py    ← pydantic-settings (reads .env)
-│   │   ├── database.py  ← SQLAlchemy engine + SessionLocal + Base
-│   │   ├── security.py  ← JWT encode/decode, bcrypt hash/verify
-│   │   ├── deps.py      ← FastAPI dependency: get_current_user
-│   │   ├── seed.py      ← one-time seed: countries + IN→US InfoSteps
-│   │   └── seed_facts.py← standalone fun-facts data (no DB calls)
-│   ├── models/          ← SQLAlchemy ORM models
-│   │   ├── country.py
-│   │   ├── user.py
-│   │   ├── info_step.py
-│   │   └── country_guide.py
-│   ├── schemas/         ← Pydantic request/response models
-│   │   ├── country.py
-│   │   ├── user.py
-│   │   ├── info_step.py
-│   │   └── country_guide.py
-│   └── routes/          ← FastAPI routers
-│       ├── auth.py      ← /auth/register, /auth/login, /auth/me
-│       ├── countries.py ← /countries, /countries/destinations, /countries/origins
-│       ├── info.py      ← /info/journey, /info/corridors, /info/phases
-│       └── guides.py    ← /guides/{country_code}
-├── alembic/             ← database migration scripts
-├── tests/               ← pytest test suite (SQLite in-memory, no real DB)
-├── mobile/              ← Expo React Native app
-│   ├── app/             ← Expo Router screens (file-system routes)
-│   │   ├── (auth)/      ← login.tsx, register.tsx
-│   │   ├── (tabs)/      ← index.tsx, journey.tsx, explore.tsx, profile.tsx
-│   │   └── country/     ← [code].tsx (country detail)
-│   ├── components/      ← shared UI components
-│   ├── constants/       ← funFacts.ts and other static data
-│   ├── context/         ← ThemeContext
-│   ├── lib/             ← api.ts (axios), store.ts (zustand), types.ts
-│   └── content/         ← draft city guides and corridor content (not in DB)
-├── .env                 ← backend env vars (DATABASE_URL, SECRET_KEY)
-├── requirements.txt     ← Python runtime dependencies
-├── requirements-dev.txt ← Python dev/test dependencies (pytest, httpx)
-└── alembic.ini
+## Local setup
+Backend (repo root, Python 3.12):
+```bash
+python -m venv .venv && .venv/Scripts/activate    # macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env                              # then set DATABASE_URL and SECRET_KEY
+alembic upgrade head
+python -m app.core.seed                           # countries + 3 journey corridors (idempotent)
+python -m app.core.universities_dataset load      # 500 universities (idempotent)
+uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
----
+Mobile (`mobile/`, Node 22):
+```bash
+npm ci
+cp .env.example .env    # EXPO_PUBLIC_API_URL=http://localhost:8000 (USB + adb reverse) or your LAN IP
+npx expo start --dev-client
+```
+Install the EAS development build on the phone first; store Expo Go runs only the newest SDK.
 
-## What is built
+## Checks
+| What | Command |
+|---|---|
+| Backend tests (SQLite, plus PostgreSQL when `.env` points at one) | `pytest -q` |
+| Migrations, seed and dataset on a disposable DB | `python scripts/check_migrations.py` |
+| Live API smoke test against a running server | `python scripts/smoke_api.py http://127.0.0.1:8000` |
+| Load test (local, disposable DB only) | `python scripts/load_test.py --users 150` (see `docs/CAPACITY.md`) |
+| Mobile type check, lint, policy and session checks, unit tests | `npx tsc --noEmit && npx eslint . && npm run check && npm test` |
+| Release bundle scan | `npx expo export --platform android --clear --output-dir dist-a && ./scripts/scan-bundle.sh dist-a https://<api-host>` |
 
-**Backend**
-- Full CRUD-ready data model: `Country`, `User`, `InfoStep`, `CountryGuide`
-- REST API: country list/filter, journey info-step retrieval, country guides, auth
-- One seeded corridor: India → United States (15 steps across 4 phases)
-- 22 countries seeded (16 destinations, 6 origin-only)
-- JWT authentication with `is_verified` flag on all content
+CI runs the backend and mobile checks: `.github/workflows/ci.yml`.
 
-**Mobile**
-- Auth flows: register (with origin + destination country selection), login, persistent JWT in SecureStore
-- Home screen: journey progress card, fun-fact card, destination browser
-- Journey screen: phased step list with read/unread tracking (Zustand + AsyncStorage)
-- Explore screen: destination country list
-- Country detail screen: country info + city image
-- Profile screen: user details, country preferences, logout
-- Fun facts: 6–8 per destination country, surfaced on home screen
-
-**Not yet built**
-- Corridors beyond IN→US (content files drafted in `mobile/content/drafts/`)
-- Country guides in the database (draft markdown files exist in `mobile/content/`)
-- Push notifications, search, community features
+## Documentation
+- `docs/BUILD_PROGRESS.md`: what was built and the current state (resume file).
+- `docs/RELEASE_READINESS.md`: verified evidence and external dependencies.
+- `docs/RUNBOOK.md`: deploy, migrate, backup, restore, rollback.
+- `docs/CAPACITY.md`: load-test results and the scaling model.
+- `BUILD_STATUS.md`: launch-sprint status record.
+- `LAUNCH/`: store checklists and the legal drafts.
