@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, parse_subject_uuid
@@ -353,28 +353,39 @@ def forgot_password(
 ):
     # Per-address cap too, so one inbox cannot be flooded from many IPs.
     enforce_limit(f"rl:auth_forgot_email:{body.email}", limit=3, window_seconds=900)
-    user = db.query(User).filter(User.email == body.email).first()
-    if user is None:
-        return _FORGOT_ACCEPTED
-
-    now = datetime.now(timezone.utc)
-    db.query(PasswordResetToken).filter(
-        PasswordResetToken.user_id == user.id,
-        PasswordResetToken.used_at.is_(None),
-    ).update({"used_at": now}, synchronize_session=False)
-    token = secrets.token_urlsafe(32)
-    db.add(
-        PasswordResetToken(
-            user_id=user.id,
-            token_hash=_hash_reset_token(token),
-            expires_at=now + timedelta(minutes=settings.PASSWORD_RESET_TTL_MINUTES),
-        )
-    )
-    db.commit()
-    background.add_task(
-        send_email, user.email, "Reset your LandHere password", _reset_email_text(token)
-    )
+    # ALL account-dependent work (lookup, token insert, email) happens after the
+    # response, in the background task, so known and unknown addresses take the
+    # same path and the same time up to the 202 (no timing enumeration).
+    background.add_task(_issue_reset_token, sessionmaker(bind=db.get_bind()), body.email)
     return _FORGOT_ACCEPTED
+
+
+def _issue_reset_token(session_factory, email: str) -> None:
+    """Create a reset token for `email` if it has an account, and email it.
+
+    Older unused tokens are NOT voided here: doing so would let anyone who knows
+    a victim's address kill the link the victim is about to use. They stay
+    single-use and expire after PASSWORD_RESET_TTL_MINUTES, and a successful
+    reset voids all of them."""
+    db = session_factory()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if user is None:
+            return
+        now = datetime.now(timezone.utc)
+        token = secrets.token_urlsafe(32)
+        db.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=_hash_reset_token(token),
+                expires_at=now + timedelta(minutes=settings.PASSWORD_RESET_TTL_MINUTES),
+            )
+        )
+        db.commit()
+        address = user.email
+    finally:
+        db.close()
+    send_email(address, "Reset your LandHere password", _reset_email_text(token))
 
 
 @router.post(
@@ -413,5 +424,9 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
     db.query(RefreshToken).filter(
         RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None)
     ).update({"revoked_at": now}, synchronize_session=False)
+    # Any other outstanding reset links die with this successful reset.
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None)
+    ).update({"used_at": now}, synchronize_session=False)
     db.commit()
     return None

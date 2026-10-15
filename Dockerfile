@@ -25,8 +25,10 @@ COPY . .
 # limits don't coordinate across processes, so N workers = N× every limit.
 # Railway / Render inject PORT; default to 8000 for local Docker runs.
 RUN chmod +x /app/start.sh \
-    && useradd --system --uid 10001 --no-create-home --home-dir /app appuser \
-    && chown -R appuser /app
-# Run as an unprivileged user: a compromise of the API process must not be root.
+    && useradd --system --uid 10001 --no-create-home --home-dir /app appuser
+# Run as an unprivileged user that cannot modify the application code (files
+# stay root-owned, world-readable): a compromised API process is neither root
+# nor able to persist changes to the image. PYTHONDONTWRITEBYTECODE=1 means
+# nothing needs to be written under /app at runtime.
 USER appuser
 CMD ["/app/start.sh"]

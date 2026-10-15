@@ -89,13 +89,16 @@ def test_expired_token_rejected(client, outbox):
     assert _reset(client, token).status_code == 400
 
 
-def test_new_request_invalidates_older_token(client, outbox):
+def test_new_request_does_not_kill_older_link_but_a_reset_kills_all(client, outbox):
+    # Issuing a token must not void earlier ones: otherwise anyone who knows a
+    # victim's address could keep killing the link the victim is about to use.
     email, _, _ = _account(client)
     _forgot(client, email)
     _forgot(client, email)
     first, second = _token_from(outbox[0][2]), _token_from(outbox[1][2])
-    assert _reset(client, first).status_code == 400
-    assert _reset(client, second).status_code == 204
+    assert _reset(client, first).status_code == 204
+    # ...but a successful reset voids every other outstanding link.
+    assert _reset(client, second, "another-pass-22").status_code == 400
 
 
 def test_garbage_token_rejected(client):

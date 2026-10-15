@@ -57,7 +57,7 @@ def _send_resend(to: str, subject: str, text: str) -> bool:
         },
     )
     try:
-        with urlopen(req, timeout=15) as resp:
+        with urlopen(req, timeout=5) as resp:
             return 200 <= resp.status < 300
     except HTTPError as exc:
         # Status only: the body can echo request details.

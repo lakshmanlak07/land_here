@@ -162,9 +162,10 @@ def liveness():
     return {"status": "ok"}
 
 
-@app.get("/health/ready", tags=["health"])
-def readiness():
-    """Essential dependencies reachable (currently: the database)."""
+_ready_cache: dict = {"at": 0.0, "ok": False}
+
+
+def _check_database() -> bool:
     from sqlalchemy import text
 
     from app.core.database import SessionLocal
@@ -172,9 +173,29 @@ def readiness():
     db = SessionLocal()
     try:
         db.execute(text("SELECT 1"))
+        return True
     except Exception:
         logger.exception("Readiness check failed: database unreachable")
-        return JSONResponse(status_code=503, content={"status": "unavailable"})
+        return False
     finally:
         db.close()
+
+
+@app.get("/health/ready", tags=["health"])
+async def readiness():
+    """Essential dependencies reachable (currently: the database).
+
+    Unauthenticated and outside the concurrency limiter, so the result is cached
+    for 5 s: a flood of readiness probes costs at most one DB round trip per
+    5 s instead of one pooled connection per request."""
+    import time
+
+    from starlette.concurrency import run_in_threadpool
+
+    now = time.monotonic()
+    if now - _ready_cache["at"] > 5:
+        _ready_cache["ok"] = await run_in_threadpool(_check_database)
+        _ready_cache["at"] = now
+    if not _ready_cache["ok"]:
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
     return {"status": "ok"}

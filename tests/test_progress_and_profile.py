@@ -58,7 +58,7 @@ def test_progress_requires_auth(client, step_ids):
 
 def test_new_account_has_no_progress(client):
     _, h, _ = _account(client)
-    assert client.get("/progress", headers=h).json() == {"completed_step_ids": []}
+    assert client.get("/progress", headers=h).json()["completed_step_ids"] == []
 
 
 def test_complete_and_uncomplete_round_trip(client, step_ids):
@@ -94,11 +94,13 @@ def test_accounts_are_isolated(client, step_ids):
     assert set(client.get("/progress", headers=a).json()["completed_step_ids"]) == {step_ids[0], step_ids[1]}
 
 
-def test_unknown_step_rejected_and_nothing_written(client, step_ids):
+def test_unknown_step_ignored_and_known_steps_still_applied(client, step_ids):
     _, h, _ = _account(client)
-    r = _post(client, h, (step_ids[0], True), (str(uuid.uuid4()), True))
-    assert r.status_code == 422
-    assert client.get("/progress", headers=h).json()["completed_step_ids"] == []
+    ghost = str(uuid.uuid4())
+    r = _post(client, h, (step_ids[0], True), (ghost, True))
+    assert r.status_code == 200
+    assert r.json()["completed_step_ids"] == [step_ids[0]]
+    assert r.json()["ignored_step_ids"] == [ghost]
 
 
 @pytest.mark.parametrize("body", [{"changes": []}, {"changes": "x"}, {}, {"changes": [{"step_id": "not-a-uuid", "completed": True}]}])

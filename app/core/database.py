@@ -20,6 +20,9 @@ def _engine_kwargs(url: str) -> dict:
         "max_overflow": settings.DB_MAX_OVERFLOW,
         "pool_recycle": 1800,
         "pool_timeout": 10,
+        # Keep bound values (emails, password/token hashes) out of exception
+        # messages, which end up in logs.
+        "hide_parameters": True,
     }
 
 

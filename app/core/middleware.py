@@ -42,7 +42,7 @@ class RequestContextMiddleware:
             return
 
         incoming = dict(scope.get("headers") or []).get(b"x-request-id", b"").decode("latin-1")
-        request_id = incoming if _SAFE_REQUEST_ID.match(incoming) else uuid.uuid4().hex
+        request_id = incoming if _SAFE_REQUEST_ID.fullmatch(incoming) else uuid.uuid4().hex
         scope.setdefault("state", {})["request_id"] = request_id
         started = time.perf_counter()
         status_holder = {"status": 500}
