@@ -10,6 +10,15 @@ set -e
 
 alembic upgrade head
 
+# Reference data (countries, the three journey corridors, the university
+# ranking dataset) is versioned in the repo and loaded with idempotent upserts,
+# so every deploy converges the database on the reviewed content. Never touches
+# user tables. Set LOAD_REFERENCE_DATA=false to skip.
+if [ "${LOAD_REFERENCE_DATA:-true}" = "true" ]; then
+  python -m app.core.seed
+  python -m app.core.universities_dataset load
+fi
+
 WORKERS="${WEB_CONCURRENCY:-2}"
 
 if [ -z "${REDIS_URL:-}" ] && [ "$WORKERS" -gt 1 ]; then

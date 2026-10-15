@@ -1,60 +1,45 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# STAGING blueprint. NOT production.
+# PRODUCTION blueprint for LandHere (free launch).
+# Applying this creates PAID resources. Prices from render.com/pricing,
+# read 2026-10-14 (Hobby workspace, $0):
+#   landhere-api  web service, Starter (512 MB, 0.5 CPU) ........ $7/month
+#   landhere-db   PostgreSQL, Basic-256mb (1 GB SSD incl.) ...... $6/month
+#                 extra storage $0.30/GB/month; PITR window 3 days on Hobby
+#   Estimated total ≈ $13/month + storage/bandwidth overages.
+# No Redis: start.sh forces a single worker without REDIS_URL, so rate limits
+# stay exact. Add a Key Value instance ($10/month) before scaling workers.
 #
-# Cut from the tag v0.1.0-rc.5. Every resource name carries a "-staging" suffix
-# so this can never collide with, or be mistaken for, the production stack that
-# render.yaml on the release branch will create.
+# Region: Singapore — closest Render region to the India-based audience.
+# Change BOTH regions together if you pick another one (the database must be
+# in the same region as the service for the internal connection string).
 #
-# ENV is deliberately still "production": that is what exercises the fail-closed
-# startup guards and disables /docs, both of which this deployment exists to
-# verify. It does NOT mean this is a production environment.
-#
-# Nothing real should ever point at this stack: no store listing, no hosted
-# legal document, no App Store or Play Console notification URL.
+# Secrets marked `sync: false` are entered in the Render dashboard only; never
+# commit them. The staging stack is in render.staging.yaml.
 # ─────────────────────────────────────────────────────────────────────────────
 services:
   - type: web
-    name: landhere-api-staging
+    name: landhere-api
     runtime: docker
     dockerfilePath: ./Dockerfile
-    # Pinned explicitly rather than relying on Render's default, so the monthly
-    # cost of applying this blueprint is deterministic and reviewable in the
-    # file. Starter is $7/month (512 MB, 0.5 CPU) as listed on render.com/pricing
-    # on 2026-08-17. The Free instance type is deliberately not used: it spins
-    # down when idle, and the first request after a sleep is slow enough to be a
-    # problem for a mobile client and for an App Review reviewer.
-    # Starter, not Free: a Free instance spins down when idle, and the first
-    # request after a sleep would make the /health/ready check and the
-    # rate-limit verification slow and flaky — the two things this stack exists
-    # to test.
     plan: starter
+    region: singapore
     healthCheckPath: /health/ready
+    autoDeploy: false   # deploy deliberately from the dashboard, not on every push
     envVars:
+      - key: ENV
+        value: production
       - key: DATABASE_URL
         fromDatabase:
-          name: landhere-db-staging
+          name: landhere-db
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
-      # Set this to the real origin(s) after the first deploy, e.g.
-      # https://api.landhere.app — production REFUSES to boot on "*" or empty.
+      # No browser client exists; native apps are not subject to CORS. Production
+      # boot rejects "*" and empty, so this names the only web origin we serve
+      # (the GitHub Pages legal/support site). Requests are not credentialed.
       - key: CORS_ALLOW_ORIGINS
-        sync: false
-      # Production fails closed on a placeholder SECRET_KEY, wildcard CORS, a
-      # localhost DATABASE_URL, or TRUST_PROXY_HEADERS without hops
-      # (app/core/config.py). A crashed deploy is recoverable; a live service
-      # with wildcard CORS is not.
-      - key: ENV
-        value: production
-      # Shared rate-limit backend, from the Key Value instance declared below.
-      # Without it start.sh forces --workers 1, because in-memory limits do not
-      # coordinate across processes and N workers would multiply every published
-      # limit by N.
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: landhere-cache-staging
-          property: connectionString
+        value: https://lakshmanlak07.github.io
+      # Render terminates TLS in one proxy hop in front of the container.
       - key: TRUST_PROXY_HEADERS
         value: "true"
       - key: TRUSTED_PROXY_HOPS
@@ -63,79 +48,33 @@ services:
         value: "60"
       - key: REFRESH_TOKEN_EXPIRE_MINUTES
         value: "43200"
-      # Server-side Unsplash key for GET /images/city. Never an EXPO_PUBLIC_ var.
-      - key: UNSPLASH_ACCESS_KEY
-        sync: false
-      # Password-reset email via Resend. Secret: set in the Render dashboard only.
+      - key: PAYWALL_ENABLED
+        value: "false"
+      - key: PURCHASES_ENABLED
+        value: "false"
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: DB_MAX_OVERFLOW
+        value: "5"
+      # Countries, journeys and the 267-school ranking dataset are loaded by
+      # start.sh on every boot (idempotent upserts from the repo).
+      - key: LOAD_REFERENCE_DATA
+        value: "true"
+      # Password-reset email (Resend). Secrets: dashboard only.
       - key: RESEND_API_KEY
         sync: false
       - key: EMAIL_FROM
         sync: false
       - key: PASSWORD_RESET_URL
         value: landhere://reset-password
-
-      # ── LandHere Pro / App Store verification ─────────────────────────────
-      # None of these is a secret; see .env.example. No Apple private key,
-      # .p8, or shared secret is used anywhere in this project.
-      - key: APPLE_BUNDLE_ID
-        value: com.landhere.app
-      - key: APPLE_PRO_PRODUCT_ID
-        value: com.landhere.app.pro
-      # Numeric App Store Connect app id. REQUIRED for Production verification —
-      # without it /purchases/verify returns 503 and nobody can buy anything.
-      # Unknown until the App Store Connect record exists.
-      - key: APPLE_APP_APPLE_ID
+      # City photos (server-side Unsplash lookup). Optional; 503 when unset.
+      - key: UNSPLASH_ACCESS_KEY
         sync: false
-      # Baked into the image by the Dockerfile from vendor/apple-root-ca/.
-      - key: APPLE_ROOT_CA_DIR
-        value: /app/vendor/apple-root-ca
-      # TRUE only while testing through TestFlight (sandbox purchases).
-      # MUST be false for the public release.
-      - key: APPLE_ACCEPT_SANDBOX
-        sync: false
-      - key: APPLE_ENABLE_ONLINE_CHECKS
-        value: "true"
-
-      # ── LandHere Pro on Google Play ───────────────────────────────────────
-      # Unlike the Apple block above, TWO of these are real secrets. Both are
-      # sync: false so they are entered in the dashboard and never live in this
-      # file or in git.
-      - key: GOOGLE_PLAY_PACKAGE_NAME
-        value: com.landhere.app
-      - key: GOOGLE_PLAY_PRO_PRODUCT_ID
-        value: com.landhere.app.pro
-      # SECRET: service-account JSON, one line. Contains a private key.
-      # Empty => Android verification returns 503 and nobody can buy on Play.
-      - key: GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
-        sync: false
-      # Pub/Sub push OIDC. NOT secrets: an audience and an identifier. The
-      # security is Google's signature over the token.
-      - key: GOOGLE_PUBSUB_AUDIENCE
-        sync: false
-      - key: GOOGLE_PUBSUB_SERVICE_ACCOUNT_EMAIL
-        sync: false
-      # TRUE only while testing through Play internal testing.
-      # MUST be false for the public release.
-      - key: GOOGLE_ACCEPT_TEST_PURCHASES
-        sync: false
-
-  # Shared rate-limit backend. Required to run more than one web worker.
-  - type: keyvalue
-    name: landhere-cache-staging
-    # Free is enough here: rate limiting is ephemeral sorted sets, so the 25 MB
-    # and the lack of persistence cost us nothing. Production should use a paid
-    # tier for the connection limit, not for durability.
-    plan: free
-    ipAllowList: []   # internal connections only — never expose this publicly
 
 databases:
-  - name: landhere-db-staging
-    databaseName: landhere_staging
-    # Free is correct for STAGING and wrong for production. Render deletes free
-    # PostgreSQL instances after a fixed trial window (~30 days) — which is a
-    # feature here, since this stack is disposable, and a data-loss event in
-    # production. The production blueprint keeps basic-256mb for that reason.
-    #
-    # ⚠️ Confirm the current plan names and the trial window on Render's pricing
-    # page before applying; this file cannot keep itself up to date.
-    plan: free
+  - name: landhere-db
+    plan: basic-256mb
+    region: singapore
+    databaseName: landhere
+    user: landhere
+    ipAllowList: []   # internal connections only

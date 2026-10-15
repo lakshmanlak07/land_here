@@ -151,6 +151,9 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 5
     # Log level for app loggers (access log is INFO).
     LOG_LEVEL: str = "INFO"
+    # Read by start.sh (shell), declared here so a .env copied from
+    # .env.example is accepted by Settings (unknown keys are rejected).
+    LOAD_REFERENCE_DATA: bool = True
     # Password recovery email (stdlib SMTP; any provider with SMTP works —
     # Resend, Postmark, SES...). With SMTP_HOST unset the forgot-password
     # endpoint still answers 202 (no enumeration) but no email is sent.
