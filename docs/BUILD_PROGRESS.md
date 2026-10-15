@@ -23,9 +23,10 @@ checks. Coordinate before editing those files.
 | B9 | Mobile Jest component tests | done | c3de88d |
 | B10 | Docs: README, RUNBOOK, CAPACITY, RELEASE_READINESS | done | 4b1c807 + this commit |
 | B11 | Independent ECC reviews + fixes | done | 65b90f4, a1e95e7, 56d0ac8 |
+| B12 | Review round 3 (mobile security, Python backend, silent failures) + fixes | done | RELEASE_READINESS "Review round 3" |
 
-## Latest verification (2026-10-15)
-- **Backend:** `pytest` 281 passed. `check_migrations.py` all PASS.
+## Latest verification (2026-10-15, after review round 3)
+- **Backend:** `pytest` 283 passed. `check_migrations.py` last PASS before this round (no migration changes since).
 - **Live smoke:** 22/22 plus the new endpoints.
 - **Mobile:** tsc and eslint clean; `npm run check` all pass; `npm test` 8/8.
 - **Release:** Android export with `--clear`; `scan-bundle.sh` CLEAN.

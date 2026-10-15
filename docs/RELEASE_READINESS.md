@@ -4,14 +4,13 @@
 `C:\Users\laksh\land_here_launch`. **Nothing pushed, deployed, or submitted.**
 Status key: PASS (run and passed) · FAIL · UNVERIFIED (not run or not runnable here) · BLOCKED (external).
 
-> **Uncommitted work from a peer session ("mobile-2e")** is present in `mobile/app/(auth)/onboarding.tsx`,
-> `mobile/lib/{api,progressCore,session.check,store}.ts`. It was left untouched. The combined tree passes
-> tsc, eslint, `npm run check` and `npm test` (2026-10-15). Commit it from that session after its own review.
+> The uncommitted work noted here earlier came from the 2026-10-15 review round below (not "mobile-2e"); it is now
+> committed with its tests (see "Review round 3").
 
 ## Release gate
 | Gate | Status | Evidence (command → result) |
 |---|---|---|
-| Backend tests incl. PostgreSQL integration | **PASS** | `pytest -q` → 281 passed |
+| Backend tests incl. PostgreSQL integration | **PASS** | `pytest -q` → 283 passed (2026-10-15, after review round 3) |
 | Auth/authz, password reset, rate limits, deletion, free access, input validation, progress isolation | **PASS** | covered above (test_auth, test_security, test_adversarial, test_password_reset, test_free_launch, test_input_validation, test_progress_and_profile, test_middleware, test_mailer) |
 | Migrations on a fresh disposable DB | **PASS** | `scripts/check_migrations.py`: upgrade, seed ×2, dataset load ×2, downgrade base, upgrade, `alembic check` (no drift) |
 | Seed + dataset idempotent | **PASS** | second runs: 0 inserted / 0 updated |
@@ -45,7 +44,7 @@ Status key: PASS (run and passed) · FAIL · UNVERIFIED (not run or not runnable
     - `/universities/{id}` requires sign-in.
     - Access tokens live up to 60 min after a reset.
     - Custom-scheme reset link; a paste-code fallback exists.
-    - Unhandled 500s lack the request-ID header.
+    - ~~Unhandled 500s lack the request-ID header.~~ Fixed in review round 3.
   - **Verify on staging:** proxy hop count for per-IP rate limits.
 - **Mobile** (`ecc:react-reviewer`): 1 High (suspected) and several Mediums.
   - **Fixed (`a1e95e7`, server side in `65b90f4`):**
@@ -65,6 +64,20 @@ Status key: PASS (run and passed) · FAIL · UNVERIFIED (not run or not runnable
 - **Found during verification:**
   - `scan-bundle.sh` private-origin check passed vacuously without `strings`. **Fixed (`56d0ac8`).**
   - A local export without `--clear` reused stale inlined env values; the scan caught it.
+
+## Review round 3 (2026-10-15): `ecc:security-reviewer` (mobile), `ecc:python-reviewer`, `ecc:silent-failure-hunter`, then `ecc:code-reviewer` on the fixes
+No Critical findings; every finding below was checked against the code before fixing.
+- **Fixed, with regression checks** (`lib/session.check.ts`, `lib/urlPolicy.check.ts`, `tests/test_middleware.py`):
+  - Account deletion with an expired access token failed as "wrong password": every `/account` 401 skipped refresh. Now only the `Incorrect password.` answer is exempt; a session 401 refreshes, and a deleted account fails the refresh and signs out.
+  - A refresh finishing after a sign-out/account switch could write the old account's tokens into the new session; its result is now ignored.
+  - Onboarding answers were silently lost if the save after sign-up failed. The user now stays on the plan screen with an error; the retry saves through the signed-in path and clears the device buffer. (The first version of this fix sent the user back to the account form, which would re-register with a 409; the code review caught it.)
+  - One server-refused progress batch (400/413/422) blocked sync forever; it now leaves the queue (local ticks stay). 403/404 keep the queue.
+  - Abandoned onboarding answers are cleared on sign-out; in-flight queries are cancelled before the cache is cleared on an account change.
+  - Links from server data open only as `https:` (`lib/openExternal.ts`), no `tel:`/`sms:`/`intent:`/`http:`.
+  - Backend: unhandled exceptions now return a generic 500 *with* the request id and security headers, logged with the request id; unmatched paths are logged as `<unmatched>`, never verbatim; the progress write retries a concurrent-insert conflict up to 3 times.
+- **Accepted or external:** the custom-scheme reset link (HTTPS App Links need a hosted domain: external); 60-minute access tokens after reset (design); last-write-wins by arrival order across devices (beta); a blocking `db.close()` on the event loop (needs measurement under a slow DB); refresh-token loss on a dropped refresh response can force a re-login (rare; would need a server grace window).
+- **Weak spots in the new tests:** several mobile checks assert on source text (the project has no React Native runtime in `npm run check`); the progress-queue and middleware tests exercise real behaviour.
+- **Verification after the round:** `pytest -q` 283 passed; mobile `tsc` and `eslint` 0 errors and 0 warnings; `npm run check` all pass; `npm test` 8/8; `EXPO_PUBLIC_API_URL=https://landhere-api.onrender.com npx expo export --platform android --clear` + `scan-bundle.sh` → CLEAN.
 
 ## Residual risks
 - **Never run on a physical device.**
