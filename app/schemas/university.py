@@ -19,6 +19,7 @@ class UniversityDetail(BaseModel):
     """Full detail incl. score breakdown + underlying raw numbers."""
     id: uuid.UUID
     name: str
+    country_code: str
     state: str | None
     official_url: str | None
 

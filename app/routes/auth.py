@@ -46,8 +46,6 @@ _login_limit      = rate_limiter("auth_login",      limit=30,  window_seconds=60
 _refresh_limit    = rate_limiter("auth_refresh",    limit=60,  window_seconds=60)
 # Profile updates: onboarding sends one PATCH per question answered.
 _update_me_limit  = rate_limiter("auth_update_me",  limit=60,  window_seconds=60)
-# Account deletion is irreversible — be very conservative.
-_delete_limit     = rate_limiter("auth_delete",     limit=5,   window_seconds=60)
 
 
 def _token_pair(user_id, db: Session, *, family_id: uuid.UUID | None = None) -> TokenOut:
@@ -408,6 +406,9 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at <= now:
         raise _RESET_INVALID
+    # Hash (~0.2 s of bcrypt) before the claiming UPDATE, so the token row is
+    # not locked while it runs.
+    new_hash = hash_password(body.new_password)
     claimed = (
         db.query(PasswordResetToken)
         .filter(PasswordResetToken.id == record.id, PasswordResetToken.used_at.is_(None))
@@ -420,7 +421,7 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
     if user is None:
         db.rollback()
         raise _RESET_INVALID
-    user.hashed_password = hash_password(body.new_password)
+    user.hashed_password = new_hash
     db.query(RefreshToken).filter(
         RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None)
     ).update({"revoked_at": now}, synchronize_session=False)

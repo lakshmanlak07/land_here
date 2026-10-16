@@ -72,5 +72,11 @@ jobs:
         run: npm run check
       - name: Unit tests
         run: npm test --if-present
+      - name: Release bundle export and secret/origin scan
+        env:
+          EXPO_PUBLIC_API_URL: https://landhere-api.onrender.com
+        run: |
+          npx expo export --platform android --clear --output-dir dist-ci
+          bash scripts/scan-bundle.sh dist-ci https://landhere-api.onrender.com
       - name: Expo doctor
         run: npx expo-doctor

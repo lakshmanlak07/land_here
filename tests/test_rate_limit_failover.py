@@ -203,6 +203,21 @@ def test_expired_keys_are_swept(monkeypatch):
     assert len(rl._hits) == 1, f"expired keys were not swept ({len(rl._hits)} left)"
 
 
+def test_a_short_window_sweep_keeps_long_window_buckets(monkeypatch):
+    """A sweep triggered by a 60 s limiter must not erase a 900 s lockout bucket
+    (e.g. the per-email login limit) that is still inside its own window."""
+    monkeypatch.setattr(rl, "_redis_client", None)
+    for _ in range(2):
+        _hit("rl:test:email-lockout", limit=2, window=900)
+    with rl._lock:  # age the lockout hits by 120 s: stale for 60 s, live for 900 s
+        rl._hits["rl:test:email-lockout"][:] = [t - 120 for t in rl._hits["rl:test:email-lockout"]]
+    rl._last_sweep = 0.0
+    _hit("rl:test:other-ip", limit=5, window=60)  # triggers the sweep
+    with pytest.raises(HTTPException) as exc:
+        _hit("rl:test:email-lockout", limit=2, window=900)
+    assert exc.value.status_code == 429
+
+
 def test_the_key_map_is_hard_bounded_even_when_every_key_is_active(monkeypatch):
     """The sweep alone cannot shrink an all-active map.
 

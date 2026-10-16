@@ -121,3 +121,40 @@ def test_purchase_routes_are_off(client, method, path):
     _, headers, _ = _account(client)
     r = getattr(client, method)(path, headers=headers, **({"json": {}} if method == "post" else {}))
     assert r.status_code == 404
+
+
+@pytest.fixture()
+def tied_universities():
+    db = TestingSessionLocal()
+    ids = []
+    try:
+        for i in range(12):
+            u = University(name=f"Tie University {i:02d}", scorecard_id=f"tie-{i}", country_code="US",
+                           state="TX", landhere_score=50.0, has_full_score=True)
+            db.add(u)
+            db.flush()
+            ids.append(u.id)
+        db.commit()
+        yield ids
+    finally:
+        db.query(University).filter(University.id.in_(ids)).delete(synchronize_session=False)
+        db.commit()
+        db.close()
+
+
+def test_pages_over_tied_scores_return_each_row_once(client, tied_universities):
+    """Equal scores need a tiebreaker, or offset pages skip and repeat rows."""
+    _, headers, _ = _account(client)
+    seen = []
+    for offset in range(0, 12, 5):
+        r = client.get("/universities", params={"search": "Tie University", "limit": 5, "offset": offset},
+                       headers=headers)
+        seen += [row["id"] for row in r.json()]
+    assert sorted(seen) == sorted(str(i) for i in tied_universities)
+    assert seen == sorted(seen), "ties are ordered by id"
+
+
+@pytest.mark.parametrize("term", ["%", "_", "%%", "Free_Launch"])
+def test_search_wildcards_are_literal(client, universities, term):
+    _, headers, _ = _account(client)
+    assert client.get("/universities", params={"search": term}, headers=headers).json() == []

@@ -8,16 +8,12 @@
 # exists, we force a single worker in that case and say so loudly.
 set -e
 
-alembic upgrade head
-
-# Reference data (countries, the three journey corridors, the university
-# ranking dataset) is versioned in the repo and loaded with idempotent upserts,
-# so every deploy converges the database on the reviewed content. Never touches
-# user tables. Set LOAD_REFERENCE_DATA=false to skip.
-if [ "${LOAD_REFERENCE_DATA:-true}" = "true" ]; then
-  python -m app.core.seed
-  python -m app.core.universities_dataset load
-fi
+# Migrations, then reference data (countries, the three journey corridors, the
+# university ranking dataset: versioned in the repo, loaded with idempotent
+# upserts, never touching user tables; LOAD_REFERENCE_DATA=false skips it),
+# then a purge of expired auth tokens. All under a PostgreSQL advisory lock so
+# two instances booting together cannot race (app/core/boot.py).
+python -m app.core.boot
 
 WORKERS="${WEB_CONCURRENCY:-2}"
 

@@ -75,3 +75,30 @@ def test_register_rejects_oversized_name(client):
 
 def test_profile_update_requires_auth(client):
     assert client.patch("/auth/me", json={"confidence": 5}).status_code == 401
+
+
+# NUL bytes: PostgreSQL text cannot store them (psycopg2 raises) and bcrypt
+# refuses them, so either would surface as a 500. Reject at the schema: 422.
+NUL = "a\x00b"
+
+
+def test_register_rejects_nul_in_password_and_name(client):
+    for body in (
+        {"email": _email(), "password": "password" + NUL},
+        {"email": _email(), "password": "password123", "full_name": NUL},
+    ):
+        assert client.post("/auth/register", json=body).status_code == 422
+
+
+def test_login_and_reset_reject_nul(client):
+    assert client.post("/auth/login", json={"email": _email(), "password": NUL}).status_code == 422
+    r = client.post("/auth/password/reset", json={"token": "t" * 30, "new_password": "password" + NUL})
+    assert r.status_code == 422
+
+
+@pytest.mark.parametrize("field,value", [
+    ("full_name", NUL), ("primary_goal", NUL), ("first_month_priority", NUL), ("concerns", [NUL]),
+])
+def test_profile_rejects_nul(client, field, value):
+    _, headers, _ = _account(client)
+    assert _patch(client, headers, **{field: value}).status_code == 422

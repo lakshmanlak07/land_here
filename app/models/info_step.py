@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, Integer, Boolean, Text, ForeignKey, Index
+from sqlalchemy import String, Integer, Boolean, Text, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -21,6 +21,10 @@ class InfoStep(Base):
         Index("ix_info_steps_destination_code", "destination_code"),
         Index("ix_info_steps_origin_code", "origin_code"),
         Index("ix_info_steps_destination_phase_step", "destination_code", "phase", "step_number"),
+        UniqueConstraint(
+            "origin_code", "destination_code", "phase", "step_number",
+            name="uq_info_steps_corridor_phase_step",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

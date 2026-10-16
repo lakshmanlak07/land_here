@@ -57,9 +57,9 @@ def delete_account(
             detail="Incorrect password.",
         )
 
-    # Deleting the User row removes the only user-owned record; no child tables
-    # reference the user, so nothing is orphaned. After commit the user's JWT is
-    # dead (get_current_user can no longer resolve the id).
+    # Deleting the User row cascades to every child table listed in the module
+    # docstring, so nothing is orphaned. After commit the user's JWT is dead
+    # (get_current_user can no longer resolve the id).
     db.delete(current_user)
     db.commit()
     return None

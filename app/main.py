@@ -45,14 +45,18 @@ app = FastAPI(
 )
 
 
+from sqlalchemy.exc import OperationalError  # noqa: E402
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError  # noqa: E402
 
 
 @app.exception_handler(PoolTimeoutError)
-async def pool_timeout_handler(request: Request, exc: PoolTimeoutError):
-    """Database pool exhausted: the server is overloaded, not broken. Tell the
-    client to retry shortly instead of returning an opaque 500."""
-    logger.warning("DB pool exhausted on %s %s", request.method, request.url.path)
+@app.exception_handler(OperationalError)
+async def pool_timeout_handler(request: Request, exc: Exception):
+    """Database pool exhausted, or the connection dropped/refused (restart,
+    failover, deadlock): transient, not a bug. Tell the client to retry shortly
+    instead of returning an opaque 500. The driver message is not echoed."""
+    path = getattr(request.scope.get("route"), "path", "<unmatched>")
+    logger.warning("Database unavailable (%s) on %s %s", type(exc).__name__, request.method, path)
     return JSONResponse(
         status_code=503,
         content={"detail": "The service is busy. Please try again in a moment."},

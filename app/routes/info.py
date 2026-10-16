@@ -48,8 +48,8 @@ def list_corridors(response: Response, db: Session = Depends(get_db)):
 @router.get("/journey", response_model=JourneyOut, dependencies=[Depends(_journey_limit)])
 def get_journey(
     response: Response,
-    destination: str = Query(..., description="ISO country code, e.g. US"),
-    origin: str | None = Query(None, description="ISO country code, e.g. IN"),
+    destination: str = Query(..., max_length=10, description="ISO country code, e.g. US"),
+    origin: str | None = Query(None, max_length=10, description="ISO country code, e.g. IN"),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ):

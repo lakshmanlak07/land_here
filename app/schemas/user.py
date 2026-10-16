@@ -10,6 +10,18 @@ from pydantic import AfterValidator, BaseModel, EmailStr, Field
 _MAX_PASSWORD_LEN = 128
 
 
+def _no_nul(value: str) -> str:
+    # PostgreSQL text cannot hold NUL and bcrypt rejects it: without this a NUL
+    # byte reaches the DB driver or the hasher and surfaces as a 500.
+    if "\x00" in value:
+        raise ValueError("must not contain NUL characters")
+    return value
+
+
+# Every free-text string a client can send goes through this type.
+Text = Annotated[str, AfterValidator(_no_nul)]
+
+
 def _normalize_email(value: str) -> str:
     """Trim surrounding whitespace and lower-case the address so that, e.g.,
     'Foo@X.com ' and 'foo@x.com' resolve to the same account. Applied at the
@@ -34,8 +46,8 @@ CountryCode = Annotated[
 
 class UserRegister(BaseModel):
     email: NormalizedEmail
-    password: str = Field(min_length=8, max_length=_MAX_PASSWORD_LEN)
-    full_name: str | None = Field(None, max_length=200)
+    password: Text = Field(min_length=8, max_length=_MAX_PASSWORD_LEN)
+    full_name: Text | None = Field(None, max_length=200)
     origin_country_code: CountryCode | None = None
     destination_country_code: CountryCode | None = None
 
@@ -43,7 +55,7 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     email: NormalizedEmail
     # No minimum here (avoids rejecting any pre-existing account); cap only.
-    password: str = Field(max_length=_MAX_PASSWORD_LEN)
+    password: Text = Field(max_length=_MAX_PASSWORD_LEN)
 
 
 class UserOut(BaseModel):
@@ -79,7 +91,7 @@ class UserOnboarding(BaseModel):
     """Partial onboarding profile — every field optional so callers can PATCH
     one answer at a time. Only fields actually present in the request body are
     applied (see PATCH /auth/me); unset fields are left untouched."""
-    full_name: str | None = Field(None, max_length=200)
+    full_name: Text | None = Field(None, max_length=200)
 
     origin_country_code: CountryCode | None = None
     destination_country_code: CountryCode | None = None
@@ -87,14 +99,14 @@ class UserOnboarding(BaseModel):
     wants_to_work: bool | None = None
     wants_scholarships: bool | None = None
     # Bounded so one account cannot store arbitrarily large JSON.
-    concerns: list[Annotated[str, Field(min_length=1, max_length=40)]] | None = Field(
+    concerns: list[Annotated[Text, Field(min_length=1, max_length=40)]] | None = Field(
         None, max_length=12
     )
     # Column is String(30); reject longer values with a 422, not a DB error.
-    first_month_priority: str | None = Field(None, max_length=30)
+    first_month_priority: Text | None = Field(None, max_length=30)
     first_timer: bool | None = None
     confidence: int | None = Field(None, ge=1, le=10)
-    primary_goal: str | None = Field(None, max_length=30)
+    primary_goal: Text | None = Field(None, max_length=30)
     university_id: uuid.UUID | None = None
 
 
@@ -107,7 +119,8 @@ class TokenOut(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # A real token is ~300 chars; the cap stops an oversized body being decoded.
+    refresh_token: str = Field(max_length=2048)
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -115,12 +128,12 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str = Field(min_length=20, max_length=200)
-    new_password: str = Field(min_length=8, max_length=_MAX_PASSWORD_LEN)
+    token: Text = Field(min_length=20, max_length=200)
+    new_password: Text = Field(min_length=8, max_length=_MAX_PASSWORD_LEN)
 
 
 class AccountDeleteRequest(BaseModel):
     # Re-entering the password is the irreversible-action confirmation: deletion
     # must require proof of identity beyond merely possessing the token (e.g. an
     # unlocked, unattended device). Cap only — never reject an existing password.
-    password: str = Field(max_length=_MAX_PASSWORD_LEN)
+    password: Text = Field(max_length=_MAX_PASSWORD_LEN)

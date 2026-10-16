@@ -20,6 +20,15 @@ _list_limit = rate_limiter("universities_list", limit=120, window_seconds=60)
 FREE_RANKING_ROWS = 25
 # Responses now vary by entitlement, so they must never enter a shared cache.
 _CACHE = "private, no-store"
+# 85 of the 267 scored rows share a score with another row. Without the id
+# tiebreaker PostgreSQL may order ties differently per query, so offset pages
+# skip and repeat rows (and the free top 25 is not a fixed set).
+_RANK_ORDER = (University.landhere_score.desc().nulls_last(), University.id)
+
+
+def _escape_like(term: str) -> str:
+    """Make % and _ in user input literal in an ILIKE pattern."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 @router.get("", response_model=list[UniversityListItem], dependencies=[Depends(_list_limit)])
@@ -56,7 +65,7 @@ def list_universities(
         top_ids = (
             select(University.id)
             .where(University.has_full_score == True)
-            .order_by(University.landhere_score.desc())
+            .order_by(*_RANK_ORDER)
             .limit(FREE_RANKING_ROWS)
         )
         query = query.filter(University.id.in_(top_ids))
@@ -64,17 +73,17 @@ def list_universities(
             response.headers["X-Pro-Required"] = "1"
 
     if search:
-        query = query.filter(University.name.ilike(f"%{search}%"))
+        query = query.filter(University.name.ilike(f"%{_escape_like(search)}%", escape="\\"))
     if max_tuition is not None:
         query = query.filter(University.tuition_out_of_state <= max_tuition)
     if state:
-        query = query.filter(University.state.ilike(state))
+        query = query.filter(University.state.ilike(_escape_like(state), escape="\\"))
 
     if not is_pro and offset >= FREE_RANKING_ROWS:
         return []
 
     return (
-        query.order_by(University.landhere_score.desc())
+        query.order_by(*_RANK_ORDER)
         .offset(offset)
         .limit(limit)
         .all()

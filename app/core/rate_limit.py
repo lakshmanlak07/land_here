@@ -90,6 +90,7 @@ _lock = threading.Lock()
 _SWEEP_INTERVAL_SECONDS = 60.0
 _SWEEP_WHEN_KEYS_EXCEED = 10_000
 _last_sweep = 0.0
+_longest_window = 0
 
 # A hard ceiling, because the periodic sweep only removes keys whose window has
 # fully expired.  Under a flood from many distinct IPs every key is *active*, so
@@ -114,14 +115,19 @@ _DEGRADED_LOG_INTERVAL_SECONDS = 60.0
 
 
 def _maybe_sweep(now: float, window_seconds: int) -> None:
-    """Drop keys with no timestamps inside the active window. Caller holds _lock."""
-    global _last_sweep
+    """Drop keys with no timestamps inside the longest window. Caller holds _lock.
+
+    The cutoff uses the longest window any limiter has used, not the caller's:
+    a sweep triggered by a 60 s limiter must not erase a 900 s lockout bucket.
+    """
+    global _last_sweep, _longest_window
+    _longest_window = max(_longest_window, window_seconds)
     if (
         now - _last_sweep < _SWEEP_INTERVAL_SECONDS
         and len(_hits) < _SWEEP_WHEN_KEYS_EXCEED
     ):
         return
-    cutoff = now - window_seconds
+    cutoff = now - _longest_window
     stale = [k for k, ts in _hits.items() if not ts or ts[-1] <= cutoff]
     for k in stale:
         del _hits[k]
@@ -226,12 +232,13 @@ def _client_ip(request: Request) -> str:
 
 def reset_for_tests() -> None:
     """Clear all limiter state. Test-support only; never called by the app."""
-    global _degraded_until, _degraded_logged_at, _last_sweep
+    global _degraded_until, _degraded_logged_at, _last_sweep, _longest_window
     with _lock:
         _hits.clear()
     _degraded_until = 0.0
     _degraded_logged_at = 0.0
     _last_sweep = 0.0
+    _longest_window = 0
 
 
 def _in_degraded_window() -> bool:
