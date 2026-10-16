@@ -73,15 +73,13 @@ export default function UniversityDetailScreen() {
 
   const { data, isLoading, isError, refetch } = useQuery<UniversityDetail>({
     queryKey: ['university', id],
-    queryFn: async () => (await api.get(`/universities/${id}`)).data,
+    queryFn: async () => (await api.get(`/universities/${encodeURIComponent(id ?? '')}`)).data,
     enabled: !!id,
     retry: (failureCount, err) =>
       isAxiosError(err) && err.response?.status === 404 ? false : failureCount < 2,
   });
 
-  // Derive country from data; all current universities are US-sourced,
-  // but this makes it forward-compatible when non-US unis are added.
-  const uniCountry = (data as any)?.country_code ?? 'US';
+  const uniCountry = data?.country_code ?? 'US';
   const campusFallback = CAMPUS_QUERIES[uniCountry] ?? CAMPUS_QUERIES['US'];
   const heroQueries = data
     ? [data.name, `${data.name} campus`, ...campusFallback]
@@ -143,7 +141,8 @@ export default function UniversityDetailScreen() {
         </ScrollView>
       )}
 
-      {isError && (
+      {/* A failed background refetch keeps showing the cached detail. */}
+      {isError && !data && (
         <View style={s.centered}>
           <Ionicons name="alert-circle-outline" size={44} color={colors.danger} style={{ marginBottom: 12 }} />
           <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Unable to load this university</Text>

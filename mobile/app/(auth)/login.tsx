@@ -39,6 +39,7 @@ export default function LoginScreen() {
   }
 
   async function handleLogin() {
+    if (loading) return; // Enter on the keyboard bypasses the disabled button
     setError(null);
     if (!validate()) return;
     setLoading(true);

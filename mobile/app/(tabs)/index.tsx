@@ -104,7 +104,7 @@ export default function HomeScreen() {
     enabled: !!user?.destination_country_code,
   });
 
-  const { data: destinations, isLoading: destLoading, refetch: refetchDest } = useQuery<CountryOut[]>({
+  const { data: destinations, isLoading: destLoading, isError: destFailed, refetch: refetchDest } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'destinations'],
     queryFn: async () => (await api.get('/countries/destinations')).data,
   });
@@ -319,7 +319,7 @@ export default function HomeScreen() {
         </View>
 
         {/* ───────── Destinations shelf ───────── */}
-        {(destLoading || popular.length > 0) && (
+        {(destLoading || destFailed || popular.length > 0) && (
           <>
             <View style={s.shelfHead}>
               <Text style={[s.shelfTitle, { color: colors.textPrimary }]}>Explore destinations</Text>
@@ -327,7 +327,11 @@ export default function HomeScreen() {
                 <Text style={[s.seeAll, { color: colors.primary }]}>See all</Text>
               </Pressable>
             </View>
-            {destLoading ? (
+            {destFailed && popular.length === 0 ? (
+              <Pressable onPress={() => refetchDest()} accessibilityRole="button" style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.lg }}>
+                <Text style={{ color: colors.danger }}>Couldn't load destinations. Tap to retry.</Text>
+              </Pressable>
+            ) : destLoading ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.shelf}>
                 {Array.from({ length: 3 }).map((_, i) => (
                   <SkeletonBlock key={i} width={264} height={188} radius={radius.xl} />

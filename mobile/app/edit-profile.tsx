@@ -52,15 +52,15 @@ export default function EditProfileScreen() {
     return () => clearTimeout(t);
   }, [uniQuery]);
 
-  const { data: origins } = useQuery<CountryOut[]>({
+  const { data: origins, isError: originsFailed, refetch: refetchOrigins } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'origins'],
     queryFn: async () => (await api.get('/countries/origins')).data,
   });
-  const { data: destinations } = useQuery<CountryOut[]>({
+  const { data: destinations, isError: destinationsFailed, refetch: refetchDestinations } = useQuery<CountryOut[]>({
     queryKey: ['countries', 'destinations'],
     queryFn: async () => (await api.get('/countries/destinations')).data,
   });
-  const { data: unis, isFetching: searching } = useQuery<UniRow[]>({
+  const { data: unis, isFetching: searching, isError: searchFailed } = useQuery<UniRow[]>({
     queryKey: ['uni-search', debounced],
     queryFn: async () => (await api.get('/universities', { params: { search: debounced, limit: 8 } })).data,
     enabled: debounced.length >= 2,
@@ -148,6 +148,12 @@ export default function EditProfileScreen() {
             ))}
           </View>
 
+          {((originsFailed && !origins) || (destinationsFailed && !destinations)) && (
+            <Pressable onPress={() => { refetchOrigins(); refetchDestinations(); }} accessibilityRole="button" style={{ marginTop: 8 }}>
+              <Text style={{ color: colors.danger }}>Couldn't load the country list. Tap to retry.</Text>
+            </Pressable>
+          )}
+
           <Text style={[s.label, { color: colors.textSecondary }]}>Where you are now</Text>
           <View style={s.chips}>
             {STAGES.map((st) => (
@@ -183,6 +189,11 @@ export default function EditProfileScreen() {
                   {u.state ? <Text style={{ color: colors.textTertiary, fontSize: 12 }}>{u.state}</Text> : null}
                 </Pressable>
               ))}
+              {debounced.length >= 2 && !searching && searchFailed && (
+                <Text style={{ color: colors.danger, marginTop: 8 }}>
+                  Search failed. Check your connection and try again.
+                </Text>
+              )}
               {debounced.length >= 2 && !searching && unis?.length === 0 && (
                 <Text style={{ color: colors.textTertiary, marginTop: 8 }}>
                   No ranked university matches. Only schools with a full LandHere Score are listed.

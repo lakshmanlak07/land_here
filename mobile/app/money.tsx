@@ -70,7 +70,7 @@ export default function MoneyScreen() {
             <Text style={[s.introText, { color: colors.textSecondary }]}>
               Moving abroad means navigating a new currency. These tools help you{' '}
               <Text style={{ fontWeight: '700', color: colors.textPrimary }}>understand prices and plan a realistic budget</Text>
-              {' '}— convert between currencies with live reference rates, and see what everyday essentials cost in your destination.
+              {' '}— convert between currencies with live reference rates, and see your destination's currency and student work rules.
             </Text>
           </View>
 

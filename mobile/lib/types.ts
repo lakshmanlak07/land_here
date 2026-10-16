@@ -91,6 +91,8 @@ export interface UniversityListItem {
 
 /** Full detail for one university (GET /universities/{id}). */
 export interface UniversityDetail extends UniversityListItem {
+  /** Country the university is in, e.g. "US". */
+  country_code: string;
   /** Link to the university's official website. */
   official_url: string | null;
   /** Research sub-score (0–100). */

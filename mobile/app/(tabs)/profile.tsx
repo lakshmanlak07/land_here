@@ -65,7 +65,9 @@ export default function ProfileScreen() {
     try {
       await api.delete('/account', { data: { password } });
       // The account is gone: drop its on-device progress too, then sign out.
-      if (user?.id) await useProgressStore.getState().forget(user.id);
+      // A local storage failure must not report the deletion as failed and
+      // leave the user signed in to a dead account.
+      if (user?.id) await useProgressStore.getState().forget(user.id).catch(() => undefined);
       logout();
       setConfirmOpen(false);
       router.replace('/(auth)/login');

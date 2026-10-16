@@ -3,6 +3,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import api from '../../lib/api';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuthStore } from '../../lib/store';
@@ -34,8 +35,10 @@ export default function CountryDetailScreen() {
 
   const { data, isLoading, isError, refetch } = useQuery<CountryOut>({
     queryKey: ['country', code],
-    queryFn: async () => (await api.get(`/countries/${code}`)).data,
+    queryFn: async () => (await api.get(`/countries/${encodeURIComponent(code ?? '')}`)).data,
     enabled: !!code,
+    retry: (failureCount, err) =>
+      isAxiosError(err) && err.response?.status === 404 ? false : failureCount < 1,
   });
 
   const campusQueries = CAMPUS_QUERIES[code ?? ''] ?? [`${code ?? ''} city landscape university`];
@@ -64,7 +67,8 @@ export default function CountryDetailScreen() {
         </ScrollView>
       )}
 
-      {isError && (
+      {/* A failed background refetch keeps showing the cached country. */}
+      {isError && !data && (
         <View style={s.centered}>
           <Ionicons name="alert-circle-outline" size={48} color={colors.danger} style={{ marginBottom: 16 }} />
           <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Couldn't load country</Text>

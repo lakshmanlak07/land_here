@@ -72,7 +72,10 @@ const h = StyleSheet.create({
 
 export default function NecessitiesScreen() {
   const { code } = useLocalSearchParams<{ code?: string }>();
-  return code ? <NecessitiesDetail code={code} /> : <NecessitiesList />;
+  // A deep link with an unknown code shows the list, not a "coming soon" page
+  // titled with whatever string was in the link.
+  const known = !!code && NEC_COUNTRIES.some((c) => c.code === getNecessities(code).countryCode);
+  return known ? <NecessitiesDetail code={code} /> : <NecessitiesList />;
 }
 
 function NecessitiesList() {

@@ -25,7 +25,7 @@ export const queryClient = new QueryClient({
  * or anything else account-specific (progress has its own per-account store).
  * The cache is wiped on every identity change (resetServerCache).
  */
-const PERSISTED_ROOTS = new Set(['journey', 'countries', 'universities', 'university']);
+const PERSISTED_ROOTS = new Set(['journey', 'countries', 'country', 'universities', 'university']);
 
 export const queryPersister = createAsyncStoragePersister({
   storage: AsyncStorage,
